@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+
+# Local secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+configs/secrets/
+
+# Local data and generated artifacts
+local_data/
+local_backtests/
+data/raw/
+data/processed/
+data/features/
+reports/backtests/
+reports/paper/
+reports/live/
+logs/
+*.log
+*.sqlite
+*.sqlite3
+*.db
+
+# Large generated files
+*.csv
+*.parquet
+*.feather
+*.zip
+*.tar
+*.gz
+*.7z
+
+# Allow documentation CSV examples only if explicitly placed under docs/examples
+!docs/examples/*.csv
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Node / UI artifacts
+node_modules/
+dist/
+build/
