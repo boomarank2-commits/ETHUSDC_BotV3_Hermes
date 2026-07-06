@@ -1,0 +1,49 @@
+# ETHUSDC_BotV3_Hermes
+
+Dieses Repository ist der saubere Neustart fuer den ETHUSDC Trading-Bot.
+
+## Zweck
+
+Dieses Projekt wird nicht als schneller Prototyp gebaut, sondern als kontrollierte Hermes-/Codex-/GitHub-Entwicklungsfabrik.
+
+Rollen:
+
+- **Hermes** ist das Gehirn, der Orchestrator, die Kanban-Steuerung und die Schleifenlogik.
+- **Codex** ist der primaere Code-Ausfuehrer fuer groessere Implementierungen.
+- **GitHub** ist Sicherung, Versionierung, Issues, Pull Requests und historischer Nachweis.
+- **GitHub Copilot** darf als Zusatz fuer Coding/Review genutzt werden.
+- **ChatGPT/Nutzer** bleiben externe Entscheidungs- und Freigabeinstanz.
+- **Lokaler PC** ist die Wahrheit fuer grosse Daten, Backtests, Paper-Trading und spaetere Live-Tests.
+
+## Trading-Ziel
+
+- Symbol: `ETHUSDC`
+- Quote/Kapitalbasis: `USDC`
+- Handelsart: Binance Spot LONG-only
+- Startkapital: `100 USDC`
+- Kein Short
+- Kein Margin
+- Keine Futures
+- Kein Leverage
+- Zielkandidat: mindestens `+3 USDC/Tag` im realistischen 365-Tage-Blindtest nach Fees, Slippage und Binance-Regeln.
+
+## Wichtiger Sicherheitsgrundsatz
+
+Live-Trading bleibt technisch gesperrt, bis Backtest und Paper-Trading bestanden wurden und der Nutzer bewusst freigibt.
+
+## Startdokumente
+
+Die verbindlichen Startregeln stehen in:
+
+- `AGENTS.md`
+- `PROJECT_CONTRACT.md`
+- `docs/01_HERMES_OPERATING_MODEL.md`
+- `docs/02_AGENT_ROLES.md`
+- `docs/03_BACKTEST_ACCEPTANCE.md`
+- `docs/04_LIVE_SAFETY.md`
+
+## Aktueller Status
+
+Dieses Repository enthaelt zuerst nur den kontrollierten Projektvertrag und die Betriebsregeln.
+
+Bot-Code wird erst erstellt, wenn Hermes den Plan bestaetigt, Tickets erzeugt und die Umsetzung kontrolliert startet.
