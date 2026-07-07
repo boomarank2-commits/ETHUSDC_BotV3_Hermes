@@ -60,3 +60,12 @@ Thumbs.db
 node_modules/
 dist/
 build/
+
+# Keep empty report placeholder folders for Phase 1 tests
+!reports/
+!reports/summary/
+!reports/summary/.gitkeep
+!reports/backtests/
+!reports/backtests/.gitkeep
+!reports/paper/
+!reports/paper/.gitkeep

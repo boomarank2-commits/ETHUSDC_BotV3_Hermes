@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "template": true,
+  "project_phase": "phase_1_skeleton",
+  "current_ticket": null,
+  "completed_steps": [],
+  "blocked_steps": [],
+  "next_smallest_step": "Await user approval before creating mutable runtime truth or implementing code.",
+  "notes": "Template only. Handoff files are the human-readable continuation source during bootstrap."
+}

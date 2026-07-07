@@ -1,0 +1,32 @@
+# Default project configuration template for ETHUSDC_BotV3_Hermes.
+# This file contains no secrets and enables no live trading.
+
+[project]
+symbol = "ETHUSDC"
+quote_asset = "USDC"
+base_asset = "ETH"
+exchange = "binance"
+market_type = "spot"
+position_mode = "long_only"
+start_capital_usdc = 100
+risk_profile = "medium"
+
+[data_requirements]
+training_days = 730
+blindtest_days = 365
+required_ethusdc_utc_days = 1095
+context_symbols = ["BTCUSDC", "ETHBTC"]
+raw_data_location = "outside_repository"
+
+[safety]
+live_enabled = false
+paper_enabled = false
+testtrade_enabled = false
+shorts_enabled = false
+margin_enabled = false
+futures_enabled = false
+leverage_enabled = false
+
+[phase]
+current = "phase_1_skeleton"
+implementation_scope = "structure_templates_tests_only"

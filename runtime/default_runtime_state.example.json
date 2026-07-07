@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "template": true,
+  "phase": "phase_1_skeleton",
+  "symbol": "ETHUSDC",
+  "quote_asset": "USDC",
+  "market_type": "binance_spot_long_only",
+  "status": "not_running",
+  "live_status": "locked",
+  "paper_status": "locked",
+  "testtrade_status": "locked",
+  "active_candidate": null,
+  "last_report_id": null,
+  "notes": "Template only. Do not treat as current mutable runtime truth."
+}

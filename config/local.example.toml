@@ -1,0 +1,15 @@
+# Local override example for ETHUSDC_BotV3_Hermes.
+# Copy to local.toml only after explicit user approval.
+# Do not add API keys or secrets to repository files.
+
+[paths]
+# raw_market_data_dir must point outside this repository when data work begins.
+raw_market_data_dir = "C:/TradingBot/data/ETHUSDC_BotV3_Hermes"
+
+[safety]
+live_enabled = false
+paper_enabled = false
+testtrade_enabled = false
+
+[notes]
+secrets_policy = "No API keys, tokens, or real .env values in the repository."

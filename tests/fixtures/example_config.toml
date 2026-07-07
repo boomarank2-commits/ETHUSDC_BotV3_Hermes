@@ -1,0 +1,10 @@
+[project]
+symbol = "ETHUSDC"
+quote_asset = "USDC"
+market_type = "spot"
+position_mode = "long_only"
+
+[safety]
+live_enabled = false
+paper_enabled = false
+testtrade_enabled = false

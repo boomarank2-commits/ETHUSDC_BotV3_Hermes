@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "template": true,
+  "locks": {
+    "live_trading": {
+      "enabled": false,
+      "reason": "Live trading is locked until realistic backtest, candidate adoption, paper trading, user approval, local keys, and documented test trade are complete."
+    },
+    "paper_trading": {
+      "enabled": false,
+      "reason": "Paper trading is not part of Phase 1."
+    },
+    "testtrade": {
+      "enabled": false,
+      "reason": "Test trades are not part of Phase 1."
+    },
+    "shorts_margin_futures_leverage": {
+      "enabled": false,
+      "reason": "Project contract allows Binance Spot LONG-only ETHUSDC trading only."
+    }
+  }
+}
