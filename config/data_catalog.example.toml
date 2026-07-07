@@ -1,0 +1,203 @@
+# Data catalog template for ETHUSDC_BotV3_Hermes.
+# This file contains no raw market data, no secrets, no download state,
+# no fake report results, and no candidate adoption claim.
+
+schema_version = 1
+template = true
+
+[project]
+symbol = "ETHUSDC"
+quote_asset = "USDC"
+base_asset = "ETH"
+exchange = "binance"
+market_type = "spot"
+position_mode = "long_only"
+training_days = 730
+blindtest_days = 365
+required_ethusdc_utc_days = 1095
+context_symbols = ["BTCUSDC", "ETHBTC"]
+
+[raw_data_policy]
+raw_data_location = "outside_repository"
+repository_raw_data_allowed = false
+example_local_root = "C:/TradingBot/data/ETHUSDC_BotV3_Hermes"
+
+[[sources]]
+source_id = "ethusdc_1m_klines"
+symbol = "ETHUSDC"
+role = "primary_trading_symbol"
+data_type = "klines"
+interval_seconds = 60
+exchange = "binance"
+market_type = "spot"
+expected_quote_asset = "USDC"
+may_trigger_orders = true
+required_for_phase = "phase_2_data_pipeline"
+required_for_backtest_candidate = true
+local_path_hint = "C:/TradingBot/data/ETHUSDC_BotV3_Hermes/raw/binance/spot/ETHUSDC/klines/1m"
+file_format = "unknown"
+timezone = "UTC"
+quality_status = "unknown"
+notes = "Primary ETHUSDC kline source. Template only; not audited yet."
+
+[[sources]]
+source_id = "ethusdc_agg_trades"
+symbol = "ETHUSDC"
+role = "primary_trading_symbol"
+data_type = "agg_trades"
+interval_seconds = 0
+exchange = "binance"
+market_type = "spot"
+expected_quote_asset = "USDC"
+may_trigger_orders = false
+required_for_phase = "phase_2_data_pipeline"
+required_for_backtest_candidate = false
+local_path_hint = "C:/TradingBot/data/ETHUSDC_BotV3_Hermes/raw/binance/spot/ETHUSDC/agg_trades"
+file_format = "unknown"
+timezone = "UTC"
+quality_status = "unknown"
+notes = "Optional ETHUSDC trade-detail source. Template only; not audited yet."
+
+[[sources]]
+source_id = "ethusdc_trades"
+symbol = "ETHUSDC"
+role = "primary_trading_symbol"
+data_type = "trades"
+interval_seconds = 0
+exchange = "binance"
+market_type = "spot"
+expected_quote_asset = "USDC"
+may_trigger_orders = false
+required_for_phase = "phase_2_data_pipeline"
+required_for_backtest_candidate = false
+local_path_hint = "C:/TradingBot/data/ETHUSDC_BotV3_Hermes/raw/binance/spot/ETHUSDC/trades"
+file_format = "unknown"
+timezone = "UTC"
+quality_status = "unknown"
+notes = "Optional ETHUSDC trades source. Template only; not audited yet."
+
+[[sources]]
+source_id = "ethusdc_exchange_info"
+symbol = "ETHUSDC"
+role = "rules_or_costs"
+data_type = "exchange_info"
+interval_seconds = 0
+exchange = "binance"
+market_type = "spot"
+expected_quote_asset = "USDC"
+may_trigger_orders = false
+required_for_phase = "phase_2_data_pipeline"
+required_for_backtest_candidate = true
+local_path_hint = "C:/TradingBot/data/ETHUSDC_BotV3_Hermes/raw/binance/spot/ETHUSDC/exchange_info"
+file_format = "unknown"
+timezone = "UTC"
+quality_status = "unknown"
+notes = "Binance Spot symbol rules source. Template only; not audited yet."
+
+[[sources]]
+source_id = "ethusdc_fees"
+symbol = "ETHUSDC"
+role = "rules_or_costs"
+data_type = "fees"
+interval_seconds = 0
+exchange = "binance"
+market_type = "spot"
+expected_quote_asset = "USDC"
+may_trigger_orders = false
+required_for_phase = "phase_2_data_pipeline"
+required_for_backtest_candidate = true
+local_path_hint = "C:/TradingBot/data/ETHUSDC_BotV3_Hermes/raw/binance/spot/ETHUSDC/fees"
+file_format = "unknown"
+timezone = "UTC"
+quality_status = "unknown"
+notes = "Fee source placeholder. Template only; not audited yet."
+
+[[sources]]
+source_id = "ethusdc_slippage"
+symbol = "ETHUSDC"
+role = "rules_or_costs"
+data_type = "slippage"
+interval_seconds = 0
+exchange = "binance"
+market_type = "spot"
+expected_quote_asset = "USDC"
+may_trigger_orders = false
+required_for_phase = "phase_2_data_pipeline"
+required_for_backtest_candidate = true
+local_path_hint = "C:/TradingBot/data/ETHUSDC_BotV3_Hermes/raw/binance/spot/ETHUSDC/slippage"
+file_format = "unknown"
+timezone = "UTC"
+quality_status = "unknown"
+notes = "Slippage source placeholder. Template only; not audited yet."
+
+[[sources]]
+source_id = "ethusdc_book_ticker"
+symbol = "ETHUSDC"
+role = "rules_or_costs"
+data_type = "book_ticker"
+interval_seconds = 0
+exchange = "binance"
+market_type = "spot"
+expected_quote_asset = "USDC"
+may_trigger_orders = false
+required_for_phase = "phase_2_data_pipeline"
+required_for_backtest_candidate = false
+local_path_hint = "C:/TradingBot/data/ETHUSDC_BotV3_Hermes/raw/binance/spot/ETHUSDC/book_ticker"
+file_format = "unknown"
+timezone = "UTC"
+quality_status = "unknown"
+notes = "BookTicker source placeholder. Template only; not audited yet."
+
+[[sources]]
+source_id = "ethusdc_orderbook"
+symbol = "ETHUSDC"
+role = "rules_or_costs"
+data_type = "orderbook"
+interval_seconds = 0
+exchange = "binance"
+market_type = "spot"
+expected_quote_asset = "USDC"
+may_trigger_orders = false
+required_for_phase = "phase_2_data_pipeline"
+required_for_backtest_candidate = false
+local_path_hint = "C:/TradingBot/data/ETHUSDC_BotV3_Hermes/raw/binance/spot/ETHUSDC/orderbook"
+file_format = "unknown"
+timezone = "UTC"
+quality_status = "unknown"
+notes = "Orderbook source placeholder. Template only; not audited yet."
+
+[[sources]]
+source_id = "btcusdc_1m_klines"
+symbol = "BTCUSDC"
+role = "context_only"
+data_type = "klines"
+interval_seconds = 60
+exchange = "binance"
+market_type = "spot"
+expected_quote_asset = "USDC"
+may_trigger_orders = false
+required_for_phase = "phase_2_data_pipeline"
+required_for_backtest_candidate = false
+local_path_hint = "C:/TradingBot/data/ETHUSDC_BotV3_Hermes/raw/binance/spot/BTCUSDC/klines/1m"
+file_format = "unknown"
+timezone = "UTC"
+quality_status = "unknown"
+notes = "BTCUSDC context-only kline source. Must not trigger orders."
+
+[[sources]]
+source_id = "ethbtc_1m_klines"
+symbol = "ETHBTC"
+role = "context_only"
+data_type = "klines"
+interval_seconds = 60
+exchange = "binance"
+market_type = "spot"
+expected_quote_asset = "BTC"
+may_trigger_orders = false
+required_for_phase = "phase_2_data_pipeline"
+required_for_backtest_candidate = false
+local_path_hint = "C:/TradingBot/data/ETHUSDC_BotV3_Hermes/raw/binance/spot/ETHBTC/klines/1m"
+file_format = "unknown"
+timezone = "UTC"
+quality_status = "unknown"
+notes = "ETHBTC context-only kline source. Must not trigger orders."

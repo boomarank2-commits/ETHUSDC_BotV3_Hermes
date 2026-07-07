@@ -1,5 +1,5 @@
-"""Data pipeline package placeholder.
+"""Data pipeline metadata and audit helpers.
 
 Large raw market data must remain outside the repository.
-No downloader is implemented in Phase 1.
+No downloader, Binance client, trading engine, backtest, or UI is implemented here.
 """
