@@ -1,12 +1,12 @@
 # Last Known Good
 
 Last known safe state:
-- Phase 1 skeleton, strict schema validation, data catalog/audit foundation, and local data inventory scanner were already committed and pushed before this session.
-- Local data inventory status command without download has been implemented locally in this session.
+- Phase 1 skeleton, strict schema validation, data catalog/audit foundation, local data inventory scanner, and local inventory status command were already committed and pushed before this session.
+- Downloader input contract and local raw-data directory contract has been implemented locally in this session.
 - Full local test suite passed before handoff update with `pytest tests/ -q`.
-- Text and JSON inventory status command output was verified with `PYTHONPATH=src python -m ethusdc_bot.data_pipeline.inventory_status`.
-- Raw market data remains outside the repository by policy and template path.
-- No downloader, Binance client, engine, strategy, backtest, UI, paper trading, testtrade, live trading, fake trades, or fake reports exist.
+- Raw market data remains outside the repository by contract and template path.
+- No raw data directories were created.
+- No downloader, Binance client, API keys, engine, strategy, backtest, UI, paper trading, testtrade, live trading, fake trades, or fake reports exist.
 
 Safe continuation rule:
 - Read AGENTS.md, PROJECT_CONTRACT.md, this handoff directory, and git status before continuing.

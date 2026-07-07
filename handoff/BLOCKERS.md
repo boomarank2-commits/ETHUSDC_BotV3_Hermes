@@ -3,8 +3,9 @@
 Current blockers:
 - User approval required before any next implementation step.
 - No real market data has been downloaded or audited from disk.
+- Raw-data contract defines target paths only; it does not create folders or files.
+- No manifest schema/template has been implemented yet for future raw-data directories.
 - Inventory status command shows path presence only; it does not validate kline completeness from real files.
-- The source-tree module command is verified with `PYTHONPATH=src`; no packaging/install workflow was changed in this ticket.
 - Live trading remains locked by project contract.
 - Paper trading remains locked.
 - Testtrade remains locked.
@@ -16,3 +17,4 @@ Not blockers:
 - Pure in-memory kline audit rules exist for artificial or already-loaded records.
 - Pure local inventory helpers can derive expected paths and mark them missing/present/blocked without a downloader.
 - Inventory status command can display honest local path status in text or JSON.
+- Raw-data target path contract now defines where future data and manifests may live outside the repository.

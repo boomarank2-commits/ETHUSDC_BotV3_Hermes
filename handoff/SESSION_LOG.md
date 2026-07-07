@@ -1,36 +1,32 @@
 # Session Log
 
-## 2026-07-07 - Local data inventory status command without download
+## 2026-07-07 - Downloader input contract and local raw-data directory contract
 
-Timebox: max 90 minutes.
+Timebox: max 60 minutes.
 
 Actions:
 - Verified clean git status before starting.
-- Read existing inventory, catalog, data pipeline package, and handoff context.
+- Read existing catalog, inventory, inventory status, and handoff context.
 - Followed strict TDD.
 - Wrote failing tests first for:
-  - loading `config/data_catalog.example.toml`,
-  - default local root,
-  - text output containing ETHUSDC/BTCUSDC/ETHBTC,
-  - text output containing missing/present/blocked status words,
-  - JSON output without profit/backtest/trade/candidate fields,
-  - repository-local root blocked,
-  - outside-repository missing paths,
-  - temporary existing paths marked present,
-  - no download/no Binance/no market data read/no backtest safety text,
-  - context-only sources keeping `may_trigger_orders = false`,
-  - ETHUSDC as only primary trading symbol,
+  - raw root inside repository rejected,
+  - expected raw root outside repository accepted,
+  - ETHUSDC 1m klines target path,
+  - BTCUSDC/ETHBTC context-only preservation,
+  - all catalog sources receiving expected paths,
+  - no expected paths inside repository,
+  - no profit/backtest/trade/candidate fields,
+  - locked live/paper/testtrade execution modes,
   - absence of forbidden downloader/engine/backtest/UI/data paths.
-- Implemented `src/ethusdc_bot/data_pipeline/inventory_status.py` with text/JSON local inventory status command logic.
-- Updated `src/ethusdc_bot/data_pipeline/__init__.py` package note.
+- Implemented `src/ethusdc_bot/data_pipeline/raw_data_contract.py` with path-only contract functions.
+- Added `docs/15_RAW_DATA_CONTRACT.md` documenting the allowed raw root, path shape, future manifest intent, and explicit non-goals.
 - Ran targeted tests successfully.
-- Ran module command successfully with `PYTHONPATH=src` for text and JSON output.
 - Ran full local tests successfully before handoff update.
 
 Files changed/created:
-- `src/ethusdc_bot/data_pipeline/inventory_status.py`
-- `src/ethusdc_bot/data_pipeline/__init__.py`
-- `tests/unit/test_data_inventory_status_command.py`
+- `src/ethusdc_bot/data_pipeline/raw_data_contract.py`
+- `tests/unit/test_raw_data_contract.py`
+- `docs/15_RAW_DATA_CONTRACT.md`
 - `handoff/CURRENT_STATUS.md`
 - `handoff/SESSION_LOG.md`
 - `handoff/NEXT_ACTION.md`
@@ -38,15 +34,15 @@ Files changed/created:
 - `handoff/LAST_KNOWN_GOOD.md`
 
 Tests executed:
-- `pytest tests/unit/test_data_inventory_status_command.py -q`
-- `PYTHONPATH=src python -m ethusdc_bot.data_pipeline.inventory_status`
-- `PYTHONPATH=src python -m ethusdc_bot.data_pipeline.inventory_status --json`
+- `pytest tests/unit/test_raw_data_contract.py -q`
 - `pytest tests/ -q`
 
 Not done:
 - No downloader.
 - No Binance API or client.
+- No API keys or `.env`.
 - No real market data.
+- No raw data directories created.
 - No market data file reads.
 - No trading engine.
 - No strategy.
