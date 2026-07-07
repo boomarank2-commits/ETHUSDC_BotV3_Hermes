@@ -1,43 +1,44 @@
 # Session Log
 
-## 2026-07-07 - Raw data manifest template and validation without download
+## 2026-07-07 - Public ETHUSDC 1m kline downloader
 
-Timebox: max 60 minutes.
+Timebox: max 120 minutes.
 
 Actions:
 - Verified clean git status before starting.
-- Read existing raw-data contract, validation helpers, raw-data contract docs, and handoff context.
+- Read raw-data contract, manifest schema, inventory status, manifest template, and handoff context.
 - Followed strict TDD.
 - Wrote failing tests first for:
-  - valid example manifest,
-  - wrong symbol,
-  - wrong market,
-  - wrong role,
-  - context-only may_trigger_orders true,
-  - quality_status usable in template,
-  - download_status complete/success/usable in template,
-  - audit_status audited/complete in template,
-  - profit/backtest/trade/candidate fields,
-  - API-key/secret/token fields,
-  - live/paper/testtrade enable fields,
-  - unknown fields,
-  - missing required fields,
-  - wrong types,
-  - non-empty files,
-  - observed_rows not zero,
-  - observed_start_utc/observed_end_utc not null,
-  - absence of forbidden downloader/engine/backtest/UI/data paths.
-- Implemented `config/raw_data_manifest.example.json` as a template only.
-- Implemented `src/ethusdc_bot/data_pipeline/manifest_schema.py` with strict schema validation only.
-- Added `docs/16_RAW_DATA_MANIFEST.md` documenting manifest purpose, conservative template state, safety rules, and non-goals.
+  - monthly URL construction,
+  - daily URL construction,
+  - CHECKSUM URL construction,
+  - ETHUSDC-only validation,
+  - 1m-only validation,
+  - wrong symbol rejection,
+  - wrong interval rejection,
+  - repository target rejection,
+  - outside-repository target acceptance,
+  - dry-run no download/no file creation,
+  - `--execute` required for network calls,
+  - existing files skipped,
+  - manifest without profit/backtest/trade/candidate fields,
+  - manifest staying `not_audited`,
+  - `--last-days 1095` planning only ETHUSDC 1m Spot sources,
+  - fake execute writing manifest in a temporary outside-repo root,
+  - absence of forbidden binance_client/engine/backtest/UI/data paths.
+- Implemented `src/ethusdc_bot/data_pipeline/public_kline_downloader.py` with Python standard library only.
+- Added `docs/17_PUBLIC_KLINE_DOWNLOADER.md`.
+- Updated `src/ethusdc_bot/data_pipeline/__init__.py` package note.
 - Ran targeted tests successfully.
 - Ran full local tests successfully before handoff update.
+- Ran dry-run CLI for a small fixed date range successfully.
+- Ran dry-run CLI for `--last-days 1095` successfully.
 
 Files changed/created:
-- `config/raw_data_manifest.example.json`
-- `src/ethusdc_bot/data_pipeline/manifest_schema.py`
-- `tests/unit/test_raw_data_manifest_schema.py`
-- `docs/16_RAW_DATA_MANIFEST.md`
+- `src/ethusdc_bot/data_pipeline/public_kline_downloader.py`
+- `tests/unit/test_public_kline_downloader.py`
+- `docs/17_PUBLIC_KLINE_DOWNLOADER.md`
+- `src/ethusdc_bot/data_pipeline/__init__.py`
 - `handoff/CURRENT_STATUS.md`
 - `handoff/SESSION_LOG.md`
 - `handoff/NEXT_ACTION.md`
@@ -45,16 +46,15 @@ Files changed/created:
 - `handoff/LAST_KNOWN_GOOD.md`
 
 Tests executed:
-- `pytest tests/unit/test_raw_data_manifest_schema.py -q`
+- `pytest tests/unit/test_public_kline_downloader.py -q`
 - `pytest tests/ -q`
+- `PYTHONPATH=src python -m ethusdc_bot.data_pipeline.public_kline_downloader --symbol ETHUSDC --interval 1m --start 2024-01-01 --end 2024-01-03`
+- `PYTHONPATH=src python -m ethusdc_bot.data_pipeline.public_kline_downloader --last-days 1095`
 
 Not done:
-- No downloader.
-- No Binance API or client.
+- No Binance trading API or client.
 - No API keys or `.env`.
-- No real market data.
-- No raw data directories created.
-- No market data file reads.
+- No orders.
 - No trading engine.
 - No strategy.
 - No backtest code.

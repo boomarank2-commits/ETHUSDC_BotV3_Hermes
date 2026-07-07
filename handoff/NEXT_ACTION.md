@@ -3,19 +3,22 @@
 Wait for user review and explicit approval.
 
 Smallest possible next step toward first safe test start:
-- Add a dry-run raw data directory readiness command that combines catalog, raw-data contract, manifest template validation, and inventory status without creating directories or downloading data.
+- Run or supervise a controlled public-data download for a limited date range outside the repository, then inspect inventory status.
 
 Recommended next mini-ticket after approval:
-- "Raw data readiness dry-run command without download"
+- "Controlled ETHUSDC public data download smoke and inventory check"
 
 Acceptance direction for that next ticket:
-- Must not download data.
-- Must not call Binance.
-- Must not read market data contents.
-- Must not create raw data directories unless explicitly approved.
-- Must not run a backtest, strategy, engine, or UI.
-- Must not create fake reports.
-- Must keep raw market data outside the repository.
-- Must keep Live/Paper/Testtrade locked.
+- Use only public Binance data URLs.
+- Use no API keys and no private/trading Binance API.
+- Store data only under `C:/TradingBot/data/ETHUSDC_BotV3_Hermes`.
+- Do not commit raw data.
+- Do not read market data contents except for a later explicitly approved audit ticket.
+- Do not run a backtest, strategy, engine, or UI.
+- Do not create fake reports.
+- Keep Live/Paper/Testtrade locked.
 
-Do not start engine, strategy, backtest, UI, Binance, paper trading, testtrade, or live work without explicit user approval.
+Example full 1095-day command, after explicit approval:
+- `PYTHONPATH=src python -m ethusdc_bot.data_pipeline.public_kline_downloader --last-days 1095 --execute`
+
+Do not start engine, strategy, backtest, UI, Binance trading API, paper trading, testtrade, or live work without explicit user approval.
