@@ -1,8 +1,8 @@
 # Last Known Good
 
 Last known safe state:
-- Phase 1 skeleton, strict schema validation, data catalog/audit foundation, local data inventory scanner, and local inventory status command were already committed and pushed before this session.
-- Downloader input contract and local raw-data directory contract has been implemented locally in this session.
+- Phase 1 skeleton, strict schema validation, data catalog/audit foundation, local data inventory scanner, local inventory status command, and raw-data directory contract were already committed and pushed before this session.
+- Raw data manifest template and validation without download has been implemented locally in this session.
 - Full local test suite passed before handoff update with `pytest tests/ -q`.
 - Raw market data remains outside the repository by contract and template path.
 - No raw data directories were created.

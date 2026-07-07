@@ -1,32 +1,43 @@
 # Session Log
 
-## 2026-07-07 - Downloader input contract and local raw-data directory contract
+## 2026-07-07 - Raw data manifest template and validation without download
 
 Timebox: max 60 minutes.
 
 Actions:
 - Verified clean git status before starting.
-- Read existing catalog, inventory, inventory status, and handoff context.
+- Read existing raw-data contract, validation helpers, raw-data contract docs, and handoff context.
 - Followed strict TDD.
 - Wrote failing tests first for:
-  - raw root inside repository rejected,
-  - expected raw root outside repository accepted,
-  - ETHUSDC 1m klines target path,
-  - BTCUSDC/ETHBTC context-only preservation,
-  - all catalog sources receiving expected paths,
-  - no expected paths inside repository,
-  - no profit/backtest/trade/candidate fields,
-  - locked live/paper/testtrade execution modes,
+  - valid example manifest,
+  - wrong symbol,
+  - wrong market,
+  - wrong role,
+  - context-only may_trigger_orders true,
+  - quality_status usable in template,
+  - download_status complete/success/usable in template,
+  - audit_status audited/complete in template,
+  - profit/backtest/trade/candidate fields,
+  - API-key/secret/token fields,
+  - live/paper/testtrade enable fields,
+  - unknown fields,
+  - missing required fields,
+  - wrong types,
+  - non-empty files,
+  - observed_rows not zero,
+  - observed_start_utc/observed_end_utc not null,
   - absence of forbidden downloader/engine/backtest/UI/data paths.
-- Implemented `src/ethusdc_bot/data_pipeline/raw_data_contract.py` with path-only contract functions.
-- Added `docs/15_RAW_DATA_CONTRACT.md` documenting the allowed raw root, path shape, future manifest intent, and explicit non-goals.
+- Implemented `config/raw_data_manifest.example.json` as a template only.
+- Implemented `src/ethusdc_bot/data_pipeline/manifest_schema.py` with strict schema validation only.
+- Added `docs/16_RAW_DATA_MANIFEST.md` documenting manifest purpose, conservative template state, safety rules, and non-goals.
 - Ran targeted tests successfully.
 - Ran full local tests successfully before handoff update.
 
 Files changed/created:
-- `src/ethusdc_bot/data_pipeline/raw_data_contract.py`
-- `tests/unit/test_raw_data_contract.py`
-- `docs/15_RAW_DATA_CONTRACT.md`
+- `config/raw_data_manifest.example.json`
+- `src/ethusdc_bot/data_pipeline/manifest_schema.py`
+- `tests/unit/test_raw_data_manifest_schema.py`
+- `docs/16_RAW_DATA_MANIFEST.md`
 - `handoff/CURRENT_STATUS.md`
 - `handoff/SESSION_LOG.md`
 - `handoff/NEXT_ACTION.md`
@@ -34,7 +45,7 @@ Files changed/created:
 - `handoff/LAST_KNOWN_GOOD.md`
 
 Tests executed:
-- `pytest tests/unit/test_raw_data_contract.py -q`
+- `pytest tests/unit/test_raw_data_manifest_schema.py -q`
 - `pytest tests/ -q`
 
 Not done:

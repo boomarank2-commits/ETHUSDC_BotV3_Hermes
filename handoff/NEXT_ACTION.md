@@ -3,13 +3,13 @@
 Wait for user review and explicit approval.
 
 Smallest possible next step toward first safe test start:
-- Add a no-download downloader manifest schema/template for the future raw-data target directories.
+- Add a dry-run raw data directory readiness command that combines catalog, raw-data contract, manifest template validation, and inventory status without creating directories or downloading data.
 
 Recommended next mini-ticket after approval:
-- "Raw data manifest template and validation without download"
+- "Raw data readiness dry-run command without download"
 
 Acceptance direction for that next ticket:
-- Must still not download data.
+- Must not download data.
 - Must not call Binance.
 - Must not read market data contents.
 - Must not create raw data directories unless explicitly approved.

@@ -1,18 +1,14 @@
 # Current Status
 
-Status: Downloader input contract and local raw-data directory contract implemented and verified locally.
+Status: Raw data manifest template and validation without download implemented and verified locally.
 
 Completed in this session:
-- Added a raw-data directory contract module for future downloader target paths.
-- Defined the only planned raw-data root: `C:/TradingBot/data/ETHUSDC_BotV3_Hermes`.
-- Added repository guard rejecting raw roots inside the repository.
-- Added functions to compute expected per-source raw target paths from the catalog.
-- Added validation that expected target paths stay outside the repository.
-- Added context-only safety checks for BTCUSDC and ETHBTC.
-- Added ETHUSDC-only primary trading symbol check.
-- Added locked live/paper/testtrade status in the contract output.
-- Added docs describing allowed raw root, path shape, expected future manifest intent, and explicit non-goals.
-- Added unit tests for raw root validation, ETHUSDC 1m kline path, context-only sources, all catalog sources, no repository paths, no forbidden result fields, locked execution modes, and forbidden file paths.
+- Added a raw-data manifest example template at `config/raw_data_manifest.example.json`.
+- Added strict manifest validator `validate_raw_data_manifest`.
+- Validator rejects unknown fields, missing fields, wrong types, wrong symbols, wrong roles, wrong market, forbidden success/audit/usable states, forbidden profit/backtest/trade/candidate fields, secret/API-token fields, and live/paper/testtrade enable fields.
+- Validator keeps template state conservative: no files, no observed date range, no rows, no gaps, no checksum, not downloaded, not audited, unknown quality.
+- Added docs describing manifest purpose, required template state, safety rules, and explicit non-goals.
+- Added unit tests for all required manifest safety rules.
 
 Explicitly not completed:
 - No downloader.
@@ -34,9 +30,9 @@ Explicitly not completed:
 
 Validation performed:
 - Initial git status was clean.
-- New TDD tests failed first because `raw_data_contract` module did not exist.
-- Targeted raw-data contract tests passed.
+- New TDD tests failed first because `manifest_schema` module did not exist.
+- Targeted raw-data manifest schema tests passed.
 - Full local test suite passed before handoff update with `pytest tests/ -q`.
 
 Current safe project direction:
-- The project now has a strict local target path contract for future raw data without creating directories, downloading data, reading market data, calling Binance, or running a backtest.
+- The project now has path contracts plus a strict manifest template/schema for future raw-data directories without creating directories, downloading data, reading market data, calling Binance, or running a backtest.
