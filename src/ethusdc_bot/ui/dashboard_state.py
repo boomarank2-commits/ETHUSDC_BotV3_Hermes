@@ -11,11 +11,12 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from ethusdc_bot.data_pipeline.data_readiness import build_backtest_start_data_gate
 from ethusdc_bot.data_pipeline.kline_zip_audit import build_kline_audit_summary
 from ethusdc_bot.data_pipeline.inventory_status import build_inventory_status
 from ethusdc_bot.data_pipeline.public_kline_downloader import DEFAULT_RAW_ROOT
 
-BACKTEST_DISABLED_HINT = "Backtest engine not implemented yet. Data audit is the next gate."
+BACKTEST_DISABLED_HINT = "Backtest waits for data readiness and real engine implementation. No fake result."
 EXPECTED_UTC_DAYS = 1095
 
 
@@ -149,6 +150,7 @@ def build_dashboard_snapshot(
         "inventory_status": collect_inventory_status(repository_root, local_root),
         "download_folder_status": collect_download_folder_status(local_root),
         "kline_audit_status": collect_kline_audit_status(local_root),
+        "data_readiness_report": build_backtest_start_data_gate(local_root),
         "ui_status": {
             "backtest_button": {
                 "visible": True,
@@ -169,6 +171,8 @@ def format_snapshot_for_display(snapshot: Mapping[str, Any]) -> str:
     counts = inventory["counts"]
     download = snapshot["download_folder_status"]
     audit = snapshot["kline_audit_status"]
+    readiness = snapshot["data_readiness_report"]
+    window = readiness["backtest_window"]
     backtest = snapshot["ui_status"]["backtest_button"]
     lines = [
         "ETHUSDC Bot V3 Hermes - Local Control Dashboard",
@@ -233,6 +237,19 @@ def format_snapshot_for_display(snapshot: Mapping[str, Any]) -> str:
         f"- backtest_ready: {audit['backtest_ready']}",
         f"- Note: {audit['safety_note']}",
         "",
+        "Backtest Data Readiness:",
+        f"- Overall status: {readiness['overall_status']}",
+        f"- data_gate_ready: {readiness['data_gate_ready']}",
+        f"- data_start: {window['data_start']}",
+        f"- data_end: {window['data_end']}",
+        f"- training_start: {window['training_start']}",
+        f"- training_end: {window['training_end']}",
+        f"- blind_start: {window['blind_start']}",
+        f"- blind_end: {window['blind_end']}",
+        "- Sources:",
+        *_format_readiness_sources(readiness["requirements"]),
+        f"- Hint: {readiness['backtest_button_reason']}",
+        "",
         "Backtest:",
         f"- Button visible: {backtest['visible']}",
         f"- Button enabled: {backtest['enabled']}",
@@ -279,3 +296,20 @@ def _format_last_files(files: Sequence[str]) -> list[str]:
     if not files:
         return ["  - none"]
     return [f"  - {name}" for name in files]
+
+
+def _format_readiness_sources(requirements: Sequence[Mapping[str, Any]]) -> list[str]:
+    lines = []
+    for requirement in requirements:
+        lines.append(
+            "  - "
+            f"{requirement['requirement_id']}: status={requirement['status']}, "
+            f"available_days={requirement['available_days']}, "
+            f"required_days={requirement['required_days']}, "
+            f"minimum_days={requirement['minimum_days']}, "
+            f"included_in_backtest={requirement['included_in_backtest']}, "
+            f"update_required={requirement['update_required']}, "
+            f"blocking_backtest={requirement['blocking_backtest']}, "
+            f"reason={requirement['reason']}"
+        )
+    return lines or ["  - none"]

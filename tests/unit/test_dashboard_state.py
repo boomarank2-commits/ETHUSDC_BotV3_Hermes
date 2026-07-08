@@ -75,6 +75,7 @@ def test_build_snapshot_has_no_profit_backtest_trade_or_candidate_fields(tmp_pat
     assert FORBIDDEN_SNAPSHOT_FIELDS.isdisjoint(snapshot["project_status"])
     assert FORBIDDEN_SNAPSHOT_FIELDS.isdisjoint(snapshot["download_folder_status"])
     assert FORBIDDEN_SNAPSHOT_FIELDS.isdisjoint(snapshot["kline_audit_status"])
+    assert FORBIDDEN_SNAPSHOT_FIELDS.isdisjoint(snapshot["data_readiness_report"])
     assert "backtest_button" in snapshot["ui_status"]
     assert snapshot["ui_status"]["backtest_button"]["enabled"] is False
 
@@ -101,13 +102,31 @@ def test_build_snapshot_contains_kline_audit_fields(tmp_path, monkeypatch):
     assert audit_status["backtest_ready"] is False
 
 
+def test_build_snapshot_contains_data_readiness_report(tmp_path):
+    snapshot = dashboard_state.build_dashboard_snapshot(Path.cwd(), tmp_path)
+    report = snapshot["data_readiness_report"]
+
+    assert report["overall_status"] in {"blocked", "ready"}
+    assert "backtest_window" in report
+    assert "requirements_by_id" in report
+    assert "ethusdc_klines_1m" in report["requirements_by_id"]
+    assert "btcusdc_klines_1m" in report["requirements_by_id"]
+    assert "ethbtc_klines_1m" in report["requirements_by_id"]
+    assert "ethusdc_aggtrades" in report["requirements_by_id"]
+    assert "ethusdc_trades" in report["requirements_by_id"]
+    assert "ethusdc_bookticker_live" in report["requirements_by_id"]
+    assert report["backtest_button_enabled"] is False
+    assert report["backtest_engine_implemented"] is False
+
+
 def test_format_snapshot_for_display_contains_status_without_backtest_claims(tmp_path):
     snapshot = dashboard_state.build_dashboard_snapshot(Path.cwd(), tmp_path)
     text = dashboard_state.format_snapshot_for_display(snapshot)
 
     assert "ETHUSDC" in text
     assert "Live: locked" in text
-    assert "Backtest engine not implemented yet" in text
+    assert "Backtest Data Readiness:" in text
+    assert "Backtest waits for data readiness and real engine implementation. No fake result." in text
     assert "Data Audit Status:" in text
     assert "Audit status: not_audited" in text
     assert "not_audited" in text

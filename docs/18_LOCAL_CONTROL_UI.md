@@ -56,6 +56,14 @@ Windows helper:
   - gap count
   - max gap seconds
   - backtest-ready boolean
+- Show the Backtest Data Readiness gate:
+  - rolling data/training/blindtest window
+  - per-source readiness status
+  - available days and required/minimum days
+  - included_in_backtest
+  - update_required
+  - blocking_backtest
+  - reason
 - Refresh the snapshot.
 - Open the local data root in Explorer when it already exists.
 - Start the public downloader in dry-run mode for the last 1095 days.
@@ -88,7 +96,7 @@ trade, backtest, or candidate result.
 The button is visible so the planned workflow is obvious, but it is disabled with
 this hint:
 
-`Backtest engine not implemented yet. Data audit is the next gate.`
+`Backtest waits for data readiness and real engine implementation. No fake result.`
 
 A real backtest must wait until a separate backtest engine exists and the data
 audit is complete. The UI must not fake backtest output or unlock later trading

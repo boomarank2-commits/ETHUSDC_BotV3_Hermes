@@ -25,7 +25,7 @@ def test_dashboard_module_is_importable():
     module = importlib.import_module("ethusdc_bot.ui.dashboard")
 
     assert module.BACKTEST_DISABLED_HINT == (
-        "Backtest engine not implemented yet. Data audit is the next gate."
+        "Backtest waits for data readiness and real engine implementation. No fake result."
     )
 
 
@@ -35,7 +35,7 @@ def test_backtest_button_model_is_disabled():
     assert snapshot["ui_status"]["backtest_button"] == {
         "visible": True,
         "enabled": False,
-        "hint": "Backtest engine not implemented yet. Data audit is the next gate.",
+        "hint": "Backtest waits for data readiness and real engine implementation. No fake result.",
     }
 
 

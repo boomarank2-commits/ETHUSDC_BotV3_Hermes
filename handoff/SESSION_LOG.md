@@ -1,33 +1,37 @@
 # Session Log
 
-## 2026-07-08 - ETHUSDC 1m kline ZIP audit gate
+## 2026-07-08 - Backtest data readiness gate
 
-Timebox: max 60 minutes.
+Timebox: max 120 minutes.
 
 Actions:
 - Verified clean git status before starting.
-- Loaded TDD, CLI feature development, and safety-critical repository development guidance.
-- Read existing dashboard, downloader, dashboard tests, docs, and handoff context.
+- Loaded TDD and safety-critical repository development guidance.
+- Read current audit, UI dashboard-state, dashboard tests, inventory status, and handoff context.
 - Followed TDD:
-  - Added `tests/unit/test_kline_zip_audit.py` first.
-  - Verified RED: audit tests failed because `ethusdc_bot.data_pipeline.kline_zip_audit` did not exist.
-  - Implemented the minimal audit module.
-  - Added UI audit-field tests and verified RED against the old dashboard snapshot/hint.
-  - Implemented the dashboard-state integration.
-  - Real local data audit exposed microsecond `open_time` values in 2025+ ZIPs; added a failing test and normalized microseconds to milliseconds.
-- Added `docs/19_KLINE_ZIP_AUDIT.md`.
-- Updated `docs/18_LOCAL_CONTROL_UI.md`.
+  - Added `tests/unit/test_data_requirements.py` first.
+  - Added `tests/unit/test_data_readiness.py` first.
+  - Added UI snapshot expectations for `data_readiness_report` first.
+  - Verified RED: tests failed because `data_requirements.py` and `data_readiness.py` did not exist and UI did not expose readiness.
+- Implemented `src/ethusdc_bot/data_pipeline/data_requirements.py`.
+- Implemented `src/ethusdc_bot/data_pipeline/data_readiness.py`.
+- Integrated `data_readiness_report` into `src/ethusdc_bot/ui/dashboard_state.py`.
+- Updated disabled Backtest hint to `Backtest waits for data readiness and real engine implementation. No fake result.`
+- Added documentation for the data matrix and readiness gate.
 - Updated all handoff files.
 - No production data, reports, API key files, engine, strategy, exchange, backtest, paper/testtrade/live, or order code was created.
 
 Files changed/created:
-- `src/ethusdc_bot/data_pipeline/kline_zip_audit.py`
-- `tests/unit/test_kline_zip_audit.py`
+- `src/ethusdc_bot/data_pipeline/data_requirements.py`
+- `src/ethusdc_bot/data_pipeline/data_readiness.py`
+- `tests/unit/test_data_requirements.py`
+- `tests/unit/test_data_readiness.py`
 - `src/ethusdc_bot/ui/dashboard_state.py`
 - `tests/unit/test_dashboard_state.py`
 - `tests/unit/test_dashboard_no_forbidden_side_effects.py`
-- `docs/19_KLINE_ZIP_AUDIT.md`
 - `docs/18_LOCAL_CONTROL_UI.md`
+- `docs/20_BACKTEST_DATA_REQUIREMENTS.md`
+- `docs/21_DATA_READINESS_GATE.md`
 - `handoff/CURRENT_STATUS.md`
 - `handoff/SESSION_LOG.md`
 - `handoff/NEXT_ACTION.md`
@@ -35,22 +39,19 @@ Files changed/created:
 - `handoff/LAST_KNOWN_GOOD.md`
 
 Tests/commands executed:
-- `pytest tests/unit/test_kline_zip_audit.py -q` (RED: missing module)
-- `pytest tests/unit/test_kline_zip_audit.py -q` (GREEN)
-- `pytest tests/unit/test_dashboard_state.py tests/unit/test_dashboard_no_forbidden_side_effects.py -q` (RED: missing UI audit fields / old hint)
-- `pytest tests/unit/test_dashboard_state.py tests/unit/test_dashboard_no_forbidden_side_effects.py -q` (GREEN)
+- `pytest tests/unit/test_data_requirements.py tests/unit/test_data_readiness.py tests/unit/test_dashboard_state.py tests/unit/test_dashboard_no_forbidden_side_effects.py -q` (RED: missing modules)
+- `pytest tests/unit/test_data_requirements.py tests/unit/test_data_readiness.py -q` (intermediate failures fixed)
+- `pytest tests/unit/test_data_requirements.py tests/unit/test_data_readiness.py tests/unit/test_dashboard_state.py tests/unit/test_dashboard_no_forbidden_side_effects.py -q` (GREEN)
 - `pytest tests/ -q` (passed before handoff update)
-- `PYTHONPATH=src python - <<'PY' ... build_dashboard_snapshot ... PY` (first run exposed microsecond timestamp handling bug)
-- `pytest tests/unit/test_kline_zip_audit.py::test_parse_kline_open_time_from_row_normalizes_microseconds_to_ms -q` (RED)
-- `pytest tests/unit/test_kline_zip_audit.py -q` (GREEN)
-- `PYTHONPATH=src python - <<'PY' ... build_dashboard_snapshot ... PY` (passed; real local audit status printed)
+- `PYTHONPATH=src python - <<'PY' ... build_data_readiness_report ... PY` (real local readiness snapshot, passed)
 
-Real local audit result:
-- 1094 ZIP files and 1094 CHECKSUM files found.
-- 1094 complete UTC days observed.
-- Required 1095 complete UTC days not satisfied.
-- Missing day reported: `2026-07-07`.
-- Status remains `incomplete`; `backtest_ready` remains false.
+Real local readiness result:
+- Data gate remains blocked.
+- ETHUSDC klines_1m: 1094/1095 days, partial, blocking.
+- BTCUSDC/ETHBTC klines_1m: missing context sources.
+- ETHUSDC aggTrades/trades: missing/diagnostic-only until downloaders and coverage exist.
+- bookTicker/orderbook: live collector tasks only, 0/30 days, diagnostic-only.
+- No fake readiness or backtest result was produced.
 
 Not done:
 - No Binance trading API or client.
