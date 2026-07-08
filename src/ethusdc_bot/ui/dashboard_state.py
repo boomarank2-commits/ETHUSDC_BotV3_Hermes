@@ -233,6 +233,7 @@ def format_snapshot_for_display(snapshot: Mapping[str, Any]) -> str:
         f"- Last duration seconds: {last_run['last_run_duration_seconds']}",
         f"- Last supported/completed/skipped/failed: {last_run['last_run_supported_tasks']}/{last_run['last_run_completed_tasks']}/{last_run['last_run_skipped_tasks']}/{last_run['last_run_failed_tasks']}",
         f"- Last download results count: {last_run['last_run_download_results_count']}",
+        f"- Last files planned/completed/skipped/downloaded/failed: {last_run.get('last_run_planned_file_count', 0)}/{last_run.get('last_run_completed_file_count', 0)}/{last_run.get('last_run_skipped_file_count', 0)}/{last_run.get('last_run_downloaded_file_count', 0)}/{last_run.get('last_run_failed_file_count', 0)}",
         f"- Last readiness before/after: {last_run['last_run_readiness_before']} -> {last_run['last_run_readiness_after']}",
         f"- Last engine locked: {last_run['last_run_backtest_engine_locked']}",
         f"- Last next blocker: {last_run['last_run_next_blocker']}",

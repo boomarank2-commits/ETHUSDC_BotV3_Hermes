@@ -9,7 +9,7 @@ unlock live/paper/testtrade.
 from __future__ import annotations
 
 import argparse
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import date, timedelta
 import json
 from pathlib import Path
@@ -40,6 +40,9 @@ FORBIDDEN_RESULT_FIELDS = {
     "best_candidate",
     "candidate",
 }
+
+
+ProgressCallback = Callable[[dict[str, object]], None]
 
 
 def build_public_data_url(
@@ -123,15 +126,46 @@ def plan_public_download_task(task: Mapping[str, object]) -> dict[str, object]:
     return _assert_no_forbidden_fields(plan)
 
 
-def execute_public_download_task(task: Mapping[str, object], execute: bool = False) -> dict[str, object]:
+def execute_public_download_task(
+    task: Mapping[str, object],
+    execute: bool = False,
+    progress_callback: ProgressCallback | None = None,
+) -> dict[str, object]:
     """Execute or dry-run one public download task."""
 
     plan = plan_public_download_task(task)
     file_results = []
     checksum_results = []
+    counters = {"completed": 0, "skipped": 0, "downloaded": 0, "failed": 0}
+    planned_file_count = len(plan["downloads"]) * 2  # type: ignore[arg-type]
+    current_file_index = 0
     for item in plan["downloads"]:  # type: ignore[index]
-        file_results.append(_download_file(str(item["url"]), item["target_path"], execute))  # type: ignore[index]
-        checksum_results.append(_download_file(str(item["checksum_url"]), f"{item['target_path']}.CHECKSUM", execute))  # type: ignore[index]
+        current_file_index += 1
+        file_results.append(
+            _download_file_with_progress(
+                str(item["url"]),
+                item["target_path"],
+                execute,
+                plan=plan,
+                progress_callback=progress_callback,
+                planned_file_count=planned_file_count,
+                current_file_index=current_file_index,
+                counters=counters,
+            )
+        )  # type: ignore[index]
+        current_file_index += 1
+        checksum_results.append(
+            _download_file_with_progress(
+                str(item["checksum_url"]),
+                f"{item['target_path']}.CHECKSUM",
+                execute,
+                plan=plan,
+                progress_callback=progress_callback,
+                planned_file_count=planned_file_count,
+                current_file_index=current_file_index,
+                counters=counters,
+            )
+        )  # type: ignore[index]
     result = {
         "task_id": plan["task_id"],
         "requirement_id": plan["requirement_id"],
@@ -144,6 +178,11 @@ def execute_public_download_task(task: Mapping[str, object], execute: bool = Fal
         "may_trigger_orders": plan["may_trigger_orders"],
         "execute": execute,
         "planned_files": len(plan["downloads"]),
+        "planned_file_count": planned_file_count,
+        "completed_file_count": counters["completed"],
+        "skipped_file_count": counters["skipped"],
+        "downloaded_file_count": counters["downloaded"],
+        "failed_file_count": counters["failed"],
         "file_results": file_results,
         "checksum_results": checksum_results,
         "safety": plan["safety"],
@@ -228,6 +267,84 @@ def run_public_data_downloader(argv: Sequence[str] | None = None) -> int:
         }
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
+
+
+def _download_file_with_progress(
+    url: str,
+    target_path: str | Path,
+    execute: bool,
+    *,
+    plan: Mapping[str, object],
+    progress_callback: ProgressCallback | None,
+    planned_file_count: int,
+    current_file_index: int,
+    counters: dict[str, int],
+) -> dict[str, str]:
+    target = Path(target_path)
+    base = {
+        "task_id": plan["task_id"],
+        "symbol": plan["symbol"],
+        "data_type": plan["data_type"],
+        "phase": "file_progress",
+        "planned_file_count": planned_file_count,
+        "current_file_index": current_file_index,
+        "current_file_name": target.name,
+        "target_path": str(target),
+    }
+    if target.exists():
+        counters["completed"] += 1
+        counters["skipped"] += 1
+        _emit_progress(progress_callback, base, counters, "skipped_existing", f"Skipped existing file: {target.name}")
+        return {"url": url, "target_path": str(target), "status": "skipped_existing"}
+    if not execute:
+        counters["completed"] += 1
+        _emit_progress(progress_callback, base, counters, "planned", f"Planned file only (dry-run): {target.name}")
+        return {"url": url, "target_path": str(target), "status": "planned"}
+    _emit_progress(progress_callback, base, counters, "downloading", f"Downloading file: {target.name}")
+    result = _download_file(url, target, execute=True)
+    counters["completed"] += 1
+    if result["status"] == "downloaded":
+        counters["downloaded"] += 1
+        event_status = "downloaded"
+    elif result["status"] == "skipped_existing":
+        counters["skipped"] += 1
+        event_status = "skipped_existing"
+    else:
+        counters["failed"] += 1
+        event_status = "failed"
+    _emit_progress(
+        progress_callback,
+        base,
+        counters,
+        event_status,
+        f"{event_status}: {target.name}",
+        error=result.get("error"),
+    )
+    return result
+
+
+def _emit_progress(
+    progress_callback: ProgressCallback | None,
+    base: Mapping[str, object],
+    counters: Mapping[str, int],
+    status: str,
+    message: str,
+    error: str | None = None,
+) -> None:
+    if progress_callback is None:
+        return
+    event = {
+        **dict(base),
+        "status": status,
+        "completed_file_count": counters["completed"],
+        "skipped_file_count": counters["skipped"],
+        "downloaded_file_count": counters["downloaded"],
+        "failed_file_count": counters["failed"],
+        "message": message,
+    }
+    if error:
+        event["error"] = error
+    progress_callback(event)
 
 
 def _download_file(url: str, target_path: str | Path, execute: bool) -> dict[str, str]:

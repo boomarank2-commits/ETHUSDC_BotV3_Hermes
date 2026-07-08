@@ -27,6 +27,7 @@ from ethusdc_bot.ui.data_update_controller import (
     build_finished_data_prep_last_run_status,
     build_initial_data_prep_last_run_status,
     build_running_data_prep_last_run_status,
+    build_data_prep_heartbeat_status,
     run_data_update_plan_async,
 )
 
@@ -43,6 +44,7 @@ class DashboardApp:
         self.active_result_container: dict[str, object] | None = None
         self.data_prep_running = False
         self.last_run_status = build_initial_data_prep_last_run_status()
+        self.current_runtime_status: dict[str, object] | None = None
 
         self.root.title("ETHUSDC Bot V3 Hermes - Local Control Dashboard")
         self.root.geometry("1100x760")
@@ -50,6 +52,7 @@ class DashboardApp:
         self._build_widgets()
         self.refresh_status()
         self._drain_log_queue()
+        self._heartbeat_active_run()
 
     def _build_widgets(self) -> None:
         toolbar = ttk.Frame(self.root, padding=8)
@@ -77,6 +80,8 @@ class DashboardApp:
         self.progress_var = tk.IntVar(value=0)
         self.task_var = tk.StringVar(value="Aktueller Task: none")
         self.count_var = tk.StringVar(value="Tasks: 0 / 0")
+        self.file_var = tk.StringVar(value="Files: none")
+        self.elapsed_var = tk.StringVar(value="Elapsed: 0s")
         self.engine_var = tk.StringVar(value="Backtest-Engine: locked")
         self.last_run_var = tk.StringVar(value="Last data prep run status: never_run")
         self.last_run_detail_var = tk.StringVar(value="Noch kein Datenvorbereitungs-Lauf in dieser UI-Sitzung.")
@@ -86,6 +91,8 @@ class DashboardApp:
             self.mode_var,
             self.task_var,
             self.count_var,
+            self.file_var,
+            self.elapsed_var,
             self.engine_var,
             self.last_run_var,
             self.last_run_detail_var,
@@ -172,6 +179,7 @@ class DashboardApp:
             "last_message": "Datenlauf läuft gerade...",
         }
         self.last_run_status = build_running_data_prep_last_run_status(initial_runtime)
+        self.current_runtime_status = dict(initial_runtime)
         self._apply_last_run_status(self.last_run_status)
         thread, result_container = run_data_update_plan_async(
             self.local_root,
@@ -189,6 +197,7 @@ class DashboardApp:
             except queue.Empty:
                 break
             if isinstance(message, dict):
+                self.current_runtime_status = dict(message)
                 self._apply_runtime_status(message)
                 self.last_run_status = build_running_data_prep_last_run_status(message)
                 self._apply_last_run_status(self.last_run_status)
@@ -198,10 +207,24 @@ class DashboardApp:
             self._finalize_active_data_run()
             self.active_data_thread = None
             self.active_result_container = None
+            self.current_runtime_status = None
             self.data_prep_running = False
             self._set_data_buttons_enabled(True)
             self.refresh_status()
         self.root.after(250, self._drain_log_queue)
+
+    def _heartbeat_active_run(self) -> None:
+        if (
+            self.active_data_thread is not None
+            and self.active_data_thread.is_alive()
+            and self.current_runtime_status is not None
+        ):
+            heartbeat = build_data_prep_heartbeat_status(self.current_runtime_status)
+            self.current_runtime_status = heartbeat
+            self._apply_runtime_status(heartbeat)
+            self.last_run_status = build_running_data_prep_last_run_status(heartbeat)
+            self._apply_last_run_status(self.last_run_status)
+        self.root.after(1000, self._heartbeat_active_run)
 
     def _finalize_active_data_run(self) -> None:
         if self.active_result_container is None:
@@ -219,12 +242,22 @@ class DashboardApp:
         task = status.get("current_task_id") or "none"
         completed = status.get("completed_tasks", 0)
         total = status.get("total_tasks", 0)
+        current_file = status.get("current_file_name") or "none"
+        current_file_index = status.get("current_file_index", 0)
+        planned_file_count = status.get("planned_file_count", 0)
+        file_counts = (
+            f"skipped={status.get('skipped_file_count', 0)}, "
+            f"downloaded={status.get('downloaded_file_count', 0)}, "
+            f"failed={status.get('failed_file_count', 0)}"
+        )
         self.bot_state_var.set(f"Bot-Zustand: {status.get('last_message', 'unknown')}")
         self.phase_var.set(f"Data Prep Phase: {status.get('phase', 'unknown')}")
         self.mode_var.set(f"Modus: {mode}")
         self.progress_var.set(int(status.get("progress_pct", 0)))
         self.task_var.set(f"Aktueller Task: {task}")
         self.count_var.set(f"Tasks: {completed} / {total}")
+        self.file_var.set(f"Files: {current_file} ({current_file_index} / {planned_file_count}; {file_counts})")
+        self.elapsed_var.set(f"Elapsed: {status.get('elapsed_seconds', 0)}s")
         self.engine_var.set("Backtest-Engine: locked (echte Engine nicht gestartet)")
         if status.get("phase") == "downloading":
             self.bot_state_var.set(

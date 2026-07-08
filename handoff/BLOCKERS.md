@@ -1,34 +1,27 @@
 # Blockers
 
 Current blockers:
-- Backtest Data Readiness remains blocked until missing public/context data and required gates are satisfied.
-- ETHUSDC 1m local audit/readiness was previously incomplete: 1094 complete UTC days found, 1095 required.
-- Missing ETHUSDC UTC day previously reported by audit: `2026-07-07`.
-- Read-only check in this session saw ETHUSDC 1m 1094 ZIP and 1094 CHECKSUM files.
-- Read-only check saw BTCUSDC 1m folder missing / 0 ZIP / 0 CHECKSUM.
-- Read-only check saw ETHBTC 1m folder missing / 0 ZIP / 0 CHECKSUM.
-- Read-only check saw ETHUSDC aggTrades folder missing / 0 ZIP / 0 CHECKSUM.
-- Read-only check saw ETHUSDC trades folder missing / 0 ZIP / 0 CHECKSUM.
-- exchange_info fetch/downloader is still not implemented.
-- bookTicker live collector is not implemented and has 0/30 days.
-- orderbook snapshot live collector is not implemented and has 0/30 days.
-- Backtest engine is not implemented and remains intentionally locked.
-- A completed data-prep workflow or completed download is not a backtest result and is not evidence of profit.
-- Live trading remains locked by project contract.
-- Paper trading remains locked.
-- Testtrade remains locked.
-- No raw market data should be stored inside the repository.
+- Backtest Data Readiness remains blocked.
+- ETHUSDC 1m is still incomplete: local count observed as 1094 ZIP / 1094 CHECKSUM, not the required 1095 complete UTC days.
+- BTCUSDC 1m context folder is missing/empty.
+- ETHBTC 1m context folder is missing/empty.
+- ETHUSDC aggTrades folder is missing/empty.
+- ETHUSDC trades folder is missing/empty.
+- Exchange info remains unsupported by current public-data downloader path.
+- BookTicker and orderbook snapshot tasks remain live-collector tasks and are not implemented in this UI workflow.
+- Real backtest engine is not implemented and remains locked even if data readiness eventually becomes ready.
 
-Operational blocker for current open UI:
-- If the dashboard window was opened before the latest commit, it is running old Python code. UI schließen und neu starten erforderlich.
+Resolved UI blocker:
+- Long public download tasks no longer have to appear frozen solely because task-level progress is coarse. The downloader now emits per-file progress events and the dashboard emits a heartbeat during active threads.
 
-Not blockers:
-- Local tkinter control UI exists.
-- UI starts via `PYTHONPATH=src python -m ethusdc_bot.ui.dashboard`.
-- UI now has a data-preparation workflow.
-- UI now has structured progress status and a visible progressbar.
-- UI now keeps an in-session Last Data Prep Run status that survives Refresh Status.
-- Backtest start button is visible and enabled for data preparation only when no workflow is running.
-- Data preparation runs asynchronously and reports structured progress.
-- Public downloader can plan/dry-run/supported-execute readiness tasks.
-- Target paths inside the repository are rejected by the downloader.
+Operational blocker:
+- Any already-open UI must be restarted to load the new Python code.
+
+Strict safety locks remain:
+- Live locked.
+- Paper locked.
+- Testtrade locked.
+- No Binance trading API.
+- No API keys.
+- No orders.
+- No strategy/engine/backtest result generation.

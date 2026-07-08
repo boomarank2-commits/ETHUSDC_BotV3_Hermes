@@ -178,6 +178,63 @@ def test_build_running_last_run_status_from_runtime_update():
     assert "task-basiert" in last_run["last_run_summary_text"]
 
 
+def test_controller_forwards_file_progress_events(monkeypatch, tmp_path):
+    updates = []
+
+    def fake_execute(task, execute=False, progress_callback=None):
+        assert execute is True
+        event = {
+            "phase": "file_progress",
+            "task_id": task["task_id"],
+            "symbol": task["symbol"],
+            "data_type": task["data_type"],
+            "planned_file_count": 2,
+            "current_file_index": 1,
+            "current_file_name": "BTCUSDC-1m-2024-01-01.zip",
+            "completed_file_count": 1,
+            "skipped_file_count": 0,
+            "downloaded_file_count": 1,
+            "failed_file_count": 0,
+            "status": "downloaded",
+            "message": "downloaded BTCUSDC-1m-2024-01-01.zip",
+        }
+        progress_callback(event)
+        return {"task_id": task["task_id"], "planned_files": 1, "file_results": [], "checksum_results": []}
+
+    monkeypatch.setattr(controller.public_data_downloader, "execute_public_download_task", fake_execute)
+
+    result = controller.run_data_update_plan(tmp_path, execute=True, progress_callback=updates.append)
+
+    file_updates = [update for update in updates if update.get("current_file_name") == "BTCUSDC-1m-2024-01-01.zip"]
+    assert file_updates
+    assert file_updates[0]["planned_file_count"] == 2
+    assert file_updates[0]["downloaded_file_count"] == 1
+    assert file_updates[0]["elapsed_seconds"] >= 0
+    assert result["runtime_status"]["planned_file_count"] == 2
+    assert result["runtime_status"]["current_file_name"] == "BTCUSDC-1m-2024-01-01.zip"
+
+
+def test_build_heartbeat_status_contains_elapsed_seconds_and_still_running_message():
+    runtime = controller.build_initial_data_prep_status(mode="execute")
+    runtime.update(
+        {
+            "phase": "downloading",
+            "started_at": "2026-07-08T10:00:00+00:00",
+            "current_task_id": "download_btcusdc_klines_1m",
+            "current_file_name": "BTCUSDC-1m-2024-01-01.zip",
+            "planned_file_count": 2190,
+            "current_file_index": 1,
+        }
+    )
+
+    heartbeat = controller.build_data_prep_heartbeat_status(runtime, now="2026-07-08T10:00:05+00:00")
+
+    assert heartbeat["elapsed_seconds"] == 5
+    assert heartbeat["phase"] == "downloading"
+    assert heartbeat["current_file_name"] == "BTCUSDC-1m-2024-01-01.zip"
+    assert heartbeat["last_message"] == "Still running. Progress is task/file based, not byte based."
+
+
 def test_build_finished_last_run_status_after_dry_run(tmp_path):
     result = controller.run_data_update_plan(tmp_path, execute=False)
 
@@ -192,7 +249,7 @@ def test_build_finished_last_run_status_after_dry_run(tmp_path):
     assert last_run["last_run_readiness_before"] == "blocked"
     assert last_run["last_run_readiness_after"] == "blocked"
     assert last_run["last_run_backtest_engine_locked"] is True
-    assert "Letzter Datenlauf fertig" in last_run["last_run_summary_text"]
+    assert "Dry-run finished. No downloads executed." in last_run["last_run_summary_text"]
     assert last_run["last_run_next_blocker"]
 
 

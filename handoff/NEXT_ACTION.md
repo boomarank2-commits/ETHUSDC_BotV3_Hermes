@@ -1,35 +1,32 @@
 # Next Action
 
-Smallest possible next step:
-- Close any currently open dashboard window and restart it so the new Python code is loaded.
+Required user action:
+- UI schließen und neu starten erforderlich, falls sie bereits geöffnet ist.
+- Start command from repo root:
+  - `PYTHONPATH=src python -m ethusdc_bot.ui.dashboard`
 
-Required user action if UI is already open:
-- UI schließen und neu starten erforderlich.
+Next smoke test:
+1. Click `Daten prüfen (Dry-run)`.
+2. Confirm it finishes quickly.
+3. Confirm Last Run says:
+   - status `finished`
+   - mode `dry_run`
+   - download results count `0`
+   - `Dry-run finished. No downloads executed.`
+   - Readiness before/after and next blocker visible.
+4. Click `Refresh Status`.
+5. Confirm Last Run remains visible and is not reset to `never_run`/`idle`.
 
-UI start command:
-- `PYTHONPATH=src python -m ethusdc_bot.ui.dashboard`
+Only after that UI smoke:
+- If user wants real public data download visibility, click `Backtest starten / Daten laden`.
+- Observe:
+  - mode Execute/Download.
+  - elapsed seconds updates every ~1s.
+  - current task remains visible.
+  - current file name and file x/y counters update.
+  - skipped/downloaded/failed counters update.
 
-Recommended next mini-ticket:
-- "Run UI dry-run last-run smoke and confirm Last Data Prep Run survives Refresh Status"
+Do not start real large downloads unless the user explicitly wants to continue data acquisition.
 
-Acceptance direction for that next ticket:
-- Start fresh UI after this commit.
-- Confirm top area initially shows `Last data prep run status: never_run`.
-- Click `Daten prüfen (Dry-run)`.
-- Confirm it shows `running` while active.
-- Confirm after completion it shows `finished`, mode `dry_run`, duration, task counts, readiness before/after, and next blocker.
-- Click `Refresh Status`.
-- Confirm the Last Run display remains `finished` and does not reset to idle/never_run.
-- Confirm buttons re-enable after completion.
-- Do not execute real downloads unless explicitly approved.
-- If executing downloads later, use `Backtest starten / Daten laden`; watch Last Run for mode `execute` and download result count.
-- Do not create profit, trade, candidate, or backtest result fields.
-- Do not implement engine, strategy, exchange, paper, testtrade, or live trading.
-- Keep Live/Paper/Testtrade locked.
-
-Current external data observation:
-- ETHUSDC 1m has 1094 ZIP and 1094 CHECKSUM files.
-- BTCUSDC/ETHBTC 1m and ETHUSDC aggTrades/trades folders were missing in the read-only check.
-- Readiness is expected to remain blocked until those data/source requirements and unimplemented collectors/engine are addressed.
-
-Do not start real backtest, paper trading, testtrade, live trading, strategy, engine, Binance trading API, or order work without explicit approval and required gates.
+Recommended next mini-ticket after UI smoke:
+- Add an operator-safe small execute smoke that can target one explicitly missing day only, without starting the full BTCUSDC/ETHBTC 1095-day download batch.

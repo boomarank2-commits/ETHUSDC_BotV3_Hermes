@@ -139,6 +139,61 @@ def test_target_path_outside_repository_is_accepted(tmp_path):
     assert plan["downloads"][0]["target_path"].endswith("BTCUSDC-1m-2024-01-01.zip")
 
 
+def test_progress_events_are_sent_for_each_planned_zip_and_checksum_in_dry_run(tmp_path):
+    events = []
+    task = _task(tmp_path, "BTCUSDC", "klines_1m", "1m", "2024-01-01", "2024-01-02")
+
+    result = downloader.execute_public_download_task(task, execute=False, progress_callback=events.append)
+
+    assert result["planned_files"] == 2
+    assert len(events) == 4
+    assert {event["status"] for event in events} == {"planned"}
+    assert events[0]["planned_file_count"] == 4
+    assert events[0]["current_file_index"] == 1
+    assert events[-1]["current_file_index"] == 4
+    assert events[0]["current_file_name"].endswith(".zip")
+    assert events[1]["current_file_name"].endswith(".zip.CHECKSUM")
+
+
+def test_existing_files_emit_skipped_progress_events(monkeypatch, tmp_path):
+    def fail_if_called(url, filename):
+        raise AssertionError("existing files should not be downloaded")
+
+    monkeypatch.setattr(downloader.urllib.request, "urlretrieve", fail_if_called)
+    task = _task(tmp_path, "ETHUSDC", "trades", None, "2024-01-01", "2024-01-01")
+    plan = downloader.plan_public_download_task(task)
+    target = Path(plan["downloads"][0]["target_path"])
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b"already here")
+    Path(str(target) + ".CHECKSUM").write_text("checksum\n", encoding="utf-8")
+    events = []
+
+    downloader.execute_public_download_task(task, execute=True, progress_callback=events.append)
+
+    assert [event["status"] for event in events] == ["skipped_existing", "skipped_existing"]
+    assert events[-1]["skipped_file_count"] == 2
+    assert events[-1]["completed_file_count"] == 2
+
+
+def test_execute_download_emits_downloading_and_downloaded_progress_events(monkeypatch, tmp_path):
+    def fake_urlretrieve(url, filename):
+        Path(filename).parent.mkdir(parents=True, exist_ok=True)
+        Path(filename).write_bytes(b"downloaded")
+        return filename, None
+
+    monkeypatch.setattr(downloader.urllib.request, "urlretrieve", fake_urlretrieve)
+    task = _task(tmp_path, "ETHBTC", "klines_1m", "1m", "2024-01-01", "2024-01-01")
+    events = []
+
+    downloader.execute_public_download_task(task, execute=True, progress_callback=events.append)
+
+    statuses = [event["status"] for event in events]
+    assert statuses == ["downloading", "downloaded", "downloading", "downloaded"]
+    assert all(event["current_file_name"] for event in events)
+    assert events[-1]["downloaded_file_count"] == 2
+    assert events[-1]["completed_file_count"] == 2
+
+
 def test_existing_files_are_skipped(monkeypatch, tmp_path):
     def fail_if_called(url, filename):
         raise AssertionError("existing files should not be downloaded")

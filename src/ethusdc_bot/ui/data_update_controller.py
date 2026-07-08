@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
+import inspect
 from pathlib import Path
 import threading
 from typing import Any
@@ -50,6 +51,11 @@ def build_initial_data_prep_last_run_status() -> dict[str, Any]:
         "last_run_completed_tasks": 0,
         "last_run_skipped_tasks": 0,
         "last_run_failed_tasks": 0,
+        "last_run_planned_file_count": 0,
+        "last_run_completed_file_count": 0,
+        "last_run_skipped_file_count": 0,
+        "last_run_downloaded_file_count": 0,
+        "last_run_failed_file_count": 0,
         "last_run_download_results_count": 0,
         "last_run_readiness_before": None,
         "last_run_readiness_after": None,
@@ -103,8 +109,10 @@ def build_finished_data_prep_last_run_status(result: Mapping[str, Any]) -> dict[
     next_blocker = _next_blocker(readiness_after)
     if after_status == "ready":
         summary = "Letzter Datenlauf fertig. Data gate ready, aber Engine fehlt."
+    elif not result.get("execute"):
+        summary = f"Dry-run finished. No downloads executed. Readiness bleibt blocked wegen: {next_blocker}"
     else:
-        summary = f"Letzter Datenlauf fertig. Readiness bleibt blocked wegen: {next_blocker}"
+        summary = f"Download/data preparation finished. Readiness bleibt blocked wegen: {next_blocker}"
     status = build_initial_data_prep_last_run_status()
     status.update(
         {
@@ -117,6 +125,11 @@ def build_finished_data_prep_last_run_status(result: Mapping[str, Any]) -> dict[
             "last_run_completed_tasks": runtime.get("completed_tasks", 0),
             "last_run_skipped_tasks": runtime.get("skipped_tasks", 0),
             "last_run_failed_tasks": runtime.get("failed_tasks", 0),
+            "last_run_planned_file_count": runtime.get("planned_file_count", 0),
+            "last_run_completed_file_count": runtime.get("completed_file_count", 0),
+            "last_run_skipped_file_count": runtime.get("skipped_file_count", 0),
+            "last_run_downloaded_file_count": runtime.get("downloaded_file_count", 0),
+            "last_run_failed_file_count": runtime.get("failed_file_count", 0),
             "last_run_download_results_count": len(download_results),
             "last_run_readiness_before": before_status,
             "last_run_readiness_after": after_status,
@@ -174,6 +187,14 @@ def build_initial_data_prep_status(mode: str = "dry_run") -> dict[str, Any]:
         "completed_tasks": 0,
         "skipped_tasks": 0,
         "failed_tasks": 0,
+        "planned_file_count": 0,
+        "current_file_index": 0,
+        "current_file_name": None,
+        "completed_file_count": 0,
+        "skipped_file_count": 0,
+        "downloaded_file_count": 0,
+        "failed_file_count": 0,
+        "elapsed_seconds": 0,
         "supported_download_task_count": 0,
         "unsupported_task_count": 0,
         "live_collector_task_count": 0,
@@ -185,6 +206,18 @@ def build_initial_data_prep_status(mode: str = "dry_run") -> dict[str, Any]:
         "finished_at": None,
         "error": None,
     }
+
+
+def build_data_prep_heartbeat_status(runtime_status: Mapping[str, Any], now: str | None = None) -> dict[str, Any]:
+    """Return a heartbeat update so the UI changes even during long file downloads."""
+
+    heartbeat = dict(runtime_status)
+    heartbeat["elapsed_seconds"] = _duration_seconds(heartbeat.get("started_at"), now or _utc_now()) or 0
+    heartbeat["last_message"] = "Still running. Progress is task/file based, not byte based."
+    heartbeat["engine_start_locked"] = True
+    heartbeat["backtest_started"] = False
+    heartbeat["backtest_allowed"] = False
+    return heartbeat
 
 
 def update_progress_status(
@@ -200,6 +233,7 @@ def update_progress_status(
     updated["engine_start_locked"] = True
     updated["backtest_started"] = False
     updated["backtest_allowed"] = False
+    updated["elapsed_seconds"] = _duration_seconds(updated.get("started_at"), _utc_now()) or 0
     if updated.get("phase") in {"finished", "failed"} and updated.get("finished_at") is None:
         updated["finished_at"] = _utc_now()
     if progress_callback is not None:
@@ -315,6 +349,27 @@ def run_data_update_plan(
 
         download_results = []
         completed_tasks = 0
+
+        def _file_progress_callback(event: dict[str, Any]) -> None:
+            nonlocal status
+            status = update_progress_status(
+                status,
+                progress_callback,
+                phase="downloading",
+                current_step="Downloading public file",
+                current_task_id=event.get("task_id"),
+                current_symbol=event.get("symbol"),
+                current_data_type=event.get("data_type"),
+                planned_file_count=event.get("planned_file_count", status.get("planned_file_count", 0)),
+                current_file_index=event.get("current_file_index", status.get("current_file_index", 0)),
+                current_file_name=event.get("current_file_name", status.get("current_file_name")),
+                completed_file_count=event.get("completed_file_count", status.get("completed_file_count", 0)),
+                skipped_file_count=event.get("skipped_file_count", status.get("skipped_file_count", 0)),
+                downloaded_file_count=event.get("downloaded_file_count", status.get("downloaded_file_count", 0)),
+                failed_file_count=event.get("failed_file_count", status.get("failed_file_count", 0)),
+                last_message=event.get("message", "Still running. Progress is task/file based, not byte based."),
+                error=event.get("error", status.get("error")),
+            )
         if execute:
             for task in plan["supported_public_tasks"]:
                 status = _task_status(
@@ -328,7 +383,7 @@ def run_data_update_plan(
                     total_tasks=total_tasks,
                 )
                 _log(log_callback, f"Starte öffentlichen Download: {task['task_id']} ({task['symbol']} {task['data_type']})")
-                result = public_data_downloader.execute_public_download_task(task, execute=True)
+                result = _execute_public_download_task_with_optional_progress(task, _file_progress_callback)
                 download_results.append(result)
                 completed_tasks += 1
                 status = update_progress_status(
@@ -459,6 +514,16 @@ def _with_safety_metadata(task: Mapping[str, Any]) -> dict[str, Any]:
     enriched["may_trigger_orders"] = symbol == "ETHUSDC" and data_type == "klines_1m"
     enriched["trade_market"] = symbol == "ETHUSDC" and data_type == "klines_1m"
     return enriched
+
+
+def _execute_public_download_task_with_optional_progress(
+    task: Mapping[str, Any],
+    progress_callback: ProgressCallback,
+) -> dict[str, Any]:
+    downloader = public_data_downloader.execute_public_download_task
+    if "progress_callback" in inspect.signature(downloader).parameters:
+        return downloader(task, execute=True, progress_callback=progress_callback)
+    return downloader(task, execute=True)
 
 
 def _task_status(

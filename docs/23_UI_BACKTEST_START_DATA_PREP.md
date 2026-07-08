@@ -105,6 +105,24 @@ Completion wording is explicit:
 
 Important operational note: an already-open dashboard process uses the Python code it loaded at startup. After code updates, close and restart the UI with `PYTHONPATH=src python -m ethusdc_bot.ui.dashboard` to get this last-run display.
 
+## File-level progress and heartbeat
+
+The UI now shows a heartbeat while a data-preparation thread is active. Even if a large public task contains many daily files and no byte-progress is available, the top status area updates about once per second with elapsed seconds and the current task/file state.
+
+For public download tasks the downloader emits per-file events for both ZIP and CHECKSUM files:
+
+- planned file count
+- current file index
+- current file name
+- completed/skipped/downloaded/failed file counters
+- status such as `planned`, `skipped_existing`, `downloading`, `downloaded`, or `failed`
+
+This is still not fake byte-progress. It is task/file progress only. Large files may still take time while one file is being fetched, but the UI must keep saying that the run is still active and which task/file is current.
+
+Dry-run remains non-writing and non-downloading. It can emit planned-file information only through the plan/result path, and the Last Run text must say: `Dry-run finished. No downloads executed.`
+
+Execute mode means supported public data downloads are enabled. The UI must say that real public data preparation is running and show file-level counters where available.
+
 ## Runtime progress status
 
 The dashboard now shows a large status area above the text snapshot:
