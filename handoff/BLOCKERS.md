@@ -1,11 +1,10 @@
 # Blockers
 
 Current blockers:
-- User approval required before any next implementation step.
-- No complete 1095-day public data download has been run as part of committed code work.
 - Downloaded ZIP contents have not been audited.
 - Inventory status shows path presence only; it does not validate kline completeness from real files.
-- Manifest records download metadata only; it does not prove data quality.
+- Dashboard file counts are rough presence counts only and do not prove quality or completeness.
+- Backtest engine is not implemented and remains intentionally blocked.
 - Live trading remains locked by project contract.
 - Paper trading remains locked.
 - Testtrade remains locked.
@@ -13,7 +12,12 @@ Current blockers:
 - No raw market data should be stored inside the repository.
 
 Not blockers:
-- Public ETHUSDC 1m kline downloader exists and is dry-run by default.
+- First local tkinter control UI exists.
+- UI starts via `PYTHONPATH=src python -m ethusdc_bot.ui.dashboard`.
+- UI can refresh status and count existing external ETHUSDC 1m ZIP/CHECKSUM files.
+- UI can start downloader dry-run or explicit `--execute` for public ETHUSDC 1095-day downloads.
+- Backtest button is visible and disabled with an honest reason.
+- Public ETHUSDC 1m kline downloader remains dry-run by default.
 - Real public downloads require explicit `--execute`.
 - Target paths are outside the repository.
 - Existing files are skipped.

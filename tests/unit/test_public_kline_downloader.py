@@ -207,10 +207,17 @@ def test_forbidden_files_and_directories_do_not_exist():
         "src/ethusdc_bot/engine",
         "src/ethusdc_bot/strategy",
         "src/ethusdc_bot/backtest",
-        "src/ethusdc_bot/ui",
         "data",
         "raw",
         "market_data",
     ]
 
     assert [path for path in forbidden_paths if (ROOT / path).exists()] == []
+
+
+def test_downloader_does_not_import_or_start_ui():
+    source = Path(downloader.__file__).read_text(encoding="utf-8")
+
+    assert "ethusdc_bot.ui" not in source
+    assert "tkinter" not in source
+    assert ".dashboard" not in source

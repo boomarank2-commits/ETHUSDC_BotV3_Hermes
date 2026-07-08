@@ -1,24 +1,24 @@
 # Next Action
 
-Wait for user review and explicit approval.
+Smallest possible next step:
+- Run a dedicated data audit ticket for the downloaded/public ETHUSDC 1m files before any backtest-engine work.
 
-Smallest possible next step toward first safe test start:
-- Run or supervise a controlled public-data download for a limited date range outside the repository, then inspect inventory status.
-
-Recommended next mini-ticket after approval:
-- "Controlled ETHUSDC public data download smoke and inventory check"
+Recommended next mini-ticket:
+- "Audit ETHUSDC 1m public kline ZIP/CHECKSUM coverage for 1095 UTC days"
 
 Acceptance direction for that next ticket:
-- Use only public Binance data URLs.
-- Use no API keys and no private/trading Binance API.
-- Store data only under `C:/TradingBot/data/ETHUSDC_BotV3_Hermes`.
-- Do not commit raw data.
-- Do not read market data contents except for a later explicitly approved audit ticket.
-- Do not run a backtest, strategy, engine, or UI.
-- Do not create fake reports.
+- Use only local files under `C:/TradingBot/data/ETHUSDC_BotV3_Hermes`.
+- Do not store raw data inside the repository.
+- Verify ZIP/CHECKSUM presence and UTC-day coverage honestly.
+- Do not create profit, trade, candidate, or backtest result fields.
+- Do not implement engine, strategy, exchange, paper, testtrade, or live trading.
 - Keep Live/Paper/Testtrade locked.
+- Produce only an audit/status artifact if explicitly approved by the ticket.
 
-Example full 1095-day command, after explicit approval:
-- `PYTHONPATH=src python -m ethusdc_bot.data_pipeline.public_kline_downloader --last-days 1095 --execute`
+UI start command:
+- `PYTHONPATH=src python -m ethusdc_bot.ui.dashboard`
 
-Do not start engine, strategy, backtest, UI, Binance trading API, paper trading, testtrade, or live work without explicit user approval.
+Optional Windows helper:
+- `./scripts/start_dashboard.ps1`
+
+Do not start real backtest, paper trading, testtrade, live trading, strategy, engine, Binance trading API, or order work without explicit approval and required gates.
