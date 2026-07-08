@@ -15,8 +15,10 @@ from ethusdc_bot.data_pipeline.data_readiness import build_backtest_start_data_g
 from ethusdc_bot.data_pipeline.kline_zip_audit import build_kline_audit_summary
 from ethusdc_bot.data_pipeline.inventory_status import build_inventory_status
 from ethusdc_bot.data_pipeline.public_kline_downloader import DEFAULT_RAW_ROOT
+from ethusdc_bot.ui.data_update_controller import build_data_update_plan
 
 BACKTEST_DISABLED_HINT = "Backtest waits for data readiness and real engine implementation. No fake result."
+BACKTEST_START_HINT = "Backtest start currently prepares data only. Real engine is not implemented yet."
 EXPECTED_UTC_DAYS = 1095
 
 
@@ -143,6 +145,7 @@ def build_dashboard_snapshot(
 ) -> dict[str, Any]:
     """Build the complete status-only dashboard snapshot."""
 
+    data_update_plan = build_data_update_plan(local_root)
     return {
         "schema_version": 1,
         "project_status": collect_project_status(),
@@ -151,11 +154,27 @@ def build_dashboard_snapshot(
         "download_folder_status": collect_download_folder_status(local_root),
         "kline_audit_status": collect_kline_audit_status(local_root),
         "data_readiness_report": build_backtest_start_data_gate(local_root),
+        "data_prep_status": {
+            "status": "idle",
+            "engine_start_locked": True,
+            "last_data_update_plan_summary": data_update_plan["summary"],
+            "supported_download_task_count": data_update_plan["supported_download_task_count"],
+            "unsupported_task_count": data_update_plan["unsupported_task_count"],
+            "live_collector_task_count": data_update_plan["live_collector_task_count"],
+        },
         "ui_status": {
-            "backtest_button": {
+            "data_prep_button": {
                 "visible": True,
-                "enabled": False,
+                "enabled": True,
+                "action": "data_preparation_only",
                 "hint": BACKTEST_DISABLED_HINT,
+            },
+            "backtest_start_button": {
+                "visible": True,
+                "enabled": True,
+                "action": "data_preparation_only",
+                "engine_locked": True,
+                "hint": BACKTEST_START_HINT,
             },
             "live_paper_testtrade": "locked",
         },
@@ -172,8 +191,9 @@ def format_snapshot_for_display(snapshot: Mapping[str, Any]) -> str:
     download = snapshot["download_folder_status"]
     audit = snapshot["kline_audit_status"]
     readiness = snapshot["data_readiness_report"]
+    prep = snapshot["data_prep_status"]
     window = readiness["backtest_window"]
-    backtest = snapshot["ui_status"]["backtest_button"]
+    backtest = snapshot["ui_status"]["backtest_start_button"]
     lines = [
         "ETHUSDC Bot V3 Hermes - Local Control Dashboard",
         "",
@@ -250,9 +270,20 @@ def format_snapshot_for_display(snapshot: Mapping[str, Any]) -> str:
         *_format_readiness_sources(readiness["requirements"]),
         f"- Hint: {readiness['backtest_button_reason']}",
         "",
+        "Data Preparation Workflow:",
+        "- Backtest start currently runs data preparation only. Real engine start is still locked.",
+        f"- data_prep_status: {prep['status']}",
+        f"- engine_start_locked: {prep['engine_start_locked']}",
+        f"- last_data_update_plan_summary: {prep['last_data_update_plan_summary']}",
+        f"- supported_download_task_count: {prep['supported_download_task_count']}",
+        f"- unsupported_task_count: {prep['unsupported_task_count']}",
+        f"- live_collector_task_count: {prep['live_collector_task_count']}",
+        "",
         "Backtest:",
         f"- Button visible: {backtest['visible']}",
         f"- Button enabled: {backtest['enabled']}",
+        f"- Button action: {backtest['action']}",
+        f"- Engine locked: {backtest['engine_locked']}",
         f"- Hint: {backtest['hint']}",
     ]
     return "\n".join(lines) + "\n"

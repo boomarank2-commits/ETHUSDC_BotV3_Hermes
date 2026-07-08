@@ -76,8 +76,9 @@ def test_build_snapshot_has_no_profit_backtest_trade_or_candidate_fields(tmp_pat
     assert FORBIDDEN_SNAPSHOT_FIELDS.isdisjoint(snapshot["download_folder_status"])
     assert FORBIDDEN_SNAPSHOT_FIELDS.isdisjoint(snapshot["kline_audit_status"])
     assert FORBIDDEN_SNAPSHOT_FIELDS.isdisjoint(snapshot["data_readiness_report"])
-    assert "backtest_button" in snapshot["ui_status"]
-    assert snapshot["ui_status"]["backtest_button"]["enabled"] is False
+    assert FORBIDDEN_SNAPSHOT_FIELDS.isdisjoint(snapshot["data_prep_status"])
+    assert "backtest_start_button" in snapshot["ui_status"]
+    assert snapshot["ui_status"]["backtest_start_button"]["enabled"] is True
 
 
 def test_build_snapshot_contains_kline_audit_fields(tmp_path, monkeypatch):
@@ -119,6 +120,24 @@ def test_build_snapshot_contains_data_readiness_report(tmp_path):
     assert report["backtest_engine_implemented"] is False
 
 
+def test_build_snapshot_contains_data_prep_and_clickable_backtest_start_button(tmp_path):
+    snapshot = dashboard_state.build_dashboard_snapshot(Path.cwd(), tmp_path)
+    prep = snapshot["data_prep_status"]
+    button = snapshot["ui_status"]["backtest_start_button"]
+
+    assert prep["engine_start_locked"] is True
+    assert prep["supported_download_task_count"] >= 5
+    assert prep["unsupported_task_count"] >= 1
+    assert prep["live_collector_task_count"] >= 2
+    assert button == {
+        "visible": True,
+        "enabled": True,
+        "action": "data_preparation_only",
+        "engine_locked": True,
+        "hint": "Backtest start currently prepares data only. Real engine is not implemented yet.",
+    }
+
+
 def test_format_snapshot_for_display_contains_status_without_backtest_claims(tmp_path):
     snapshot = dashboard_state.build_dashboard_snapshot(Path.cwd(), tmp_path)
     text = dashboard_state.format_snapshot_for_display(snapshot)
@@ -126,6 +145,7 @@ def test_format_snapshot_for_display_contains_status_without_backtest_claims(tmp
     assert "ETHUSDC" in text
     assert "Live: locked" in text
     assert "Backtest Data Readiness:" in text
+    assert "Backtest start currently runs data preparation only. Real engine start is still locked." in text
     assert "Backtest waits for data readiness and real engine implementation. No fake result." in text
     assert "Data Audit Status:" in text
     assert "Audit status: not_audited" in text

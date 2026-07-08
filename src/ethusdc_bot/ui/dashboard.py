@@ -1,7 +1,8 @@
 """Tkinter local control dashboard for ETHUSDC_BotV3_Hermes.
 
-This UI is status and downloader control only. It does not implement an engine,
-strategy, backtest, paper trading, testtrade, live trading, orders, or API keys.
+This UI is status and data-preparation control only. It does not implement an
+engine, strategy, backtest, paper trading, testtrade, live trading, orders, or
+API keys.
 """
 
 from __future__ import annotations
@@ -10,11 +11,9 @@ import os
 from pathlib import Path
 import queue
 import subprocess
-import sys
 import threading
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
-from typing import Any
 
 from ethusdc_bot.ui.dashboard_state import (
     BACKTEST_DISABLED_HINT,
@@ -23,8 +22,7 @@ from ethusdc_bot.ui.dashboard_state import (
     default_repository_root,
     format_snapshot_for_display,
 )
-
-DOWNLOAD_MODULE = "ethusdc_bot.data_pipeline.public_kline_downloader"
+from ethusdc_bot.ui.data_update_controller import run_data_update_plan_async
 
 
 class DashboardApp:
@@ -35,7 +33,7 @@ class DashboardApp:
         self.repository_root = repository_root or default_repository_root()
         self.local_root = local_root or default_local_root()
         self.log_queue: queue.Queue[str] = queue.Queue()
-        self.active_process: subprocess.Popen[str] | None = None
+        self.active_data_thread: threading.Thread | None = None
 
         self.root.title("ETHUSDC Bot V3 Hermes - Local Control Dashboard")
         self.root.geometry("1100x760")
@@ -50,13 +48,10 @@ class DashboardApp:
 
         ttk.Button(toolbar, text="Refresh Status", command=self.refresh_status).pack(side=tk.LEFT, padx=4)
         ttk.Button(toolbar, text="Open Data Folder", command=self.open_data_folder).pack(side=tk.LEFT, padx=4)
-        ttk.Button(toolbar, text="Dry-Run 1095 Download Plan", command=self.start_dry_run).pack(
+        ttk.Button(toolbar, text="Daten prüfen / aktualisieren", command=self.start_data_prep_dry_run).pack(
             side=tk.LEFT, padx=4
         )
-        ttk.Button(toolbar, text="Start ETHUSDC 1095 Download", command=self.start_execute_download).pack(
-            side=tk.LEFT, padx=4
-        )
-        backtest_button = ttk.Button(toolbar, text="Backtest starten", state=tk.DISABLED)
+        backtest_button = ttk.Button(toolbar, text="Backtest starten", command=self.start_backtest_data_preparation)
         backtest_button.pack(side=tk.LEFT, padx=4)
 
         hint = ttk.Label(toolbar, text=BACKTEST_DISABLED_HINT)
@@ -101,52 +96,26 @@ class DashboardApp:
         else:  # pragma: no cover - Windows is the target host
             subprocess.Popen(["xdg-open", str(self.local_root)])
 
-    def start_dry_run(self) -> None:
-        self._start_downloader(execute=False)
+    def start_data_prep_dry_run(self) -> None:
+        self._start_data_preparation(execute=False)
 
-    def start_execute_download(self) -> None:
-        self._start_downloader(execute=True)
+    def start_backtest_data_preparation(self) -> None:
+        self._log("Backtest start currently runs data preparation only. Real engine start is still locked.")
+        self._start_data_preparation(execute=True)
 
-    def _start_downloader(self, execute: bool) -> None:
-        if self.active_process is not None and self.active_process.poll() is None:
-            self._log(
-                "A downloader process started by this UI is already running. "
-                "No process was stopped. Existing separate terminal downloads are not touched."
-            )
+    def _start_data_preparation(self, execute: bool) -> None:
+        if self.active_data_thread is not None and self.active_data_thread.is_alive():
+            self._log("A data-preparation workflow is already running. No process was stopped.")
             return
 
-        command = [
-            sys.executable,
-            "-m",
-            DOWNLOAD_MODULE,
-            "--last-days",
-            "1095",
-            "--raw-root",
-            str(self.local_root),
-        ]
-        if execute:
-            command.append("--execute")
-
         mode = "EXECUTE" if execute else "DRY-RUN"
-        self._log(f"Starting {mode} downloader command: {' '.join(command)}")
-        self.active_process = subprocess.Popen(
-            command,
-            cwd=str(self.repository_root),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
+        self._log(f"Starting {mode} data preparation workflow.")
+        thread, _result_container = run_data_update_plan_async(
+            self.local_root,
+            execute=execute,
+            log_callback=self.log_queue.put,
         )
-        thread = threading.Thread(target=self._capture_process_output, args=(self.active_process,), daemon=True)
-        thread.start()
-
-    def _capture_process_output(self, process: subprocess.Popen[str]) -> None:
-        assert process.stdout is not None
-        for line in process.stdout:
-            self.log_queue.put(line.rstrip("\n"))
-        exit_code = process.wait()
-        self.log_queue.put(f"Downloader process exited with code {exit_code}.")
-        self.log_queue.put("__REFRESH_AFTER_PROCESS__")
+        self.active_data_thread = thread
 
     def _drain_log_queue(self) -> None:
         while True:
@@ -154,10 +123,10 @@ class DashboardApp:
                 message = self.log_queue.get_nowait()
             except queue.Empty:
                 break
-            if message == "__REFRESH_AFTER_PROCESS__":
-                self.refresh_status()
-            else:
-                self._log(message)
+            self._log(message)
+        if self.active_data_thread is not None and not self.active_data_thread.is_alive():
+            self.active_data_thread = None
+            self.refresh_status()
         self.root.after(250, self._drain_log_queue)
 
     def _log(self, message: str) -> None:

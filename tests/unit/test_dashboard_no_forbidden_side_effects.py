@@ -29,14 +29,17 @@ def test_dashboard_module_is_importable():
     )
 
 
-def test_backtest_button_model_is_disabled():
+def test_backtest_start_button_model_runs_data_preparation_only():
     snapshot = dashboard_state.build_dashboard_snapshot(ROOT, ROOT.parent / "data")
 
-    assert snapshot["ui_status"]["backtest_button"] == {
+    assert snapshot["ui_status"]["backtest_start_button"] == {
         "visible": True,
-        "enabled": False,
-        "hint": "Backtest waits for data readiness and real engine implementation. No fake result.",
+        "enabled": True,
+        "action": "data_preparation_only",
+        "engine_locked": True,
+        "hint": "Backtest start currently prepares data only. Real engine is not implemented yet.",
     }
+    assert snapshot["data_prep_status"]["engine_start_locked"] is True
 
 
 def test_dashboard_state_does_not_create_repository_data_raw_or_market_data(tmp_path):

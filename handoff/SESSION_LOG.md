@@ -1,30 +1,36 @@
 # Session Log
 
-## 2026-07-08 - Public data downloader extension for readiness
+## 2026-07-08 - UI Backtest Start data preparation workflow
 
 Timebox: max 120 minutes.
 
 Actions:
 - Verified clean git status before starting.
-- Loaded TDD, safety-critical repository development, and CLI feature development guidance.
-- Read existing ETHUSDC public kline downloader, data readiness gate, UI dashboard state, tests, and handoff context.
+- Loaded TDD and safety-critical repository development guidance.
+- Read current dashboard UI, dashboard state, public data downloader, dashboard tests, and handoff context.
 - Followed TDD:
-  - Added `tests/unit/test_public_data_downloader.py` first.
-  - Updated `tests/unit/test_data_readiness.py` expectations for supported public readiness tasks.
-  - Verified RED: tests failed because `public_data_downloader` did not exist.
-- Implemented `src/ethusdc_bot/data_pipeline/public_data_downloader.py`.
-- Updated `src/ethusdc_bot/data_pipeline/data_readiness.py` so supported tasks become executable public download tasks.
-- Added `docs/22_PUBLIC_DATA_DOWNLOADER_EXTENSION.md`.
+  - Added `tests/unit/test_ui_data_update_controller.py` first.
+  - Updated dashboard state / side-effect tests first.
+  - Verified RED: tests failed because `ethusdc_bot.ui.data_update_controller` did not exist.
+- Implemented `src/ethusdc_bot/ui/data_update_controller.py`.
+- Updated `src/ethusdc_bot/ui/dashboard_state.py` with data-prep state and clickable data-prep-only backtest start button model.
+- Updated `src/ethusdc_bot/ui/dashboard.py` so the UI has:
+  - `Daten prüfen / aktualisieren`
+  - `Backtest starten`
+- Wired the UI buttons to the async data-preparation controller.
+- Added `docs/23_UI_BACKTEST_START_DATA_PREP.md`.
 - Updated handoff files.
-- Ran actual source-tree CLI dry-runs without `--execute`.
-- No real downloads, production data writes, reports, API key files, engine, strategy, exchange, backtest, paper/testtrade/live, or order code was created.
+- No production data downloads were executed in this session.
+- No reports, API key files, engine, strategy, exchange, backtest, paper/testtrade/live, or order code was created.
 
 Files changed/created:
-- `src/ethusdc_bot/data_pipeline/public_data_downloader.py`
-- `src/ethusdc_bot/data_pipeline/data_readiness.py`
-- `tests/unit/test_public_data_downloader.py`
-- `tests/unit/test_data_readiness.py`
-- `docs/22_PUBLIC_DATA_DOWNLOADER_EXTENSION.md`
+- `src/ethusdc_bot/ui/data_update_controller.py`
+- `src/ethusdc_bot/ui/dashboard_state.py`
+- `src/ethusdc_bot/ui/dashboard.py`
+- `tests/unit/test_ui_data_update_controller.py`
+- `tests/unit/test_dashboard_state.py`
+- `tests/unit/test_dashboard_no_forbidden_side_effects.py`
+- `docs/23_UI_BACKTEST_START_DATA_PREP.md`
 - `handoff/CURRENT_STATUS.md`
 - `handoff/SESSION_LOG.md`
 - `handoff/NEXT_ACTION.md`
@@ -32,19 +38,9 @@ Files changed/created:
 - `handoff/LAST_KNOWN_GOOD.md`
 
 Tests/commands executed:
-- `pytest tests/unit/test_public_data_downloader.py tests/unit/test_data_readiness.py -q` (RED: missing module)
-- `pytest tests/unit/test_public_data_downloader.py tests/unit/test_data_readiness.py -q` (GREEN)
+- `pytest tests/unit/test_ui_data_update_controller.py tests/unit/test_dashboard_state.py tests/unit/test_dashboard_no_forbidden_side_effects.py -q` (RED: missing controller)
+- `pytest tests/unit/test_ui_data_update_controller.py tests/unit/test_dashboard_state.py tests/unit/test_dashboard_no_forbidden_side_effects.py -q` (GREEN)
 - `pytest tests/ -q` (passed before handoff update)
-- `PYTHONPATH=src python -m ethusdc_bot.data_pipeline.public_data_downloader --symbol BTCUSDC --data-type klines --interval 1m --last-days 1 --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes` (dry-run passed)
-- `PYTHONPATH=src python -m ethusdc_bot.data_pipeline.public_data_downloader --from-readiness` (dry-run passed; summarized output)
-
-Dry-run from readiness produced:
-- `download_ethusdc_klines_1m`: ETHUSDC klines, 1 planned file.
-- `download_btcusdc_klines_1m`: BTCUSDC klines, 1095 planned files.
-- `download_ethbtc_klines_1m`: ETHBTC klines, 1095 planned files.
-- `download_ethusdc_aggtrades`: ETHUSDC aggTrades, 7 planned files.
-- `download_ethusdc_trades`: ETHUSDC trades, 1 planned file.
-- Live collector and unsupported public tasks were skipped by the public downloader.
 
 Not done:
 - No real downloads executed.
