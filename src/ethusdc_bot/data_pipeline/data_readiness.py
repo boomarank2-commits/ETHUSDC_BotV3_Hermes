@@ -17,6 +17,13 @@ from ethusdc_bot.data_pipeline.data_requirements import build_backtest_data_requ
 TRAINING_DAYS = 730
 BLIND_DAYS = 365
 DEFAULT_REQUIRED_DAYS = TRAINING_DAYS + BLIND_DAYS
+SUPPORTED_PUBLIC_DOWNLOADER_REQUIREMENTS = {
+    "ethusdc_klines_1m",
+    "btcusdc_klines_1m",
+    "ethbtc_klines_1m",
+    "ethusdc_aggtrades",
+    "ethusdc_trades",
+}
 FORBIDDEN_RESULT_FIELDS = {
     "profit_usdc",
     "net_usdc_per_day",
@@ -301,11 +308,19 @@ def _task_for_status(status: Mapping[str, object], outdated: bool) -> dict[str, 
     prefix = "collect" if status["source_kind"] == "live_collection" else "download"
     requirement_id = str(status["requirement_id"])
     latest = status.get("latest_available_day")
-    start_date = None if latest is None else (date.fromisoformat(str(latest)) + timedelta(days=1)).isoformat()
-    end_date = None
+    end_day = date.today() - timedelta(days=1)
+    if latest is None:
+        target_days = int(status.get("required_days") or status.get("minimum_days") or 1)
+        start_date = (end_day - timedelta(days=target_days - 1)).isoformat()
+    else:
+        start_date = (date.fromisoformat(str(latest)) + timedelta(days=1)).isoformat()
+    end_date = end_day.isoformat()
     reason = "update_required" if outdated else "missing_or_incomplete"
     if status["source_kind"] == "public_binance_data" and not status.get("implemented_downloader"):
         reason = "next_required_downloader"
+    public_downloader_supported = requirement_id in SUPPORTED_PUBLIC_DOWNLOADER_REQUIREMENTS
+    if public_downloader_supported:
+        reason = "missing_or_incomplete" if not outdated else "update_required"
     return {
         "task_id": f"{prefix}_{requirement_id}",
         "requirement_id": requirement_id,
@@ -316,7 +331,7 @@ def _task_for_status(status: Mapping[str, object], outdated: bool) -> dict[str, 
         "end_date": end_date,
         "target_path": status["expected_path"],
         "source_kind": status["source_kind"],
-        "execute_allowed": bool(status.get("implemented_downloader") and status["source_kind"] == "public_binance_data"),
+        "execute_allowed": bool(status["source_kind"] == "public_binance_data" and public_downloader_supported),
         "reason": reason,
     }
 

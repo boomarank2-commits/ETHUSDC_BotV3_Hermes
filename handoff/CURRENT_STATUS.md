@@ -1,52 +1,48 @@
 # Current Status
 
-Status: Backtest Data Readiness Gate implementiert. UI zeigt jetzt neben ETHUSDC-ZIP-Audit auch eine vollstaendige Datenanforderungs- und Datenaktualisierungs-Matrix fuer den spaeteren UI-gesteuerten Backtest.
+Status: Public-Data-Download-Pipeline wurde passend zum Backtest Data Readiness Gate erweitert. Dry-run bleibt Standard; es wurden keine echten Downloads ausgefuehrt.
 
 Completed in this session:
-- Added `src/ethusdc_bot/data_pipeline/data_requirements.py` with the explicit backtest data matrix:
-  - ETHUSDC spot klines 1m as blocking trade_market source, 1095 days.
-  - BTCUSDC spot klines 1m as market_context, context_only, never trade_market.
-  - ETHBTC spot klines 1m as market_context, context_only, never trade_market.
-  - ETHUSDC aggTrades and trades as microstructure/tradeflow.
-  - exchange_info, fee_reference, slippage_model as rules/cost-basis sources.
-  - ETHUSDC bookTicker and orderbook snapshots as live-collected diagnostic sources with 30-day minimum history before inclusion.
-- Added `src/ethusdc_bot/data_pipeline/data_readiness.py` with read-only readiness functions:
-  - rolling 1095-day window from latest available complete day.
-  - 730/365 training/blind split.
-  - per-source status evaluation.
-  - missing/outdated task planning without execution.
-  - backtest start data gate model.
-- Extended `src/ethusdc_bot/ui/dashboard_state.py` to include `data_readiness_report` and display Backtest Data Readiness details.
-- Updated visible disabled-button hint to: `Backtest waits for data readiness and real engine implementation. No fake result.`
-- Added tests for data requirements, data readiness, and UI snapshot integration.
-- Added docs:
-  - `docs/20_BACKTEST_DATA_REQUIREMENTS.md`
-  - `docs/21_DATA_READINESS_GATE.md`
-- Updated `docs/18_LOCAL_CONTROL_UI.md` and handoff files.
+- Added `src/ethusdc_bot/data_pipeline/public_data_downloader.py` for readiness-oriented Binance public-data downloads.
+- Supported public data planning/execution paths:
+  - ETHUSDC spot klines 1m
+  - BTCUSDC spot klines 1m
+  - ETHBTC spot klines 1m
+  - ETHUSDC aggTrades
+  - ETHUSDC trades
+- Added public URL and CHECKSUM URL builders.
+- Added task planning from readiness tasks.
+- Added dry-run/execute task execution with `--execute` required for real downloads.
+- Added existing-file skip behavior.
+- Added repository-path rejection for download targets.
+- Updated `src/ethusdc_bot/data_pipeline/data_readiness.py` so supported public readiness tasks are `execute_allowed=true`.
+- Added `tests/unit/test_public_data_downloader.py`.
+- Updated `tests/unit/test_data_readiness.py` expectations for newly supported public download tasks.
+- Added `docs/22_PUBLIC_DATA_DOWNLOADER_EXTENSION.md`.
 
-Current real local readiness observed on `C:/TradingBot/data/ETHUSDC_BotV3_Hermes`:
-- overall_status: `blocked`
-- data_gate_ready: false
-- backtest_button_enabled: false
-- rolling window from latest ETHUSDC day:
-  - data_start: `2023-07-08`
-  - data_end: `2026-07-06`
-  - training_start: `2023-07-08`
-  - training_end: `2025-07-06`
-  - blind_start: `2025-07-07`
-  - blind_end: `2026-07-06`
-- ETHUSDC klines_1m: partial, 1094 days, blocking_backtest=true.
-- BTCUSDC klines_1m: missing, context_only, blocking_backtest=false, update_required=true.
-- ETHBTC klines_1m: missing, context_only, blocking_backtest=false, update_required=true.
-- ETHUSDC aggTrades: diagnostic_only/missing, update_required=true, next_required_downloader.
-- ETHUSDC trades: diagnostic_only/missing, update_required=true, next_required_downloader.
-- exchange_info: missing, update_required=true, next_required_downloader.
-- fee_reference: current conservative/config model placeholder, no private/API fee claim.
-- slippage_model: current conservative/config model placeholder, no fake fill claim.
-- ETHUSDC bookTicker live: diagnostic_only, 0 days, collector task only.
-- ETHUSDC orderbook snapshots live: diagnostic_only, 0 days, collector task only.
+Current real local readiness observed before commit:
+- Overall data gate remains blocked.
+- ETHUSDC klines_1m: still 1094/1095 days locally, blocking.
+- BTCUSDC klines_1m: missing context source.
+- ETHBTC klines_1m: missing context source.
+- ETHUSDC aggTrades: missing/diagnostic-only.
+- ETHUSDC trades: missing/diagnostic-only.
+- exchange_info: still not implemented by this downloader.
+- bookTicker/orderbook snapshots: live collectors not implemented.
+
+Downloader dry-run verification:
+- `PYTHONPATH=src python -m ethusdc_bot.data_pipeline.public_data_downloader --symbol BTCUSDC --data-type klines --interval 1m --last-days 1 --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes`
+  - execute=false
+  - one BTCUSDC planned file
+  - status planned
+- `PYTHONPATH=src python -m ethusdc_bot.data_pipeline.public_data_downloader --from-readiness`
+  - execute=false
+  - public task_results: 5
+  - skipped_tasks: 3
+  - planned: ETHUSDC missing kline day, BTCUSDC 1095 klines, ETHBTC 1095 klines, ETHUSDC aggTrades 7 days, ETHUSDC trades 1 day
 
 Explicitly not completed:
+- No real downloads executed.
 - No Binance trading API.
 - No API keys or `.env`.
 - No orders.
@@ -59,15 +55,16 @@ Explicitly not completed:
 - No fake trades.
 - No fake reports.
 - No candidate adoption.
-- No downloaders yet for BTCUSDC/ETHBTC klines, ETHUSDC aggTrades/trades, or exchange_info.
+- No exchange_info downloader yet.
 - No live collectors yet for bookTicker/orderbook snapshots.
 
 Validation performed:
 - Initial git status was clean.
-- New tests failed first because `data_requirements` and `data_readiness` did not exist.
-- Targeted data/UI tests passed.
+- New downloader tests failed first because `public_data_downloader` did not exist.
+- Targeted downloader/readiness tests passed.
 - Full local test suite passed with `pytest tests/ -q` before handoff update.
-- Real local readiness snapshot command succeeded and reported the blocked status above.
+- Real CLI dry-run commands succeeded and did not download data.
 
 Current safe project direction:
-- Next smallest safe step is implementing explicit public downloader planning/execution for missing public data sources, starting with BTCUSDC/ETHBTC 1m klines and the missing ETHUSDC 2026-07-07 day, still writing only to the external raw-data root.
+- Next smallest safe step is user-approved small execute smoke for the missing ETHUSDC 2026-07-07 day, then re-run ETHUSDC ZIP audit/readiness.
+- Larger BTCUSDC/ETHBTC 1095-day context downloads should be run only after explicit user approval because they create many external files.

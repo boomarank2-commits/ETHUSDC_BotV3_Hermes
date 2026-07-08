@@ -1,33 +1,29 @@
 # Next Action
 
 Smallest possible next step:
-- Implement the next safe public-data downloader scope for readiness tasks without adding strategy/backtest logic.
+- With explicit user approval, run a small public-data execute smoke for only the missing ETHUSDC 1m day, then re-run ETHUSDC ZIP audit and readiness.
 
 Recommended next mini-ticket:
-- "Extend public downloader support for readiness tasks: missing ETHUSDC day, BTCUSDC/ETHBTC 1m context klines, and ETHUSDC aggTrades/trades planning"
+- "Execute one-day ETHUSDC public kline download smoke for 2026-07-07 and re-audit"
 
 Acceptance direction for that next ticket:
 - Use only external raw-data target `C:/TradingBot/data/ETHUSDC_BotV3_Hermes`.
 - Do not store raw data inside the repository.
-- Keep dry-run as default and require explicit `--execute` for real public downloads.
-- Start with missing ETHUSDC 2026-07-07 and BTCUSDC/ETHBTC 1m context klines.
-- Mark aggTrades/trades honestly if downloader support is not completed.
-- Re-run readiness and ZIP audits after any downloads.
+- Use the public downloader only with explicit `--execute`.
+- Limit the smoke to the missing ETHUSDC 2026-07-07 day unless the user explicitly approves broader downloads.
+- Re-run ZIP audit and data readiness after the smoke.
 - Do not create profit, trade, candidate, or backtest result fields.
 - Do not implement engine, strategy, exchange, paper, testtrade, or live trading.
 - Keep Live/Paper/Testtrade locked.
 
-Current readiness command shape:
-- `PYTHONPATH=src python - <<'PY' ... build_data_readiness_report(Path('C:/TradingBot/data/ETHUSDC_BotV3_Hermes')) ... PY`
+Useful dry-run command:
+- `PYTHONPATH=src python -m ethusdc_bot.data_pipeline.public_data_downloader --from-readiness`
 
-UI start command:
-- `PYTHONPATH=src python -m ethusdc_bot.ui.dashboard`
+Possible small execute smoke, only after user approval:
+- `PYTHONPATH=src python -m ethusdc_bot.data_pipeline.public_data_downloader --symbol ETHUSDC --data-type klines --interval 1m --start 2026-07-07 --end 2026-07-07 --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes --execute`
 
-Optional Windows helper:
-- `./scripts/start_dashboard.ps1`
-
-After data readiness is green:
-- Next safe code step is still not strategy optimization.
-- Build the smallest read-only backtest input-preparation contract: load only approved data sources, enforce rolling window, enforce train/blind split boundaries, and still produce no profit/trade/candidate claims until a real engine exists.
+Large context downloads should remain separate user-approved steps:
+- BTCUSDC 1095-day klines
+- ETHBTC 1095-day klines
 
 Do not start real backtest, paper trading, testtrade, live trading, strategy, engine, Binance trading API, or order work without explicit approval and required gates.

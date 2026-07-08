@@ -1,14 +1,14 @@
 # Blockers
 
 Current blockers:
-- Backtest Data Readiness is blocked.
+- Backtest Data Readiness remains blocked.
 - ETHUSDC 1m local audit/readiness is incomplete: 1094 complete UTC days found, 1095 required.
 - Missing ETHUSDC UTC day previously reported by audit: `2026-07-07`.
-- BTCUSDC 1m context klines are missing.
-- ETHBTC 1m context klines are missing.
-- ETHUSDC aggTrades downloader/coverage is missing; current status diagnostic-only.
-- ETHUSDC trades downloader/coverage is missing; current status diagnostic-only.
-- exchange_info fetch/downloader is missing.
+- BTCUSDC 1m context klines are missing. Downloader support now exists, but download was not executed.
+- ETHBTC 1m context klines are missing. Downloader support now exists, but download was not executed.
+- ETHUSDC aggTrades are missing/diagnostic-only. Downloader support now exists, but download was not executed.
+- ETHUSDC trades are missing/diagnostic-only. Downloader support now exists, but download was not executed.
+- exchange_info fetch/downloader is still not implemented.
 - bookTicker live collector is not implemented and has 0/30 days.
 - orderbook snapshot live collector is not implemented and has 0/30 days.
 - Backtest engine is not implemented and remains intentionally blocked.
@@ -21,11 +21,10 @@ Current blockers:
 Not blockers:
 - Local tkinter control UI exists.
 - UI starts via `PYTHONPATH=src python -m ethusdc_bot.ui.dashboard`.
-- UI can refresh status and count existing external ETHUSDC 1m ZIP/CHECKSUM files.
-- UI can show real local ETHUSDC 1m ZIP audit status.
 - UI can show Backtest Data Readiness report and per-source statuses.
-- UI can start downloader dry-run or explicit `--execute` for public ETHUSDC 1095-day downloads.
+- Public downloader can now plan/dry-run supported readiness tasks.
+- Public downloader supports ETHUSDC/BTCUSDC/ETHBTC 1m klines and ETHUSDC aggTrades/trades.
 - Backtest button is visible and disabled with an honest reason.
-- Public ETHUSDC 1m kline downloader remains dry-run by default.
-- Target paths are outside the repository.
-- Fee/slippage currently exist only as conservative/config-model readiness entries, not account-specific claims.
+- Dry-run remains default.
+- `--execute` is required for real downloads.
+- Target paths inside the repository are rejected.

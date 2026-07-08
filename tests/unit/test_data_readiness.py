@@ -159,10 +159,10 @@ def test_missing_download_tasks_include_klines_and_tradeflow_but_live_tasks_are_
     by_id = {task["task_id"]: task for task in tasks}
 
     assert by_id["download_ethusdc_klines_1m"]["source_kind"] == "public_binance_data"
-    assert by_id["download_btcusdc_klines_1m"]["reason"] == "next_required_downloader"
-    assert by_id["download_ethbtc_klines_1m"]["reason"] == "next_required_downloader"
-    assert by_id["download_ethusdc_aggtrades"]["reason"] == "next_required_downloader"
-    assert by_id["download_ethusdc_trades"]["reason"] == "next_required_downloader"
+    assert by_id["download_btcusdc_klines_1m"]["execute_allowed"] is True
+    assert by_id["download_ethbtc_klines_1m"]["execute_allowed"] is True
+    assert by_id["download_ethusdc_aggtrades"]["execute_allowed"] is True
+    assert by_id["download_ethusdc_trades"]["execute_allowed"] is True
     assert by_id["collect_ethusdc_bookticker_live"]["source_kind"] == "live_collection"
     assert by_id["collect_ethusdc_orderbook_snapshots_live"]["execute_allowed"] is False
 
