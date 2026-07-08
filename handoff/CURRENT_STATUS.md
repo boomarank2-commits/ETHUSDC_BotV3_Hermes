@@ -1,27 +1,36 @@
 # Current Status
 
-Status: First local Python standard-library control UI implemented and verified locally.
+Status: Local UI-gesteuerte Datenqualitaets-Gate erweitert. ETHUSDC 1m ZIP-Audit ist implementiert, lokal ausgefuehrt und zeigt ehrlich `incomplete`.
 
 Completed in this session:
-- Added `src/ethusdc_bot/ui/__init__.py`.
-- Added `src/ethusdc_bot/ui/dashboard_state.py` with pure status helpers:
-  - `collect_project_status()`
-  - `collect_safety_status()`
-  - `collect_inventory_status(repository_root, local_root)`
-  - `collect_download_folder_status(local_root)`
-  - `count_download_files(download_dir)`
-  - `build_dashboard_snapshot(repository_root, local_root)`
-  - `format_snapshot_for_display(snapshot)`
-- Added `src/ethusdc_bot/ui/dashboard.py` tkinter dashboard.
-- Dashboard shows project contract, safety locks, path-only inventory status, ETHUSDC/BTCUSDC/ETHBTC source status, download folder counts, last 10 files, and a log window.
-- Dashboard starts the public ETHUSDC 1095-day downloader in dry-run mode or with explicit `--execute` when the UI button is pressed.
-- Backtest button is visible but disabled with: `Backtest engine not implemented yet. Next step after data audit.`
-- Live, Paper, and Testtrade remain locked.
-- Added `tests/unit/test_dashboard_state.py`.
-- Added `tests/unit/test_dashboard_no_forbidden_side_effects.py`.
-- Updated the stale UI-forbidden path rule in downloader and related safety tests while preserving all prohibitions for engine, strategy, backtest, exchange, binance_client.py, repository data, raw, and market_data paths.
-- Added `docs/18_LOCAL_CONTROL_UI.md`.
-- Added `scripts/start_dashboard.ps1`.
+- Added `src/ethusdc_bot/data_pipeline/kline_zip_audit.py` with read-only local audit helpers:
+  - `find_kline_zip_files(download_dir)`
+  - `find_checksum_files(download_dir)`
+  - `parse_kline_open_time_from_row(row)`
+  - `audit_ethusdc_1m_zip_file(zip_path)`
+  - `audit_ethusdc_1m_zip_directory(download_dir)`
+  - `build_kline_audit_summary(download_dir, required_utc_days=1095)`
+- Added `tests/unit/test_kline_zip_audit.py` with TDD coverage for clean ZIPs, duplicate open_time, gaps, unsorted rows, broken ZIPs, ZIP/CHECKSUM counts, missing required days, forbidden result fields, path guard, and microsecond open_time normalization.
+- Extended `src/ethusdc_bot/ui/dashboard_state.py` to include `kline_audit_status` in the dashboard snapshot and display text.
+- Updated dashboard backtest hint to: `Backtest engine not implemented yet. Data audit is the next gate.`
+- Updated dashboard tests for the audit fields and disabled backtest button.
+- Added `docs/19_KLINE_ZIP_AUDIT.md` and updated `docs/18_LOCAL_CONTROL_UI.md`.
+
+Local data audit observed on `C:/TradingBot/data/ETHUSDC_BotV3_Hermes/raw/binance/spot/ETHUSDC/klines/1m`:
+- ZIP count: 1094
+- CHECKSUM count: 1094
+- Audit status: `incomplete`
+- observed_start_utc: `2023-07-09T00:00:00Z`
+- observed_end_utc: `2026-07-06T23:59:00Z`
+- observed_rows: 1575360
+- complete_utc_days: 1094
+- missing_utc_days_count: 1
+- missing day preview: `2026-07-07`
+- duplicate_rows: 0
+- gap_count: 0
+- max_gap_seconds: 0
+- blocked_files: 0
+- backtest_ready: false
 
 Explicitly not completed:
 - No Binance trading API.
@@ -29,23 +38,22 @@ Explicitly not completed:
 - No orders.
 - No trading engine.
 - No strategy.
-- No backtest code.
+- No backtest code or backtest result report.
 - No Paper-Trading.
 - No Testtrade.
 - No Live-Trading.
 - No fake trades.
 - No fake reports.
 - No candidate adoption.
-- No data audit.
 
 Validation performed:
 - Initial git status was clean.
-- New dashboard tests failed first because `ethusdc_bot.ui` did not exist.
-- Targeted dashboard/downloader tests passed.
+- Audit tests failed first because `kline_zip_audit` did not exist.
+- UI audit-field tests failed first because the snapshot did not expose `kline_audit_status` and the old hint was still present.
+- Targeted audit/dashboard tests passed.
 - Full local test suite passed with `pytest tests/ -q` before handoff update.
-- Dashboard state snapshot command succeeded.
-- Dashboard module import command succeeded.
-- Downloader dry-run command for one day succeeded without `--execute`.
+- Real local audit snapshot command succeeded and reported 1094/1095 complete UTC days.
 
 Current safe project direction:
-- The project now has a local control UI for status and public downloader control only. Next implementation step should be a real data audit before any backtest engine work.
+- The project now has a real local data audit gate for ETHUSDC 1m ZIP files.
+- Next smallest safe step is to acquire or restore the missing 2026-07-07 public ZIP/CHECKSUM outside the repository, re-run the audit, and only then plan the minimal read-only backtest input-preparation layer.

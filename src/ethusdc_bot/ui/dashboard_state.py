@@ -11,10 +11,11 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from ethusdc_bot.data_pipeline.kline_zip_audit import build_kline_audit_summary
 from ethusdc_bot.data_pipeline.inventory_status import build_inventory_status
 from ethusdc_bot.data_pipeline.public_kline_downloader import DEFAULT_RAW_ROOT
 
-BACKTEST_DISABLED_HINT = "Backtest engine not implemented yet. Next step after data audit."
+BACKTEST_DISABLED_HINT = "Backtest engine not implemented yet. Data audit is the next gate."
 EXPECTED_UTC_DAYS = 1095
 
 
@@ -80,6 +81,37 @@ def collect_download_folder_status(local_root: str | Path) -> dict[str, Any]:
     }
 
 
+def collect_kline_audit_status(local_root: str | Path, required_utc_days: int = EXPECTED_UTC_DAYS) -> dict[str, Any]:
+    """Collect real local ETHUSDC 1m kline ZIP audit status when data exists."""
+
+    download_dir = _ethusdc_1m_download_dir(local_root)
+    if not download_dir.exists():
+        return {
+            "schema_version": 1,
+            "symbol": "ETHUSDC",
+            "interval": "1m",
+            "download_dir": str(download_dir),
+            "zip_count": 0,
+            "checksum_count": 0,
+            "audit_status": "not_audited",
+            "observed_start_utc": None,
+            "observed_end_utc": None,
+            "observed_rows": 0,
+            "complete_utc_days": 0,
+            "missing_utc_days": [],
+            "missing_utc_days_count": 0,
+            "duplicate_rows": 0,
+            "gap_count": 0,
+            "max_gap_seconds": 0,
+            "unsorted_rows": 0,
+            "blocked_files": 0,
+            "backtest_ready": False,
+            "files": [],
+            "safety_note": "Local audit only; no download; no Binance API; no backtest; live/paper/testtrade locked.",
+        }
+    return build_kline_audit_summary(download_dir, required_utc_days=required_utc_days)
+
+
 def count_download_files(download_dir: str | Path) -> dict[str, Any]:
     """Count ZIP and CHECKSUM files and list up to the last 10 names.
 
@@ -116,6 +148,7 @@ def build_dashboard_snapshot(
         "safety_status": collect_safety_status(),
         "inventory_status": collect_inventory_status(repository_root, local_root),
         "download_folder_status": collect_download_folder_status(local_root),
+        "kline_audit_status": collect_kline_audit_status(local_root),
         "ui_status": {
             "backtest_button": {
                 "visible": True,
@@ -135,6 +168,7 @@ def format_snapshot_for_display(snapshot: Mapping[str, Any]) -> str:
     inventory = snapshot["inventory_status"]
     counts = inventory["counts"]
     download = snapshot["download_folder_status"]
+    audit = snapshot["kline_audit_status"]
     backtest = snapshot["ui_status"]["backtest_button"]
     lines = [
         "ETHUSDC Bot V3 Hermes - Local Control Dashboard",
@@ -183,6 +217,21 @@ def format_snapshot_for_display(snapshot: Mapping[str, Any]) -> str:
         f"- Note: {download['progress_note']}",
         "- Last 10 files:",
         *_format_last_files(download["last_10_files"]),
+        "",
+        "Data Audit Status:",
+        f"- ZIP count: {audit['zip_count']}",
+        f"- CHECKSUM count: {audit['checksum_count']}",
+        f"- Audit status: {audit['audit_status']}",
+        f"- observed_start_utc: {audit['observed_start_utc']}",
+        f"- observed_end_utc: {audit['observed_end_utc']}",
+        f"- observed_rows: {audit['observed_rows']}",
+        f"- complete_utc_days: {audit['complete_utc_days']}",
+        f"- missing_utc_days count: {audit['missing_utc_days_count']}",
+        f"- duplicate_rows: {audit['duplicate_rows']}",
+        f"- gap_count: {audit['gap_count']}",
+        f"- max_gap_seconds: {audit['max_gap_seconds']}",
+        f"- backtest_ready: {audit['backtest_ready']}",
+        f"- Note: {audit['safety_note']}",
         "",
         "Backtest:",
         f"- Button visible: {backtest['visible']}",

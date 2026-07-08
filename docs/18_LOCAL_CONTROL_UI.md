@@ -46,6 +46,16 @@ Windows helper:
   - CHECKSUM count
   - last 10 file names
   - rough 1095-day target count: about 1095 ZIP + 1095 CHECKSUM
+- Show the local ETHUSDC 1m ZIP audit gate:
+  - audit status
+  - observed start/end UTC
+  - observed row count
+  - complete UTC day count
+  - missing UTC day count
+  - duplicate row count
+  - gap count
+  - max gap seconds
+  - backtest-ready boolean
 - Refresh the snapshot.
 - Open the local data root in Explorer when it already exists.
 - Start the public downloader in dry-run mode for the last 1095 days.
@@ -66,20 +76,23 @@ Windows helper:
 - No fake trades.
 - No fake reports.
 - No candidate adoption.
-- No data quality audit.
+- No backtest result or trading-quality claim. The data audit is a local file-quality gate only.
 
-The dashboard only counts existing files and shows path/inventory status. It does
-not inspect market-data contents and does not claim completeness or quality.
+The dashboard now inspects local ETHUSDC 1m ZIP contents when the expected folder
+exists under `C:/TradingBot/data/ETHUSDC_BotV3_Hermes`. It does not inspect
+repository raw-data folders, download data during audit, or claim any profit,
+trade, backtest, or candidate result.
 
 ## Why the backtest button is still locked
 
 The button is visible so the planned workflow is obvious, but it is disabled with
 this hint:
 
-`Backtest engine not implemented yet. Next step after data audit.`
+`Backtest engine not implemented yet. Data audit is the next gate.`
 
-A real backtest must wait until data download and data audit are implemented and
-verified. The UI must not fake backtest output or unlock later trading stages.
+A real backtest must wait until a separate backtest engine exists and the data
+audit is complete. The UI must not fake backtest output or unlock later trading
+stages.
 
 ## Download commands used by the UI
 

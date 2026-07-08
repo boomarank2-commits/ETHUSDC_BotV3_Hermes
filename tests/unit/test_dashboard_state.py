@@ -74,8 +74,31 @@ def test_build_snapshot_has_no_profit_backtest_trade_or_candidate_fields(tmp_pat
     assert FORBIDDEN_SNAPSHOT_FIELDS.isdisjoint(snapshot)
     assert FORBIDDEN_SNAPSHOT_FIELDS.isdisjoint(snapshot["project_status"])
     assert FORBIDDEN_SNAPSHOT_FIELDS.isdisjoint(snapshot["download_folder_status"])
+    assert FORBIDDEN_SNAPSHOT_FIELDS.isdisjoint(snapshot["kline_audit_status"])
     assert "backtest_button" in snapshot["ui_status"]
     assert snapshot["ui_status"]["backtest_button"]["enabled"] is False
+
+
+def test_build_snapshot_contains_kline_audit_fields(tmp_path, monkeypatch):
+    from ethusdc_bot.data_pipeline import kline_zip_audit
+
+    monkeypatch.setattr(kline_zip_audit, "DEFAULT_ALLOWED_RAW_ROOT", tmp_path)
+
+    snapshot = dashboard_state.build_dashboard_snapshot(Path.cwd(), tmp_path)
+    audit_status = snapshot["kline_audit_status"]
+
+    assert audit_status["zip_count"] == 0
+    assert audit_status["checksum_count"] == 0
+    assert audit_status["audit_status"] == "not_audited"
+    assert audit_status["observed_start_utc"] is None
+    assert audit_status["observed_end_utc"] is None
+    assert audit_status["observed_rows"] == 0
+    assert audit_status["complete_utc_days"] == 0
+    assert audit_status["missing_utc_days_count"] == 0
+    assert audit_status["duplicate_rows"] == 0
+    assert audit_status["gap_count"] == 0
+    assert audit_status["max_gap_seconds"] == 0
+    assert audit_status["backtest_ready"] is False
 
 
 def test_format_snapshot_for_display_contains_status_without_backtest_claims(tmp_path):
@@ -85,6 +108,8 @@ def test_format_snapshot_for_display_contains_status_without_backtest_claims(tmp
     assert "ETHUSDC" in text
     assert "Live: locked" in text
     assert "Backtest engine not implemented yet" in text
+    assert "Data Audit Status:" in text
+    assert "Audit status: not_audited" in text
     assert "not_audited" in text
     assert "profit_usdc" not in text
     assert "net_usdc_per_day" not in text
