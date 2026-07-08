@@ -4,10 +4,11 @@ Current blockers:
 - Backtest Data Readiness remains blocked until missing public/context data and required gates are satisfied.
 - ETHUSDC 1m local audit/readiness was previously incomplete: 1094 complete UTC days found, 1095 required.
 - Missing ETHUSDC UTC day previously reported by audit: `2026-07-07`.
-- BTCUSDC 1m context klines are missing unless a UI/execute data prep run downloads them.
-- ETHBTC 1m context klines are missing unless a UI/execute data prep run downloads them.
-- ETHUSDC aggTrades are missing/diagnostic-only unless a UI/execute data prep run downloads them.
-- ETHUSDC trades are missing/diagnostic-only unless a UI/execute data prep run downloads them.
+- Read-only check in this session saw ETHUSDC 1m 1094 ZIP and 1094 CHECKSUM files.
+- Read-only check saw BTCUSDC 1m folder missing / 0 ZIP / 0 CHECKSUM.
+- Read-only check saw ETHBTC 1m folder missing / 0 ZIP / 0 CHECKSUM.
+- Read-only check saw ETHUSDC aggTrades folder missing / 0 ZIP / 0 CHECKSUM.
+- Read-only check saw ETHUSDC trades folder missing / 0 ZIP / 0 CHECKSUM.
 - exchange_info fetch/downloader is still not implemented.
 - bookTicker live collector is not implemented and has 0/30 days.
 - orderbook snapshot live collector is not implemented and has 0/30 days.
@@ -18,11 +19,15 @@ Current blockers:
 - Testtrade remains locked.
 - No raw market data should be stored inside the repository.
 
+Operational blocker for current open UI:
+- If the dashboard window was opened before the latest commit, it is running old Python code. UI schließen und neu starten erforderlich.
+
 Not blockers:
 - Local tkinter control UI exists.
 - UI starts via `PYTHONPATH=src python -m ethusdc_bot.ui.dashboard`.
 - UI now has a data-preparation workflow.
 - UI now has structured progress status and a visible progressbar.
+- UI now keeps an in-session Last Data Prep Run status that survives Refresh Status.
 - Backtest start button is visible and enabled for data preparation only when no workflow is running.
 - Data preparation runs asynchronously and reports structured progress.
 - Public downloader can plan/dry-run/supported-execute readiness tasks.

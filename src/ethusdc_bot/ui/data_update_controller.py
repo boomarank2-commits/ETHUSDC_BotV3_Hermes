@@ -37,6 +37,128 @@ FORBIDDEN_RESULT_FIELDS = {
 }
 
 
+def build_initial_data_prep_last_run_status() -> dict[str, Any]:
+    """Return the per-UI-session last-run status before any data prep was run."""
+
+    return {
+        "last_run_status": "never_run",
+        "last_run_mode": "dry_run",
+        "last_run_started_at": None,
+        "last_run_finished_at": None,
+        "last_run_duration_seconds": None,
+        "last_run_supported_tasks": 0,
+        "last_run_completed_tasks": 0,
+        "last_run_skipped_tasks": 0,
+        "last_run_failed_tasks": 0,
+        "last_run_download_results_count": 0,
+        "last_run_readiness_before": None,
+        "last_run_readiness_after": None,
+        "last_run_backtest_engine_locked": True,
+        "last_run_summary_text": "Noch kein Datenvorbereitungs-Lauf in dieser UI-Sitzung.",
+        "last_run_next_blocker": "Noch kein Datenlauf gestartet.",
+        "error": None,
+    }
+
+
+def build_running_data_prep_last_run_status(runtime_status: Mapping[str, Any]) -> dict[str, Any]:
+    """Build a persistent session last-run model from an in-flight runtime update."""
+
+    task_id = runtime_status.get("current_task_id") or "unknown"
+    symbol = runtime_status.get("current_symbol") or "unknown"
+    data_type = runtime_status.get("current_data_type") or "unknown"
+    summary = (
+        "Datenlauf läuft gerade. "
+        f"Aktueller Task: {task_id} ({symbol} {data_type}). "
+        "Dieser Task kann lange dauern, Fortschritt ist task-basiert, nicht byte-basiert."
+    )
+    status = build_initial_data_prep_last_run_status()
+    status.update(
+        {
+            "last_run_status": "running",
+            "last_run_mode": runtime_status.get("mode", "dry_run"),
+            "last_run_started_at": runtime_status.get("started_at"),
+            "last_run_finished_at": None,
+            "last_run_duration_seconds": None,
+            "last_run_supported_tasks": runtime_status.get("supported_download_task_count", runtime_status.get("total_tasks", 0)),
+            "last_run_completed_tasks": runtime_status.get("completed_tasks", 0),
+            "last_run_skipped_tasks": runtime_status.get("skipped_tasks", 0),
+            "last_run_failed_tasks": runtime_status.get("failed_tasks", 0),
+            "last_run_summary_text": summary,
+            "last_run_next_blocker": str(runtime_status.get("last_message") or summary),
+        }
+    )
+    return status
+
+
+def build_finished_data_prep_last_run_status(result: Mapping[str, Any]) -> dict[str, Any]:
+    """Build the durable visible last-run status from a completed controller result."""
+
+    runtime = result.get("runtime_status", {}) if isinstance(result.get("runtime_status"), Mapping) else {}
+    plan = result.get("plan", {}) if isinstance(result.get("plan"), Mapping) else {}
+    readiness_before = plan.get("readiness_before", {}) if isinstance(plan.get("readiness_before"), Mapping) else {}
+    readiness_after = result.get("readiness_after", {}) if isinstance(result.get("readiness_after"), Mapping) else {}
+    download_results = list(result.get("download_results", [])) if isinstance(result.get("download_results", []), list) else []
+    before_status = readiness_before.get("overall_status")
+    after_status = readiness_after.get("overall_status")
+    next_blocker = _next_blocker(readiness_after)
+    if after_status == "ready":
+        summary = "Letzter Datenlauf fertig. Data gate ready, aber Engine fehlt."
+    else:
+        summary = f"Letzter Datenlauf fertig. Readiness bleibt blocked wegen: {next_blocker}"
+    status = build_initial_data_prep_last_run_status()
+    status.update(
+        {
+            "last_run_status": "finished",
+            "last_run_mode": runtime.get("mode", "execute" if result.get("execute") else "dry_run"),
+            "last_run_started_at": runtime.get("started_at"),
+            "last_run_finished_at": runtime.get("finished_at"),
+            "last_run_duration_seconds": _duration_seconds(runtime.get("started_at"), runtime.get("finished_at")),
+            "last_run_supported_tasks": plan.get("supported_download_task_count", runtime.get("supported_download_task_count", 0)),
+            "last_run_completed_tasks": runtime.get("completed_tasks", 0),
+            "last_run_skipped_tasks": runtime.get("skipped_tasks", 0),
+            "last_run_failed_tasks": runtime.get("failed_tasks", 0),
+            "last_run_download_results_count": len(download_results),
+            "last_run_readiness_before": before_status,
+            "last_run_readiness_after": after_status,
+            "last_run_backtest_engine_locked": True,
+            "last_run_summary_text": summary,
+            "last_run_next_blocker": next_blocker,
+            "error": None,
+        }
+    )
+    return status
+
+
+def build_failed_data_prep_last_run_status(
+    runtime_status: Mapping[str, Any],
+    error: BaseException | str,
+) -> dict[str, Any]:
+    """Build the durable visible last-run status for a failed controller run."""
+
+    error_text = str(error)
+    status = build_initial_data_prep_last_run_status()
+    status.update(
+        {
+            "last_run_status": "failed",
+            "last_run_mode": runtime_status.get("mode", "dry_run"),
+            "last_run_started_at": runtime_status.get("started_at"),
+            "last_run_finished_at": runtime_status.get("finished_at") or _utc_now(),
+            "last_run_duration_seconds": _duration_seconds(
+                runtime_status.get("started_at"), runtime_status.get("finished_at") or _utc_now()
+            ),
+            "last_run_supported_tasks": runtime_status.get("supported_download_task_count", runtime_status.get("total_tasks", 0)),
+            "last_run_completed_tasks": runtime_status.get("completed_tasks", 0),
+            "last_run_skipped_tasks": runtime_status.get("skipped_tasks", 0),
+            "last_run_failed_tasks": max(1, int(runtime_status.get("failed_tasks", 0) or 0)),
+            "last_run_backtest_engine_locked": True,
+            "last_run_summary_text": f"Datenlauf fehlgeschlagen: {error_text}",
+            "last_run_next_blocker": f"Fehler beheben: {error_text}",
+            "error": error_text,
+        }
+    )
+    return status
+
+
 def build_initial_data_prep_status(mode: str = "dry_run") -> dict[str, Any]:
     """Return the safe initial structured data-preparation runtime status."""
 
@@ -370,6 +492,29 @@ def _task_progress(completed_tasks: int, total_tasks: int) -> int:
     if total_tasks <= 0:
         return 80
     return 20 + round((completed_tasks / total_tasks) * 60)
+
+
+def _duration_seconds(started_at: Any, finished_at: Any) -> int | None:
+    if not started_at or not finished_at:
+        return None
+    try:
+        started = datetime.fromisoformat(str(started_at))
+        finished = datetime.fromisoformat(str(finished_at))
+    except ValueError:
+        return None
+    return max(0, round((finished - started).total_seconds()))
+
+
+def _next_blocker(readiness: Mapping[str, Any]) -> str:
+    for requirement in readiness.get("requirements", []):
+        if isinstance(requirement, Mapping) and requirement.get("blocking_backtest"):
+            return (
+                f"{requirement.get('requirement_id')}: "
+                f"status={requirement.get('status')}; reason={requirement.get('reason')}"
+            )
+    if not readiness.get("backtest_engine_implemented"):
+        return "Backtest engine is not implemented; UI starts data preparation only."
+    return str(readiness.get("backtest_button_reason") or "No blocker reported.")
 
 
 def _utc_now() -> str:

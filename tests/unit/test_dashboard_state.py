@@ -120,6 +120,48 @@ def test_build_snapshot_contains_data_readiness_report(tmp_path):
     assert report["backtest_engine_implemented"] is False
 
 
+def test_build_snapshot_contains_last_run_status_and_refresh_preserves_supplied_last_run(tmp_path):
+    last_run = dashboard_state.build_initial_data_prep_last_run_status()
+    last_run.update(
+        {
+            "last_run_status": "finished",
+            "last_run_mode": "dry_run",
+            "last_run_readiness_before": "blocked",
+            "last_run_readiness_after": "blocked",
+            "last_run_next_blocker": "Backtest engine is not implemented",
+            "last_run_summary_text": "Letzter Datenlauf fertig. Readiness bleibt blocked wegen: Backtest engine is not implemented",
+        }
+    )
+
+    snapshot = dashboard_state.build_dashboard_snapshot(Path.cwd(), tmp_path, data_prep_last_run_status=last_run)
+    refreshed = dashboard_state.build_dashboard_snapshot(Path.cwd(), tmp_path, data_prep_last_run_status=snapshot["data_prep_last_run_status"])
+
+    assert snapshot["data_prep_last_run_status"]["last_run_status"] == "finished"
+    assert refreshed["data_prep_last_run_status"]["last_run_status"] == "finished"
+    assert refreshed["data_prep_last_run_status"]["last_run_next_blocker"] == "Backtest engine is not implemented"
+
+
+def test_format_snapshot_for_display_contains_last_data_prep_run(tmp_path):
+    last_run = dashboard_state.build_initial_data_prep_last_run_status()
+    last_run.update(
+        {
+            "last_run_status": "finished",
+            "last_run_mode": "execute",
+            "last_run_readiness_before": "blocked",
+            "last_run_readiness_after": "blocked",
+            "last_run_next_blocker": "bookTicker live collector is missing",
+            "last_run_summary_text": "Letzter Datenlauf fertig. Readiness bleibt blocked wegen: bookTicker live collector is missing",
+        }
+    )
+    snapshot = dashboard_state.build_dashboard_snapshot(Path.cwd(), tmp_path, data_prep_last_run_status=last_run)
+    text = dashboard_state.format_snapshot_for_display(snapshot)
+
+    assert "Last Data Prep Run" in text
+    assert "Last status: finished" in text
+    assert "Last readiness before/after: blocked -> blocked" in text
+    assert "Last next blocker: bookTicker live collector is missing" in text
+
+
 def test_build_snapshot_contains_runtime_data_prep_status_and_blockers(tmp_path):
     snapshot = dashboard_state.build_dashboard_snapshot(Path.cwd(), tmp_path)
 

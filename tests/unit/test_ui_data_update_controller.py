@@ -54,6 +54,15 @@ def test_build_data_update_plan_contains_supported_public_tasks(tmp_path):
         assert task["execute_allowed"] is True
 
 
+def test_initial_last_run_status_is_never_run():
+    status = controller.build_initial_data_prep_last_run_status()
+
+    assert status["last_run_status"] == "never_run"
+    assert status["last_run_mode"] == "dry_run"
+    assert status["last_run_backtest_engine_locked"] is True
+    assert status["last_run_summary_text"] == "Noch kein Datenvorbereitungs-Lauf in dieser UI-Sitzung."
+
+
 def test_initial_data_prep_status_is_idle_with_zero_progress():
     status = controller.build_initial_data_prep_status()
 
@@ -138,6 +147,82 @@ def test_failed_data_prep_status_contains_error(monkeypatch, tmp_path):
     assert updates[-1]["error"] == "readiness exploded"
     assert updates[-1]["backtest_started"] is False
     assert updates[-1]["engine_start_locked"] is True
+
+
+def test_build_running_last_run_status_from_runtime_update():
+    runtime = controller.build_initial_data_prep_status(mode="execute")
+    runtime.update(
+        {
+            "phase": "downloading",
+            "started_at": "2026-07-08T10:00:00+00:00",
+            "current_task_id": "download_btcusdc_klines_1m",
+            "current_symbol": "BTCUSDC",
+            "current_data_type": "klines_1m",
+            "total_tasks": 5,
+            "completed_tasks": 1,
+            "skipped_tasks": 0,
+            "failed_tasks": 0,
+            "supported_download_task_count": 5,
+            "last_message": "Downloading supported public task: download_btcusdc_klines_1m",
+        }
+    )
+
+    last_run = controller.build_running_data_prep_last_run_status(runtime)
+
+    assert last_run["last_run_status"] == "running"
+    assert last_run["last_run_mode"] == "execute"
+    assert last_run["last_run_started_at"] == "2026-07-08T10:00:00+00:00"
+    assert last_run["last_run_supported_tasks"] == 5
+    assert last_run["last_run_completed_tasks"] == 1
+    assert "Datenlauf läuft gerade" in last_run["last_run_summary_text"]
+    assert "task-basiert" in last_run["last_run_summary_text"]
+
+
+def test_build_finished_last_run_status_after_dry_run(tmp_path):
+    result = controller.run_data_update_plan(tmp_path, execute=False)
+
+    last_run = controller.build_finished_data_prep_last_run_status(result)
+
+    assert last_run["last_run_status"] == "finished"
+    assert last_run["last_run_mode"] == "dry_run"
+    assert last_run["last_run_supported_tasks"] >= 5
+    assert last_run["last_run_completed_tasks"] == last_run["last_run_supported_tasks"]
+    assert last_run["last_run_skipped_tasks"] == last_run["last_run_supported_tasks"]
+    assert last_run["last_run_download_results_count"] == 0
+    assert last_run["last_run_readiness_before"] == "blocked"
+    assert last_run["last_run_readiness_after"] == "blocked"
+    assert last_run["last_run_backtest_engine_locked"] is True
+    assert "Letzter Datenlauf fertig" in last_run["last_run_summary_text"]
+    assert last_run["last_run_next_blocker"]
+
+
+def test_build_finished_last_run_status_after_execute_shows_readiness_after(monkeypatch, tmp_path):
+    def fake_execute(task, execute=False):
+        return {"task_id": task["task_id"], "planned_files": 2, "file_results": [], "checksum_results": []}
+
+    monkeypatch.setattr(controller.public_data_downloader, "execute_public_download_task", fake_execute)
+
+    result = controller.run_data_update_plan(tmp_path, execute=True)
+    last_run = controller.build_finished_data_prep_last_run_status(result)
+
+    assert last_run["last_run_status"] == "finished"
+    assert last_run["last_run_mode"] == "execute"
+    assert last_run["last_run_download_results_count"] == len(result["download_results"])
+    assert last_run["last_run_readiness_after"] == result["readiness_after"]["overall_status"]
+    assert last_run["last_run_backtest_engine_locked"] is True
+
+
+def test_build_failed_last_run_status_exposes_error():
+    runtime = controller.build_initial_data_prep_status(mode="dry_run")
+    runtime.update({"started_at": "2026-07-08T10:00:00+00:00", "finished_at": "2026-07-08T10:00:05+00:00"})
+
+    last_run = controller.build_failed_data_prep_last_run_status(runtime, RuntimeError("boom"))
+
+    assert last_run["last_run_status"] == "failed"
+    assert last_run["last_run_mode"] == "dry_run"
+    assert last_run["last_run_backtest_engine_locked"] is True
+    assert last_run["error"] == "boom"
+    assert "Datenlauf fehlgeschlagen: boom" == last_run["last_run_summary_text"]
 
 
 def test_build_data_update_plan_separates_unsupported_exchange_info_and_live_collectors(tmp_path):

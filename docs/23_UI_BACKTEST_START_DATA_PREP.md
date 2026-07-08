@@ -70,6 +70,41 @@ It never creates:
 - candidate adoption
 - backtest result reports
 
+## Last-run visibility
+
+The dashboard keeps a per-UI-session `Last Data Prep Run` status. This is intentionally in memory only:
+
+- Restarting the UI resets it to `never_run`.
+- Clicking Refresh Status inside the same UI session does not reset it.
+- The last-run status is passed into the dashboard snapshot and displayed at the top of the text area.
+
+Visible last-run fields:
+
+- `last_run_status`: `never_run`, `running`, `finished`, or `failed`
+- `last_run_mode`: `dry_run` or `execute`
+- `last_run_started_at`
+- `last_run_finished_at`
+- `last_run_duration_seconds`
+- `last_run_supported_tasks`
+- `last_run_completed_tasks`
+- `last_run_skipped_tasks`
+- `last_run_failed_tasks`
+- `last_run_download_results_count`
+- `last_run_readiness_before`
+- `last_run_readiness_after`
+- `last_run_backtest_engine_locked=true`
+- `last_run_summary_text`
+- `last_run_next_blocker`
+
+Completion wording is explicit:
+
+- If readiness remains blocked: `Letzter Datenlauf fertig. Readiness bleibt blocked wegen: ...`
+- If the data gate is ready but no engine exists: `Letzter Datenlauf fertig. Data gate ready, aber Engine fehlt.`
+- If running: `Datenlauf läuft gerade...`
+- If failed: `Datenlauf fehlgeschlagen: ...`
+
+Important operational note: an already-open dashboard process uses the Python code it loaded at startup. After code updates, close and restart the UI with `PYTHONPATH=src python -m ethusdc_bot.ui.dashboard` to get this last-run display.
+
 ## Runtime progress status
 
 The dashboard now shows a large status area above the text snapshot:

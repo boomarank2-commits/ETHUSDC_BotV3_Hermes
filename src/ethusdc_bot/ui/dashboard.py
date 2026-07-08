@@ -22,7 +22,13 @@ from ethusdc_bot.ui.dashboard_state import (
     default_repository_root,
     format_snapshot_for_display,
 )
-from ethusdc_bot.ui.data_update_controller import run_data_update_plan_async
+from ethusdc_bot.ui.data_update_controller import (
+    build_failed_data_prep_last_run_status,
+    build_finished_data_prep_last_run_status,
+    build_initial_data_prep_last_run_status,
+    build_running_data_prep_last_run_status,
+    run_data_update_plan_async,
+)
 
 
 class DashboardApp:
@@ -34,7 +40,9 @@ class DashboardApp:
         self.local_root = local_root or default_local_root()
         self.log_queue: queue.Queue[object] = queue.Queue()
         self.active_data_thread: threading.Thread | None = None
+        self.active_result_container: dict[str, object] | None = None
         self.data_prep_running = False
+        self.last_run_status = build_initial_data_prep_last_run_status()
 
         self.root.title("ETHUSDC Bot V3 Hermes - Local Control Dashboard")
         self.root.geometry("1100x760")
@@ -70,6 +78,8 @@ class DashboardApp:
         self.task_var = tk.StringVar(value="Aktueller Task: none")
         self.count_var = tk.StringVar(value="Tasks: 0 / 0")
         self.engine_var = tk.StringVar(value="Backtest-Engine: locked")
+        self.last_run_var = tk.StringVar(value="Last data prep run status: never_run")
+        self.last_run_detail_var = tk.StringVar(value="Noch kein Datenvorbereitungs-Lauf in dieser UI-Sitzung.")
         for variable in (
             self.bot_state_var,
             self.phase_var,
@@ -77,6 +87,8 @@ class DashboardApp:
             self.task_var,
             self.count_var,
             self.engine_var,
+            self.last_run_var,
+            self.last_run_detail_var,
         ):
             ttk.Label(runtime_frame, textvariable=variable).pack(anchor=tk.W)
         ttk.Progressbar(runtime_frame, maximum=100, variable=self.progress_var).pack(fill=tk.X, pady=(4, 0))
@@ -97,8 +109,13 @@ class DashboardApp:
 
     def refresh_status(self) -> None:
         try:
-            snapshot = build_dashboard_snapshot(self.repository_root, self.local_root)
+            snapshot = build_dashboard_snapshot(
+                self.repository_root,
+                self.local_root,
+                data_prep_last_run_status=self.last_run_status,
+            )
             self._apply_runtime_status(snapshot["data_prep_runtime_status"])
+            self._apply_last_run_status(snapshot["data_prep_last_run_status"])
             text = format_snapshot_for_display(snapshot)
         except Exception as exc:  # pragma: no cover - defensive UI reporting
             text = f"Failed to collect dashboard snapshot: {exc}\n"
@@ -141,13 +158,29 @@ class DashboardApp:
         self._set_data_buttons_enabled(False)
         mode = "EXECUTE" if execute else "DRY-RUN"
         self._log(f"Starting {mode} data preparation workflow.")
-        thread, _result_container = run_data_update_plan_async(
+        initial_runtime = {
+            "mode": "execute" if execute else "dry_run",
+            "phase": "checking_readiness",
+            "started_at": None,
+            "current_task_id": None,
+            "current_symbol": None,
+            "current_data_type": None,
+            "supported_download_task_count": 0,
+            "completed_tasks": 0,
+            "skipped_tasks": 0,
+            "failed_tasks": 0,
+            "last_message": "Datenlauf läuft gerade...",
+        }
+        self.last_run_status = build_running_data_prep_last_run_status(initial_runtime)
+        self._apply_last_run_status(self.last_run_status)
+        thread, result_container = run_data_update_plan_async(
             self.local_root,
             execute=execute,
             log_callback=self.log_queue.put,
             progress_callback=self.log_queue.put,
         )
         self.active_data_thread = thread
+        self.active_result_container = result_container
 
     def _drain_log_queue(self) -> None:
         while True:
@@ -157,14 +190,29 @@ class DashboardApp:
                 break
             if isinstance(message, dict):
                 self._apply_runtime_status(message)
+                self.last_run_status = build_running_data_prep_last_run_status(message)
+                self._apply_last_run_status(self.last_run_status)
             else:
                 self._log(str(message))
         if self.active_data_thread is not None and not self.active_data_thread.is_alive():
+            self._finalize_active_data_run()
             self.active_data_thread = None
+            self.active_result_container = None
             self.data_prep_running = False
             self._set_data_buttons_enabled(True)
             self.refresh_status()
         self.root.after(250, self._drain_log_queue)
+
+    def _finalize_active_data_run(self) -> None:
+        if self.active_result_container is None:
+            return
+        result = self.active_result_container.get("result")
+        error = self.active_result_container.get("error")
+        if isinstance(result, dict):
+            self.last_run_status = build_finished_data_prep_last_run_status(result)
+        elif error is not None:
+            self.last_run_status = build_failed_data_prep_last_run_status(self.last_run_status, error)
+        self._apply_last_run_status(self.last_run_status)
 
     def _apply_runtime_status(self, status: dict[str, object]) -> None:
         mode = "Download" if status.get("mode") == "execute" else "Dry-run"
@@ -178,6 +226,20 @@ class DashboardApp:
         self.task_var.set(f"Aktueller Task: {task}")
         self.count_var.set(f"Tasks: {completed} / {total}")
         self.engine_var.set("Backtest-Engine: locked (echte Engine nicht gestartet)")
+        if status.get("phase") == "downloading":
+            self.bot_state_var.set(
+                f"Bot-Zustand: {status.get('last_message', 'unknown')} — "
+                "Dieser Task kann lange dauern, Fortschritt ist task-basiert, nicht byte-basiert."
+            )
+
+    def _apply_last_run_status(self, status: dict[str, object]) -> None:
+        self.last_run_var.set(
+            "Last data prep run status: "
+            f"{status.get('last_run_status')} | mode={status.get('last_run_mode')} | "
+            f"started={status.get('last_run_started_at')} | finished={status.get('last_run_finished_at')} | "
+            f"duration={status.get('last_run_duration_seconds')}s"
+        )
+        self.last_run_detail_var.set(str(status.get("last_run_summary_text", "")))
 
     def _set_data_buttons_enabled(self, enabled: bool) -> None:
         state = tk.NORMAL if enabled else tk.DISABLED

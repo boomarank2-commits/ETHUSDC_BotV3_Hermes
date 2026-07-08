@@ -15,7 +15,11 @@ from ethusdc_bot.data_pipeline.data_readiness import build_backtest_start_data_g
 from ethusdc_bot.data_pipeline.kline_zip_audit import build_kline_audit_summary
 from ethusdc_bot.data_pipeline.inventory_status import build_inventory_status
 from ethusdc_bot.data_pipeline.public_kline_downloader import DEFAULT_RAW_ROOT
-from ethusdc_bot.ui.data_update_controller import build_data_update_plan, build_initial_data_prep_status
+from ethusdc_bot.ui.data_update_controller import (
+    build_data_update_plan,
+    build_initial_data_prep_last_run_status,
+    build_initial_data_prep_status,
+)
 
 BACKTEST_DISABLED_HINT = "Backtest waits for data readiness and real engine implementation. No fake result."
 BACKTEST_START_HINT = "Backtest start currently prepares data only. Real engine is not implemented yet."
@@ -142,6 +146,7 @@ def count_download_files(download_dir: str | Path) -> dict[str, Any]:
 def build_dashboard_snapshot(
     repository_root: str | Path,
     local_root: str | Path = DEFAULT_RAW_ROOT,
+    data_prep_last_run_status: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the complete status-only dashboard snapshot."""
 
@@ -157,6 +162,7 @@ def build_dashboard_snapshot(
         }
     )
     backtest_blocker_summary = _build_backtest_blocker_summary(data_readiness_report)
+    last_run_status = dict(data_prep_last_run_status or build_initial_data_prep_last_run_status())
     return {
         "schema_version": 1,
         "project_status": collect_project_status(),
@@ -166,6 +172,7 @@ def build_dashboard_snapshot(
         "kline_audit_status": collect_kline_audit_status(local_root),
         "data_readiness_report": data_readiness_report,
         "data_prep_runtime_status": runtime_status,
+        "data_prep_last_run_status": last_run_status,
         "data_prep_progress_pct": runtime_status["progress_pct"],
         "data_prep_current_task": runtime_status["current_task_id"],
         "data_prep_mode": runtime_status["mode"],
@@ -212,10 +219,24 @@ def format_snapshot_for_display(snapshot: Mapping[str, Any]) -> str:
     readiness = snapshot["data_readiness_report"]
     prep = snapshot["data_prep_status"]
     runtime = snapshot["data_prep_runtime_status"]
+    last_run = snapshot["data_prep_last_run_status"]
     window = readiness["backtest_window"]
     backtest = snapshot["ui_status"]["backtest_start_button"]
     lines = [
         "ETHUSDC Bot V3 Hermes - Local Control Dashboard",
+        "",
+        "Last Data Prep Run:",
+        f"- Last status: {last_run['last_run_status']}",
+        f"- Last mode: {last_run['last_run_mode']}",
+        f"- Last started_at: {last_run['last_run_started_at']}",
+        f"- Last finished_at: {last_run['last_run_finished_at']}",
+        f"- Last duration seconds: {last_run['last_run_duration_seconds']}",
+        f"- Last supported/completed/skipped/failed: {last_run['last_run_supported_tasks']}/{last_run['last_run_completed_tasks']}/{last_run['last_run_skipped_tasks']}/{last_run['last_run_failed_tasks']}",
+        f"- Last download results count: {last_run['last_run_download_results_count']}",
+        f"- Last readiness before/after: {last_run['last_run_readiness_before']} -> {last_run['last_run_readiness_after']}",
+        f"- Last engine locked: {last_run['last_run_backtest_engine_locked']}",
+        f"- Last next blocker: {last_run['last_run_next_blocker']}",
+        f"- Last summary: {last_run['last_run_summary_text']}",
         "",
         "Project Status:",
         f"- Symbol: {project['symbol']}",
