@@ -12,6 +12,7 @@ Current blockers:
 - bookTicker live collector is not implemented and has 0/30 days.
 - orderbook snapshot live collector is not implemented and has 0/30 days.
 - Backtest engine is not implemented and remains intentionally locked.
+- A completed data-prep workflow or completed download is not a backtest result and is not evidence of profit.
 - Live trading remains locked by project contract.
 - Paper trading remains locked.
 - Testtrade remains locked.
@@ -21,7 +22,8 @@ Not blockers:
 - Local tkinter control UI exists.
 - UI starts via `PYTHONPATH=src python -m ethusdc_bot.ui.dashboard`.
 - UI now has a data-preparation workflow.
-- Backtest start button is visible and enabled for data preparation only.
-- Data preparation runs asynchronously and logs progress.
+- UI now has structured progress status and a visible progressbar.
+- Backtest start button is visible and enabled for data preparation only when no workflow is running.
+- Data preparation runs asynchronously and reports structured progress.
 - Public downloader can plan/dry-run/supported-execute readiness tasks.
 - Target paths inside the repository are rejected by the downloader.

@@ -54,6 +54,92 @@ def test_build_data_update_plan_contains_supported_public_tasks(tmp_path):
         assert task["execute_allowed"] is True
 
 
+def test_initial_data_prep_status_is_idle_with_zero_progress():
+    status = controller.build_initial_data_prep_status()
+
+    assert status["phase"] == "idle"
+    assert status["mode"] == "dry_run"
+    assert status["progress_pct"] == 0
+    assert status["current_step"] == "Idle"
+    assert status["backtest_started"] is False
+    assert status["backtest_allowed"] is False
+    assert status["engine_start_locked"] is True
+
+
+def test_run_data_update_plan_dry_run_emits_structured_status_sequence(monkeypatch, tmp_path):
+    def fail_if_called(task, execute=False):
+        raise AssertionError("public downloader must not be called in dry-run")
+
+    monkeypatch.setattr(controller.public_data_downloader, "execute_public_download_task", fail_if_called)
+    updates = []
+
+    result = controller.run_data_update_plan(tmp_path, execute=False, progress_callback=updates.append)
+
+    phases = [status["phase"] for status in updates]
+    assert phases[0] == "checking_readiness"
+    assert "planning" in phases
+    assert "dry_run" in phases
+    assert "refreshing_readiness" in phases
+    assert phases[-1] == "finished"
+    assert result["runtime_status"]["phase"] == "finished"
+    assert result["runtime_status"]["progress_pct"] == 100
+
+
+def test_run_data_update_plan_execute_emits_downloading_status_for_supported_tasks(monkeypatch, tmp_path):
+    calls = []
+    updates = []
+
+    def fake_execute(task, execute=False):
+        calls.append(task["task_id"])
+        return {"task_id": task["task_id"], "file_results": [], "checksum_results": []}
+
+    monkeypatch.setattr(controller.public_data_downloader, "execute_public_download_task", fake_execute)
+
+    controller.run_data_update_plan(tmp_path, execute=True, progress_callback=updates.append)
+
+    download_updates = [status for status in updates if status["phase"] == "downloading"]
+    assert download_updates
+    assert {status["current_task_id"] for status in download_updates} == set(calls)
+    assert all(status["mode"] == "execute" for status in download_updates)
+    assert all(status["total_tasks"] >= len(calls) for status in download_updates)
+
+
+def test_data_prep_progress_stays_between_zero_and_one_hundred(monkeypatch, tmp_path):
+    updates = []
+
+    def fake_execute(task, execute=False):
+        return {"task_id": task["task_id"], "file_results": [], "checksum_results": []}
+
+    monkeypatch.setattr(controller.public_data_downloader, "execute_public_download_task", fake_execute)
+
+    controller.run_data_update_plan(tmp_path, execute=True, progress_callback=updates.append)
+
+    assert updates
+    assert all(0 <= status["progress_pct"] <= 100 for status in updates)
+    assert updates[-1]["phase"] == "finished"
+    assert updates[-1]["progress_pct"] == 100
+
+
+def test_failed_data_prep_status_contains_error(monkeypatch, tmp_path):
+    updates = []
+
+    def fail_readiness(local_root):
+        raise RuntimeError("readiness exploded")
+
+    monkeypatch.setattr(controller, "build_backtest_start_data_gate", fail_readiness)
+    try:
+        controller.run_data_update_plan(tmp_path, execute=False, progress_callback=updates.append)
+    except RuntimeError:
+        pass
+    else:  # pragma: no cover - explicit failure branch
+        raise AssertionError("expected readiness failure")
+
+    assert updates[-1]["phase"] == "failed"
+    assert updates[-1]["error"] == "readiness exploded"
+    assert updates[-1]["backtest_started"] is False
+    assert updates[-1]["engine_start_locked"] is True
+
+
 def test_build_data_update_plan_separates_unsupported_exchange_info_and_live_collectors(tmp_path):
     plan = controller.build_data_update_plan(tmp_path)
     unsupported_ids = {task["task_id"] for task in plan["unsupported_tasks"]}

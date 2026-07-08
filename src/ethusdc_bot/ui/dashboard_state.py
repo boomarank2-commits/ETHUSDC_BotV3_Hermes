@@ -15,7 +15,7 @@ from ethusdc_bot.data_pipeline.data_readiness import build_backtest_start_data_g
 from ethusdc_bot.data_pipeline.kline_zip_audit import build_kline_audit_summary
 from ethusdc_bot.data_pipeline.inventory_status import build_inventory_status
 from ethusdc_bot.data_pipeline.public_kline_downloader import DEFAULT_RAW_ROOT
-from ethusdc_bot.ui.data_update_controller import build_data_update_plan
+from ethusdc_bot.ui.data_update_controller import build_data_update_plan, build_initial_data_prep_status
 
 BACKTEST_DISABLED_HINT = "Backtest waits for data readiness and real engine implementation. No fake result."
 BACKTEST_START_HINT = "Backtest start currently prepares data only. Real engine is not implemented yet."
@@ -146,6 +146,17 @@ def build_dashboard_snapshot(
     """Build the complete status-only dashboard snapshot."""
 
     data_update_plan = build_data_update_plan(local_root)
+    data_readiness_report = build_backtest_start_data_gate(local_root)
+    runtime_status = build_initial_data_prep_status()
+    runtime_status.update(
+        {
+            "supported_download_task_count": data_update_plan["supported_download_task_count"],
+            "unsupported_task_count": data_update_plan["unsupported_task_count"],
+            "live_collector_task_count": data_update_plan["live_collector_task_count"],
+            "total_tasks": data_update_plan["supported_download_task_count"],
+        }
+    )
+    backtest_blocker_summary = _build_backtest_blocker_summary(data_readiness_report)
     return {
         "schema_version": 1,
         "project_status": collect_project_status(),
@@ -153,7 +164,15 @@ def build_dashboard_snapshot(
         "inventory_status": collect_inventory_status(repository_root, local_root),
         "download_folder_status": collect_download_folder_status(local_root),
         "kline_audit_status": collect_kline_audit_status(local_root),
-        "data_readiness_report": build_backtest_start_data_gate(local_root),
+        "data_readiness_report": data_readiness_report,
+        "data_prep_runtime_status": runtime_status,
+        "data_prep_progress_pct": runtime_status["progress_pct"],
+        "data_prep_current_task": runtime_status["current_task_id"],
+        "data_prep_mode": runtime_status["mode"],
+        "bot_current_status_text": _build_bot_status_text(data_readiness_report, runtime_status),
+        "can_start_data_prep": True,
+        "can_start_backtest_engine": False,
+        "backtest_blocker_summary": backtest_blocker_summary,
         "data_prep_status": {
             "status": "idle",
             "engine_start_locked": True,
@@ -192,6 +211,7 @@ def format_snapshot_for_display(snapshot: Mapping[str, Any]) -> str:
     audit = snapshot["kline_audit_status"]
     readiness = snapshot["data_readiness_report"]
     prep = snapshot["data_prep_status"]
+    runtime = snapshot["data_prep_runtime_status"]
     window = readiness["backtest_window"]
     backtest = snapshot["ui_status"]["backtest_start_button"]
     lines = [
@@ -271,6 +291,14 @@ def format_snapshot_for_display(snapshot: Mapping[str, Any]) -> str:
         f"- Hint: {readiness['backtest_button_reason']}",
         "",
         "Data Preparation Workflow:",
+        f"- Bot state: {snapshot['bot_current_status_text']}",
+        f"- Runtime phase: {runtime['phase']}",
+        f"- Mode: {runtime['mode']}",
+        f"- Progress: {runtime['progress_pct']}%",
+        f"- Current step: {runtime['current_step']}",
+        f"- Current task: {runtime['current_task_id'] or 'none'}",
+        f"- Tasks completed/total: {runtime['completed_tasks']}/{runtime['total_tasks']}",
+        f"- Backtest blocker: {snapshot['backtest_blocker_summary']}",
         "- Backtest start currently runs data preparation only. Real engine start is still locked.",
         f"- data_prep_status: {prep['status']}",
         f"- engine_start_locked: {prep['engine_start_locked']}",
@@ -287,6 +315,23 @@ def format_snapshot_for_display(snapshot: Mapping[str, Any]) -> str:
         f"- Hint: {backtest['hint']}",
     ]
     return "\n".join(lines) + "\n"
+
+
+def _build_backtest_blocker_summary(readiness: Mapping[str, Any]) -> str:
+    blockers = []
+    if not readiness.get("data_gate_ready"):
+        blockers.append(str(readiness.get("backtest_button_reason", "Data readiness is blocked.")))
+    if not readiness.get("backtest_engine_implemented"):
+        blockers.append("Backtest engine is not implemented; UI starts data preparation only.")
+    return " ".join(blockers) or "Backtest engine is locked by policy."
+
+
+def _build_bot_status_text(readiness: Mapping[str, Any], runtime_status: Mapping[str, Any]) -> str:
+    if runtime_status.get("phase") not in {"idle", "finished"}:
+        return f"Data preparation running: {runtime_status.get('phase')}"
+    if readiness.get("data_gate_ready"):
+        return "Data readiness is complete, but real backtest engine remains locked/not implemented."
+    return "Data readiness is blocked; run dry-run or data loading to inspect missing tasks."
 
 
 def default_repository_root() -> Path:

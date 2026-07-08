@@ -120,6 +120,19 @@ def test_build_snapshot_contains_data_readiness_report(tmp_path):
     assert report["backtest_engine_implemented"] is False
 
 
+def test_build_snapshot_contains_runtime_data_prep_status_and_blockers(tmp_path):
+    snapshot = dashboard_state.build_dashboard_snapshot(Path.cwd(), tmp_path)
+
+    assert snapshot["data_prep_runtime_status"]["phase"] == "idle"
+    assert snapshot["data_prep_progress_pct"] == 0
+    assert snapshot["data_prep_current_task"] is None
+    assert snapshot["data_prep_mode"] == "dry_run"
+    assert snapshot["can_start_data_prep"] is True
+    assert snapshot["can_start_backtest_engine"] is False
+    assert "Backtest engine" in snapshot["backtest_blocker_summary"]
+    assert "bot_current_status_text" in snapshot
+
+
 def test_build_snapshot_contains_data_prep_and_clickable_backtest_start_button(tmp_path):
     snapshot = dashboard_state.build_dashboard_snapshot(Path.cwd(), tmp_path)
     prep = snapshot["data_prep_status"]

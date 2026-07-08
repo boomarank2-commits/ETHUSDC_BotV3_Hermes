@@ -2,10 +2,12 @@
 
 Last known safe state:
 - Phase 1 skeleton, strict schema validation, data catalog/audit foundation, local data inventory scanner, inventory status command, raw-data directory contract, raw-data manifest schema, public data downloader, local tkinter control UI, ETHUSDC 1m ZIP audit gate, Backtest Data Requirements catalog, and Backtest Data Readiness gate were already committed and pushed before this session.
-- UI Backtest Start data-preparation workflow has been implemented in this session.
-- UI Backtest Start is clickable but data-preparation-only.
+- UI data preparation now has structured runtime progress status.
+- UI Backtest Start remains clickable but data-preparation-only.
 - Real engine start remains locked.
-- Targeted UI/controller tests passed.
+- Data-prep buttons are disabled while a workflow is active.
+- Snapshot exposes runtime status and backtest blocker summary.
+- Targeted UI/controller/dashboard tests passed.
 - Full local test suite passed with `pytest tests/ -q` before handoff update.
 - No real downloads were executed in this session.
 - Raw market data remains outside the repository by contract and downloader target path.
@@ -15,5 +17,5 @@ Last known safe state:
 
 Safe continuation rule:
 - Read AGENTS.md, handoff directory, and git status before continuing.
-- Next safe action is a UI data-preparation smoke, not real backtest execution.
+- Next safe action is a UI dry-run progress smoke, not real backtest execution.
 - Keep Live/Paper/Testtrade locked unless the explicit project contract gates are satisfied later.
