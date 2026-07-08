@@ -173,6 +173,7 @@ def build_dashboard_snapshot(
         "data_readiness_report": data_readiness_report,
         "data_prep_runtime_status": runtime_status,
         "data_prep_last_run_status": last_run_status,
+        "operator_data_status_rows": build_operator_data_status_rows(data_readiness_report),
         "data_prep_progress_pct": runtime_status["progress_pct"],
         "data_prep_current_task": runtime_status["current_task_id"],
         "data_prep_mode": runtime_status["mode"],
@@ -205,6 +206,86 @@ def build_dashboard_snapshot(
             "live_paper_testtrade": "locked",
         },
     }
+
+
+def build_operator_data_status_rows(readiness: Mapping[str, Any]) -> list[dict[str, str]]:
+    """Return five concise user-facing data status rows for the dashboard."""
+
+    requirements = readiness.get("requirements_by_id", {})
+    specs = [
+        ("ETHUSDC 1m", "ethusdc_klines_1m"),
+        ("BTCUSDC 1m", "btcusdc_klines_1m"),
+        ("ETHBTC 1m", "ethbtc_klines_1m"),
+        ("ETHUSDC aggTrades", "ethusdc_aggtrades"),
+        ("ETHUSDC trades", "ethusdc_trades"),
+    ]
+    rows = []
+    for label, requirement_id in specs:
+        requirement = requirements.get(requirement_id, {}) if isinstance(requirements, Mapping) else {}
+        available = int(requirement.get("available_days", 0) or 0)
+        required = int(requirement.get("required_days", 0) or requirement.get("minimum_days", 0) or 0)
+        rows.append(
+            {
+                "label": label,
+                "status": _operator_status_word(str(requirement.get("status", "missing")), available, required),
+                "files_text": f"{available}/{required}" if required else "wird ermittelt",
+                "reason": str(requirement.get("reason") or ""),
+            }
+        )
+    return rows
+
+
+def format_operator_summary_for_display(snapshot: Mapping[str, Any]) -> str:
+    """Format only the concise operator summary, not the raw diagnostic snapshot."""
+
+    last_run = snapshot["data_prep_last_run_status"]
+    runtime = snapshot["data_prep_runtime_status"]
+    progress = runtime.get("progress_pct", 0)
+    data_rows = snapshot.get("operator_data_status_rows", [])
+    lines = [
+        "ETHUSDC Bot V3 Hermes",
+        "",
+        f"Bot-Status: {_operator_bot_status(runtime, last_run)}",
+        f"Datenstatus: {snapshot['data_readiness_report']['overall_status']}",
+        f"Gesamtfortschritt: {progress}%",
+        f"Aktueller Download: {runtime.get('current_file_name') or runtime.get('current_task_id') or 'keiner'}",
+        (
+            "Dateien: "
+            f"{runtime.get('completed_file_count', 0)}/{runtime.get('planned_file_count', 0)} "
+            f"(geladen {runtime.get('downloaded_file_count', 0)}, "
+            f"übersprungen {runtime.get('skipped_file_count', 0)}, "
+            f"Fehler {runtime.get('failed_file_count', 0)})"
+        ),
+        f"Letzter Lauf: {last_run['last_run_status']} / {last_run['last_run_mode']} - {last_run['last_run_summary_text']}",
+        f"Nächster Blocker: {last_run['last_run_next_blocker'] or snapshot['backtest_blocker_summary']}",
+        f"Backtest: Gesperrt, weil Daten/Engine fehlen. Keine Fake-Ergebnisse.",
+        "",
+        "Datenstatus:",
+    ]
+    for row in data_rows:
+        lines.append(f"- {row['label']}: {row['files_text']} Dateien, {row['status']}")
+    return "\n".join(lines) + "\n"
+
+
+def _operator_status_word(status: str, available: int, required: int) -> str:
+    if status in {"ready", "present"} or (required and available >= required):
+        return "vollständig"
+    if available > 0:
+        return "teilweise"
+    return "fehlt"
+
+
+def _operator_bot_status(runtime: Mapping[str, Any], last_run: Mapping[str, Any]) -> str:
+    phase = runtime.get("phase")
+    if phase in {"checking_readiness", "planning", "dry_run", "refreshing_readiness"}:
+        return "Prüft Daten"
+    if phase == "downloading":
+        return "Lädt Daten"
+    if phase == "failed" or last_run.get("last_run_status") == "failed":
+        return "Fehler"
+    if phase == "finished" or last_run.get("last_run_status") == "finished":
+        return "Fertig"
+    return "Bereit"
 
 
 def format_snapshot_for_display(snapshot: Mapping[str, Any]) -> str:

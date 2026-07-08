@@ -162,6 +162,41 @@ def test_format_snapshot_for_display_contains_last_data_prep_run(tmp_path):
     assert "Last next blocker: bookTicker live collector is missing" in text
 
 
+def test_build_operator_data_status_rows_are_short_and_user_facing(tmp_path):
+    snapshot = dashboard_state.build_dashboard_snapshot(Path.cwd(), tmp_path)
+
+    rows = snapshot["operator_data_status_rows"]
+    labels = [row["label"] for row in rows]
+
+    assert labels == ["ETHUSDC 1m", "BTCUSDC 1m", "ETHBTC 1m", "ETHUSDC aggTrades", "ETHUSDC trades"]
+    assert all(row["status"] in {"fehlt", "teilweise", "vollständig", "wird geladen"} for row in rows)
+    assert all("files_text" in row for row in rows)
+
+
+def test_format_operator_summary_is_concise_and_hides_raw_readiness_lists(tmp_path):
+    last_run = dashboard_state.build_initial_data_prep_last_run_status()
+    last_run.update(
+        {
+            "last_run_status": "finished",
+            "last_run_mode": "dry_run",
+            "last_run_summary_text": "Prüfung fertig. Keine Downloads ausgeführt.",
+            "last_run_next_blocker": "ETHUSDC 1m fehlt ein Tag",
+        }
+    )
+    snapshot = dashboard_state.build_dashboard_snapshot(Path.cwd(), tmp_path, data_prep_last_run_status=last_run)
+
+    text = dashboard_state.format_operator_summary_for_display(snapshot)
+
+    assert "ETHUSDC Bot V3 Hermes" in text
+    assert "Bot-Status:" in text
+    assert "Datenstatus:" in text
+    assert "Gesamtfortschritt:" in text
+    assert "Nächster Blocker: ETHUSDC 1m fehlt ein Tag" in text
+    assert "requirements_by_id" not in text
+    assert "available_days" not in text
+    assert "Project Status:" not in text
+
+
 def test_build_snapshot_contains_runtime_data_prep_status_and_blockers(tmp_path):
     snapshot = dashboard_state.build_dashboard_snapshot(Path.cwd(), tmp_path)
 

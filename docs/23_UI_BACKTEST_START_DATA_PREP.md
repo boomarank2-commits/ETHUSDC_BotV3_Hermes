@@ -70,6 +70,48 @@ It never creates:
 - candidate adoption
 - backtest result reports
 
+## Operator UI simplification
+
+The dashboard is now operator-first instead of diagnostic-text-first.
+
+Primary button:
+
+- `Daten prüfen & fehlende Daten laden`
+- runs the data-preparation workflow with `execute=True`
+- checks local readiness, builds the public data plan, starts supported public downloads, shows live progress, refreshes readiness, and keeps the result visible
+
+Secondary button:
+
+- `Nur prüfen ohne Download`
+- runs `execute=False`
+- performs a dry-run only
+- must finish with: `Prüfung fertig. Keine Downloads ausgeführt.` / `Dry-run finished. No downloads executed.`
+
+The top UI shows only operator-relevant fields:
+
+- Bot-Status: Bereit / Prüft Daten / Lädt Daten / Fertig / Fehler
+- Datenstatus
+- Gesamtfortschritt
+- Aktueller Vorgang / aktueller Download
+- Dateien loaded/total with skipped/downloaded/failed counters
+- Letzter Lauf
+- Nächster Blocker
+- Backtest locked / no fake results
+
+The large raw diagnostic snapshot is no longer the dominant UI content. The dashboard uses a concise operator summary for the visible status area. The detailed helper `format_snapshot_for_display()` remains available for tests/diagnostics, but the UI uses `format_operator_summary_for_display()`.
+
+Refresh behavior:
+
+- Refresh must not overwrite an active run with idle runtime status.
+- Refresh must not erase Last Run.
+- After a run finishes, the top status remains `Fertig` or `Fehler` instead of looking idle again.
+
+Heartbeat behavior:
+
+- While a data-prep thread is active, the top UI updates roughly once per second.
+- After 10 seconds without a file event, the operator note says the run is still active and waiting for the next file-progress event.
+- After 60 seconds without a file event, the operator note says the run is still active and may be in a large download or slow network.
+
 ## Last-run visibility
 
 The dashboard keeps a per-UI-session `Last Data Prep Run` status. This is intentionally in memory only:

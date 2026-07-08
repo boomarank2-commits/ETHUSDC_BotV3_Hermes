@@ -29,6 +29,79 @@ def test_dashboard_module_is_importable():
     )
 
 
+def test_primary_data_button_starts_execute_mode():
+    module = importlib.import_module("ethusdc_bot.ui.dashboard")
+    app = module.DashboardApp.__new__(module.DashboardApp)
+    calls = []
+    app._start_data_preparation = lambda execute: calls.append(execute)
+
+    app.start_data_check_and_load()
+
+    assert calls == [True]
+
+
+def test_secondary_check_button_starts_dry_run_mode():
+    module = importlib.import_module("ethusdc_bot.ui.dashboard")
+    app = module.DashboardApp.__new__(module.DashboardApp)
+    calls = []
+    app._start_data_preparation = lambda execute: calls.append(execute)
+
+    app.start_check_without_download()
+
+    assert calls == [False]
+
+
+def test_operator_runtime_text_shows_running_file_progress():
+    module = importlib.import_module("ethusdc_bot.ui.dashboard")
+
+    text = module.build_operator_runtime_text(
+        {
+            "phase": "downloading",
+            "mode": "execute",
+            "progress_pct": 35,
+            "current_task_id": "download_btcusdc_klines_1m",
+            "current_symbol": "BTCUSDC",
+            "current_data_type": "klines_1m",
+            "current_file_name": "BTCUSDC-1m-2024-01-01.zip",
+            "current_file_index": 3,
+            "planned_file_count": 2190,
+            "completed_file_count": 2,
+            "downloaded_file_count": 1,
+            "skipped_file_count": 1,
+            "failed_file_count": 0,
+            "elapsed_seconds": 12,
+            "last_message": "Downloading file",
+        },
+        seconds_since_file_event=12,
+    )
+
+    assert "Lädt Daten" in text["bot_status"]
+    assert "BTCUSDC" in text["current_download"]
+    assert "BTCUSDC-1m-2024-01-01.zip" in text["current_download"]
+    assert "2/2190" in text["files"]
+    assert "läuft noch, warte auf nächsten Datei-Fortschritt" in text["activity_note"]
+
+
+def test_operator_runtime_text_shows_slow_network_after_sixty_seconds():
+    module = importlib.import_module("ethusdc_bot.ui.dashboard")
+
+    text = module.build_operator_runtime_text(
+        {"phase": "downloading", "mode": "execute", "elapsed_seconds": 61},
+        seconds_since_file_event=61,
+    )
+
+    assert "möglicherweise großer Download oder Netzwerk langsam" in text["activity_note"]
+
+
+def test_operator_runtime_text_shows_failed_error():
+    module = importlib.import_module("ethusdc_bot.ui.dashboard")
+
+    text = module.build_operator_runtime_text({"phase": "failed", "error": "boom"})
+
+    assert text["bot_status"] == "Fehler"
+    assert text["activity_note"] == "Fehler: boom"
+
+
 def test_backtest_start_button_model_runs_data_preparation_only():
     snapshot = dashboard_state.build_dashboard_snapshot(ROOT, ROOT.parent / "data")
 

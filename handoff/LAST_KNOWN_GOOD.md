@@ -1,13 +1,15 @@
 # Last Known Good
 
 Last known safe state:
-- UI data preparation workflow exists and is status-only / data-preparation-only.
-- Runtime progress and Last Run status are visible in the dashboard.
-- Last Run survives Refresh Status within the same UI session.
-- Public downloader emits file-level progress events for planned/skipped/downloading/downloaded/failed ZIP and CHECKSUM files.
-- Dashboard shows heartbeat during active data-prep threads so long tasks do not look frozen.
-- Dry-run remains non-downloading and reports `Dry-run finished. No downloads executed.`
-- Backtest/data-load button still starts data preparation only; real engine remains locked.
+- Dashboard is operator-first and data-preparation-only.
+- Primary button `Daten prüfen & fehlende Daten laden` calls execute=True.
+- Secondary button `Nur prüfen ohne Download` calls execute=False.
+- Visible UI shows concise fields: Bot-Status, Datenstatus, Gesamtfortschritt, aktueller Vorgang, Dateien, Laufzeit, Letzter Lauf, Nächster Blocker, Backtest lock.
+- Long raw diagnostic snapshot is not the dominant visible UI anymore.
+- Active run heartbeat shows no-file-event warnings at 10/60 seconds.
+- Refresh does not overwrite active runtime with idle and does not erase Last Run.
+- Dry-run UI smoke passed through DashboardApp button invocation.
+- `START_DASHBOARD.bat` exists and starts only the local dashboard.
 - Tests pass with `pytest tests/ -q`.
 
 Last verified local counts, read-only:
