@@ -311,7 +311,7 @@ def test_forbidden_files_and_directories_do_not_exist():
         "src/ethusdc_bot/exchange",
         "src/ethusdc_bot/engine",
         "src/ethusdc_bot/strategy",
-        "src/ethusdc_bot/backtest",
+
         "data",
         "raw",
         "market_data",

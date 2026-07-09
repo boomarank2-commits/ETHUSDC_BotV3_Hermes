@@ -31,7 +31,7 @@ FORBIDDEN_REPOSITORY_PATHS = [
     "src/ethusdc_bot/exchange",
     "src/ethusdc_bot/engine",
     "src/ethusdc_bot/strategy",
-    "src/ethusdc_bot/backtest",
+
     "src/ethusdc_bot/live",
     "src/ethusdc_bot/paper",
     "data",

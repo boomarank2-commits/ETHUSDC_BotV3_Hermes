@@ -22,7 +22,7 @@ from ethusdc_bot.ui.data_update_controller import (
 )
 
 BACKTEST_DISABLED_HINT = "Backtest waits for data readiness and real engine implementation. No fake result."
-BACKTEST_START_HINT = "Backtest start currently prepares data only. Real engine is not implemented yet."
+BACKTEST_START_HINT = "Starts local backtest / strategy search only. No API, no orders, live/paper/testtrade locked."
 EXPECTED_UTC_DAYS = 1095
 
 
@@ -183,7 +183,8 @@ def build_dashboard_snapshot(
         "data_prep_mode": runtime_status["mode"],
         "bot_current_status_text": _build_bot_status_text(data_readiness_report, runtime_status),
         "can_start_data_prep": True,
-        "can_start_backtest_engine": False,
+        "can_start_backtest_engine": data_readiness_report["data_gate_ready"],
+        "backtest_status": build_initial_backtest_status(data_readiness_report),
         "backtest_blocker_summary": backtest_blocker_summary,
         "data_prep_status": {
             "status": "idle",
@@ -202,13 +203,35 @@ def build_dashboard_snapshot(
             },
             "backtest_start_button": {
                 "visible": True,
-                "enabled": True,
-                "action": "data_preparation_only",
-                "engine_locked": True,
+                "enabled": bool(data_readiness_report["data_gate_ready"]),
+                "action": "local_backtest_strategy_search",
+                "engine_locked": False,
+                "uses_trading_api": False,
+                "live_paper_testtrade_locked": True,
                 "hint": BACKTEST_START_HINT,
             },
             "live_paper_testtrade": "locked",
         },
+    }
+
+
+def build_initial_backtest_status(readiness: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the UI model for backtest mode without fake results."""
+
+    ready = bool(readiness.get("data_gate_ready"))
+    return {
+        "mode": "backtest",
+        "phase": "idle",
+        "enabled": ready,
+        "stages": ["data_gate", "load_data", "training", "strategy_search", "blindtest", "result"],
+        "status_text": (
+            "Backtest bereit: lokaler Strategie-Suchlauf kann gestartet werden."
+            if ready
+            else "Backtest wartet auf Data Gate. Keine Ergebnisse vorhanden."
+        ),
+        "target_usdc_per_day": 3.0,
+        "result_status": "not_run",
+        "live_paper_testtrade": "locked",
     }
 
 
@@ -305,7 +328,7 @@ def format_operator_summary_for_display(snapshot: Mapping[str, Any]) -> str:
         ),
         f"Letzter Lauf: {last_run['last_run_status']} / {last_run['last_run_mode']} - {last_run['last_run_summary_text']}",
         f"Nächster Blocker: {last_run['last_run_next_blocker'] or snapshot['backtest_blocker_summary']}",
-        f"Backtest: Gesperrt, weil Daten/Engine fehlen. Keine Fake-Ergebnisse.",
+        f"Backtest: {snapshot['backtest_status']['status_text']}",
         "",
         "Datenstatus:",
     ]
@@ -455,7 +478,7 @@ def format_snapshot_for_display(snapshot: Mapping[str, Any]) -> str:
         f"- Current task: {runtime['current_task_id'] or 'none'}",
         f"- Tasks completed/total: {runtime['completed_tasks']}/{runtime['total_tasks']}",
         f"- Backtest blocker: {snapshot['backtest_blocker_summary']}",
-        "- Backtest start currently runs data preparation only. Real engine start is still locked.",
+        "- Backtest start runs local backtest / strategy search only. No orders or Trading API.",
         f"- data_prep_status: {prep['status']}",
         f"- engine_start_locked: {prep['engine_start_locked']}",
         f"- last_data_update_plan_summary: {prep['last_data_update_plan_summary']}",
@@ -477,16 +500,14 @@ def _build_backtest_blocker_summary(readiness: Mapping[str, Any]) -> str:
     blockers = []
     if not readiness.get("data_gate_ready"):
         blockers.append(str(readiness.get("backtest_button_reason", "Data readiness is blocked.")))
-    if not readiness.get("backtest_engine_implemented"):
-        blockers.append("Backtest engine is not implemented; UI starts data preparation only.")
-    return " ".join(blockers) or "Backtest engine is locked by policy."
+    return " ".join(blockers) or "Local backtest engine can run; live/paper/testtrade remain locked."
 
 
 def _build_bot_status_text(readiness: Mapping[str, Any], runtime_status: Mapping[str, Any]) -> str:
     if runtime_status.get("phase") not in {"idle", "finished"}:
         return f"Data preparation running: {runtime_status.get('phase')}"
     if readiness.get("data_gate_ready"):
-        return "Data readiness is complete, but real backtest engine remains locked/not implemented."
+        return "Data readiness is complete; local backtest strategy search can run. Live/paper/testtrade remain locked."
     return "Data readiness is blocked; run dry-run or data loading to inspect missing tasks."
 
 

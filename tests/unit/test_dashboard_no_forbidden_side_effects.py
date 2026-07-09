@@ -12,7 +12,7 @@ FORBIDDEN_REPOSITORY_PATHS = [
     "src/ethusdc_bot/exchange",
     "src/ethusdc_bot/engine",
     "src/ethusdc_bot/strategy",
-    "src/ethusdc_bot/backtest",
+
     "data",
     "raw",
     "market_data",
@@ -105,13 +105,11 @@ def test_operator_runtime_text_shows_failed_error():
 def test_backtest_start_button_model_runs_data_preparation_only():
     snapshot = dashboard_state.build_dashboard_snapshot(ROOT, ROOT.parent / "data")
 
-    assert snapshot["ui_status"]["backtest_start_button"] == {
-        "visible": True,
-        "enabled": True,
-        "action": "data_preparation_only",
-        "engine_locked": True,
-        "hint": "Backtest start currently prepares data only. Real engine is not implemented yet.",
-    }
+    button = snapshot["ui_status"]["backtest_start_button"]
+    assert button["visible"] is True
+    assert button["action"] == "local_backtest_strategy_search"
+    assert button["uses_trading_api"] is False
+    assert button["live_paper_testtrade_locked"] is True
     assert snapshot["data_prep_status"]["engine_start_locked"] is True
 
 

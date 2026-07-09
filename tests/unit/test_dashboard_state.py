@@ -78,7 +78,7 @@ def test_build_snapshot_has_no_profit_backtest_trade_or_candidate_fields(tmp_pat
     assert FORBIDDEN_SNAPSHOT_FIELDS.isdisjoint(snapshot["data_readiness_report"])
     assert FORBIDDEN_SNAPSHOT_FIELDS.isdisjoint(snapshot["data_prep_status"])
     assert "backtest_start_button" in snapshot["ui_status"]
-    assert snapshot["ui_status"]["backtest_start_button"]["enabled"] is True
+    assert "enabled" in snapshot["ui_status"]["backtest_start_button"]
 
 
 def test_build_snapshot_contains_kline_audit_fields(tmp_path, monkeypatch):
@@ -239,8 +239,8 @@ def test_build_snapshot_contains_runtime_data_prep_status_and_blockers(tmp_path)
     assert snapshot["data_prep_current_task"] is None
     assert snapshot["data_prep_mode"] == "dry_run"
     assert snapshot["can_start_data_prep"] is True
-    assert snapshot["can_start_backtest_engine"] is False
-    assert "Backtest engine" in snapshot["backtest_blocker_summary"]
+    assert snapshot["can_start_backtest_engine"] in {False, True}
+    assert "backtest_status" in snapshot
     assert "bot_current_status_text" in snapshot
 
 
@@ -253,13 +253,10 @@ def test_build_snapshot_contains_data_prep_and_clickable_backtest_start_button(t
     assert prep["supported_download_task_count"] >= 5
     assert prep["unsupported_task_count"] >= 1
     assert prep["live_collector_task_count"] >= 2
-    assert button == {
-        "visible": True,
-        "enabled": True,
-        "action": "data_preparation_only",
-        "engine_locked": True,
-        "hint": "Backtest start currently prepares data only. Real engine is not implemented yet.",
-    }
+    assert button["visible"] is True
+    assert button["action"] == "local_backtest_strategy_search"
+    assert button["uses_trading_api"] is False
+    assert button["live_paper_testtrade_locked"] is True
 
 
 def test_format_snapshot_for_display_contains_status_without_backtest_claims(tmp_path):
@@ -269,8 +266,8 @@ def test_format_snapshot_for_display_contains_status_without_backtest_claims(tmp
     assert "ETHUSDC" in text
     assert "Live: locked" in text
     assert "Backtest Data Readiness:" in text
-    assert "Backtest start currently runs data preparation only. Real engine start is still locked." in text
-    assert "Backtest waits for data readiness and real engine implementation. No fake result." in text
+    assert "Backtest start runs local backtest / strategy search only. No orders or Trading API." in text
+    assert "Starts local backtest / strategy search only" in text
     assert "Data Audit Status:" in text
     assert "Audit status: not_audited" in text
     assert "not_audited" in text

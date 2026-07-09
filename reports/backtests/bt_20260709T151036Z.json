@@ -1,0 +1,103 @@
+{
+  "blindtest": {
+    "candle_count": 525600,
+    "metrics": {
+      "average_trade_usdc": -0.3026841498,
+      "blindtest_days": 365,
+      "fees_usdc": 324.4331768035,
+      "max_drawdown_usdc": 494.0687424559,
+      "net_profit_usdc": -491.2563751241,
+      "net_usdc_per_day": -1.3459078771,
+      "profit_factor": 0.4145262134,
+      "slippage_usdc": 1152.8698802443,
+      "trade_count": 1623,
+      "training_days": 730,
+      "winrate": 0.3012939002
+    },
+    "trade_count": 1623
+  },
+  "event_log": [
+    "candidate_grid_built",
+    "training_candidates_evaluated",
+    "candidate_selected",
+    "blindtest_evaluated"
+  ],
+  "honesty_note": "Real local backtest report. Blindtest evaluated once after training/validation selection. No live, paper, testtrade, orders, or API keys.",
+  "market": "Binance Spot LONG-only",
+  "quote": "USDC",
+  "run_id": "bt_20260709T151036Z",
+  "safety": {
+    "api_keys": "not_used",
+    "binance_trading_api": "not_used",
+    "candidate_adoptable": false,
+    "live": "locked",
+    "orders": "not_created",
+    "paper": "locked",
+    "testtrade": "locked"
+  },
+  "schema_version": 1,
+  "selected_candidate": {
+    "family": "breakout",
+    "params": {
+      "lookback": 60,
+      "max_hold_minutes": 90,
+      "stop_loss_bps": 80,
+      "take_profit_bps": 120,
+      "threshold_bps": 10
+    }
+  },
+  "selection_source": "training_validation_only",
+  "split": {
+    "blind_end": "2026-07-07",
+    "blind_start": "2025-07-08",
+    "blindtest_days": 365,
+    "data_end": "2026-07-07",
+    "data_start": "2023-07-09",
+    "no_overlap": true,
+    "training_days": 730,
+    "training_end": "2025-07-07",
+    "training_start": "2023-07-09"
+  },
+  "status": "completed",
+  "strategy_families": [
+    "breakout",
+    "mean_reversion",
+    "momentum"
+  ],
+  "symbol": "ETHUSDC",
+  "target_reached": false,
+  "target_status": "target_not_reached",
+  "target_usdc_per_day": 3.0,
+  "trade_usdc": 100,
+  "training": {
+    "candle_count": 1051200,
+    "metrics": {
+      "average_trade_usdc": -0.2889980643,
+      "blindtest_days": 365,
+      "fees_usdc": 604.7305113646,
+      "max_drawdown_usdc": 874.4600782969,
+      "net_profit_usdc": -874.219144584,
+      "net_usdc_per_day": -1.197560472,
+      "profit_factor": 0.4202957552,
+      "slippage_usdc": 2080.9025944345,
+      "trade_count": 3025,
+      "training_days": 730,
+      "winrate": 0.3018181818
+    }
+  },
+  "validation": {
+    "metrics": {
+      "average_trade_usdc": -0.3135157708,
+      "blindtest_days": 365,
+      "fees_usdc": 144.118073201,
+      "max_drawdown_usdc": 226.2935932009,
+      "net_profit_usdc": -226.0448707174,
+      "net_usdc_per_day": -1.5482525392,
+      "profit_factor": 0.4191404667,
+      "slippage_usdc": 537.1793500561,
+      "trade_count": 721,
+      "training_days": 730,
+      "winrate": 0.2981969487
+    }
+  }
+}

@@ -1,0 +1,21 @@
+ETHUSDC Backtest / Strategie-Suche
+Run-ID: bt_20260709T151036Z
+Status: completed
+Symbol: ETHUSDC
+Split: {'data_start': '2023-07-09', 'data_end': '2026-07-07', 'training_start': '2023-07-09', 'training_end': '2025-07-07', 'training_days': 730, 'blind_start': '2025-07-08', 'blind_end': '2026-07-07', 'blindtest_days': 365, 'no_overlap': True}
+Strategie-Familien: breakout, mean_reversion, momentum
+Auswahlquelle: training_validation_only
+Ausgewählter Kandidat: {'family': 'breakout', 'params': {'lookback': 60, 'threshold_bps': 10, 'take_profit_bps': 120, 'stop_loss_bps': 80, 'max_hold_minutes': 90}}
+Training net_usdc_per_day: -1.197560472
+Training net_profit_usdc: -874.219144584
+Blindtest net_usdc_per_day: -1.3459078771
+Blindtest net_profit_usdc: -491.2563751241
+Blindtest trades: 1623
+Fees USDC: 324.4331768035
+Slippage USDC: 1152.8698802443
+Drawdown USDC: 494.0687424559
+Winrate: 0.3012939002
+Profit-Factor: 0.4145262134
+Ziel: >= 3.0 USDC/Tag im Blindtest
+Ziel nicht erreicht
+Live/Paper/Testtrade bleiben locked. Keine Orders, keine Trading API, keine API-Keys.

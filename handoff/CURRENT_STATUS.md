@@ -1,54 +1,59 @@
 # Current Status
 
-Status: Dashboard restart/progress issue fixed. The UI now separates persistent local data coverage from the current run progress so restart/refresh no longer presents runtime 0% as the overall data state.
+Status: First real local ETHUSDC backtest foundation has been implemented and exercised.
 
 Latest completed changes:
-- Added persistent `overall_data_progress_pct` to dashboard snapshots, computed from local readiness/public data requirements.
-- Added separate `current_run_progress_pct` for the current UI data-preparation run.
-- `data_prep_progress_pct` now mirrors overall data progress for the main UI progress bar.
-- Operator summary now shows:
-  - `Gesamtdatenstand: xx%`
-  - `Aktueller Lauf: yy% seit Start / ...`
-  - per-source rows for ETHUSDC 1m, BTCUSDC 1m, ETHBTC 1m, ETHUSDC aggTrades, ETHUSDC trades.
-- Tk dashboard main progress bar is bound to overall data progress, not runtime progress.
-- Current-run progress remains visible as text and does not overwrite the main data-state bar.
-- Public readiness now counts only complete public ZIP/CHECKSUM pairs as available days.
-- `.tmp`, `.part`, missing ZIP/CHECKSUM partners, and 0-byte files are not counted as complete local data.
-- Downloader skip logic no longer treats 0-byte existing files as complete.
+- Added `src/ethusdc_bot/backtest/` package:
+  - read-only ETHUSDC 1m ZIP/CHECKSUM data loader,
+  - 730/365 train/blind split,
+  - conservative Binance Spot LONG-only simulator,
+  - metrics,
+  - small deterministic strategy search,
+  - honest JSON/TXT reporting,
+  - `python -m ethusdc_bot.backtest.runner` CLI runner.
+- Added TDD/unit/integration coverage for loader, split, simulator, strategy search, metrics, reporting, runner smoke, safety, and UI backtest-mode state.
+- Updated dashboard state model so a local backtest/strategy-search button can be represented separately from data-prep mode.
+- Added `docs/24_BACKTEST_ENGINE_AND_STRATEGY_SEARCH.md`.
 
-Read-only local data state observed under `C:/TradingBot/data/ETHUSDC_BotV3_Hermes`:
+Read-only local data state observed under `C:/TradingBot/data/ETHUSDC_BotV3_Hermes` before implementation:
+- Root exists: yes.
+- `START_DASHBOARD.bat` exists: yes.
 - Total files: 6589.
-- `.tmp/.part`: 0.
+- `.tmp`: 0.
+- `.part`: 0.
 - 0-byte files: 0.
-- Latest mtime: `2026-07-09T15:49:55.882725`.
-- ETHUSDC 1m: 1095 ZIP / 1095 CHECKSUM / 1095 complete pairs.
-- BTCUSDC 1m: 1095 ZIP / 1095 CHECKSUM / 1095 complete pairs.
-- ETHBTC 1m: 1096 ZIP / 1096 CHECKSUM / 1096 complete pairs; UI caps required progress at 1095/1095.
-- ETHUSDC aggTrades: 7 ZIP / 7 CHECKSUM / 7 complete pairs.
-- ETHUSDC trades: 1 ZIP / 1 CHECKSUM / 1 complete pair.
-- Public readiness minimum data progress is now 100.0% locally.
-- If all five sources are naively treated as 1095-day streams, raw pair coverage is 3294/5475 = 60.16%; UI readiness correctly uses the requirement/minimum-day plan instead.
+- Data readiness: ready / data gate true.
+- ETHUSDC 1m: 1095/1095 current, latest 2026-07-07.
+- BTCUSDC 1m: 1095/1095 current, latest 2026-07-07.
+- ETHBTC 1m: 1096/1095 current, latest 2026-07-08.
+- ETHUSDC aggTrades: 7/7 current, latest 2026-07-08.
+- ETHUSDC trades: 1/1 current, latest 2026-07-08.
+- ZIP/CHECKSUM pairs matched for all observed public sources.
+- Backtest window from readiness: data 2023-07-09..2026-07-07, training 2023-07-09..2025-07-07, blindtest 2025-07-08..2026-07-07.
 
-Diagnosis:
-- The old visible `Gesamtfortschritt` came from `runtime_status["progress_pct"]`.
-- `build_dashboard_snapshot()` created a fresh idle runtime after restart with `progress_pct = 0`.
-- `refresh_status()` applied that idle runtime to the UI and progress bar when no active thread existed.
-- Therefore restart/refresh could show 0% even though valid files existed on disk.
+Real backtest run executed:
+- Command: `PYTHONPATH=src python -m ethusdc_bot.backtest.runner --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes`
+- Candles loaded: 1,576,800.
+- Split: 730 training days / 365 blindtest days.
+- Strategy families tested: momentum, mean_reversion, breakout.
+- Selected candidate from training/validation only: breakout, lookback 60, threshold 10 bps, TP 120 bps, SL 80 bps, max hold 90 minutes.
+- Blindtest result: -491.2563751241 USDC total, -1.3459078771 USDC/day, 1623 trades.
+- Target 3 USDC/day: not reached.
+- Report: `reports/backtests/bt_20260709T151036Z.json` and `.txt`.
 
-Downloads executed in this session:
-- No real downloads.
-- Only read-only local data inspection, dashboard snapshot smoke, and tests.
-
-Verification before handoff update:
-- Targeted regression tests green.
-- `pytest tests/ -q` green.
+Verification:
+- Initial clean check: `git status --short` was clean.
+- Pre-change full suite: `pytest tests/ -q` passed.
+- RED: new tests failed with missing `ethusdc_bot.backtest` package.
+- Targeted green tests passed.
+- Real CLI runner passed after timestamp-unit normalization.
+- Final `pytest tests/ -q` passed.
 
 Safety unchanged:
-- No Backtest engine.
-- No strategy.
-- No trades.
-- No profit fields.
-- No Binance trading API.
+- No Binance Trading API.
 - No API keys.
+- No exchange client.
 - No orders.
-- Live/Paper/Testtrade locked.
+- No live/paper/testtrade folders or activation.
+- BTCUSDC and ETHBTC remain context-only and cannot trigger simulated ETHUSDC orders.
+- Backtest report explicitly keeps live/paper/testtrade locked and candidate_adoptable false.

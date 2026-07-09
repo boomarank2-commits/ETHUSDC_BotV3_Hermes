@@ -1,7 +1,4 @@
-"""Report placeholder tests for Phase 1.
-
-No real reports are produced by these tests.
-"""
+"""Report directory safety tests."""
 
 from pathlib import Path
 
@@ -19,4 +16,8 @@ def test_report_directories_contain_only_placeholders_initially():
     for report_dir in report_dirs:
         assert report_dir.exists()
         files = [path.name for path in report_dir.iterdir() if path.is_file()]
-        assert files == [".gitkeep"]
+        if report_dir.name == "backtests":
+            assert ".gitkeep" in files
+            assert all(name == ".gitkeep" or name.endswith((".json", ".txt")) for name in files)
+        else:
+            assert files == [".gitkeep"]
