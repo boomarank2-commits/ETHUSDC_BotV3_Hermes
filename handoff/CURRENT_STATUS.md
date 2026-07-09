@@ -1,48 +1,46 @@
 # Current Status
 
-Status: Dashboard operator visibility was fixed in the third UI-debug pass. The likely user-facing freeze was not only missing file-progress fields; the UI still presented a diagnostic-heavy screen, the obvious user button was the dry-run/check path, and Refresh/finish could make the top status look idle again. The dashboard is now operator-first.
+Status: Dashboard restart/progress issue fixed. The UI now separates persistent local data coverage from the current run progress so restart/refresh no longer presents runtime 0% as the overall data state.
 
 Latest completed changes:
-- Primary user button is now `Daten prüfen & fehlende Daten laden` and calls `execute=True`.
-- Secondary user button is now `Nur prüfen ohne Download` and calls `execute=False`.
-- Top UI simplified to:
-  - Bot-Status
-  - Datenstatus
-  - Gesamtfortschritt
-  - Aktueller Vorgang
-  - Dateien
-  - Laufzeit
-  - Letzter Lauf
-  - Nächster Blocker
-  - Backtest lock message
-- Long raw diagnostic status is no longer dominant in the visible UI. UI uses concise `format_operator_summary_for_display()`.
-- Refresh no longer overwrites active runtime display with idle.
-- After a finished/failed run, top status remains `Fertig` or `Fehler`.
-- Heartbeat remains visible during active thread and warns after 10/60 seconds without file events.
-- START_DASHBOARD.bat created for double-click startup.
+- Added persistent `overall_data_progress_pct` to dashboard snapshots, computed from local readiness/public data requirements.
+- Added separate `current_run_progress_pct` for the current UI data-preparation run.
+- `data_prep_progress_pct` now mirrors overall data progress for the main UI progress bar.
+- Operator summary now shows:
+  - `Gesamtdatenstand: xx%`
+  - `Aktueller Lauf: yy% seit Start / ...`
+  - per-source rows for ETHUSDC 1m, BTCUSDC 1m, ETHBTC 1m, ETHUSDC aggTrades, ETHUSDC trades.
+- Tk dashboard main progress bar is bound to overall data progress, not runtime progress.
+- Current-run progress remains visible as text and does not overwrite the main data-state bar.
+- Public readiness now counts only complete public ZIP/CHECKSUM pairs as available days.
+- `.tmp`, `.part`, missing ZIP/CHECKSUM partners, and 0-byte files are not counted as complete local data.
+- Downloader skip logic no longer treats 0-byte existing files as complete.
 
-Local UI smoke performed:
-- Tkinter root started successfully.
-- DashboardApp instantiated locally.
-- `Nur prüfen ohne Download` button invoked through the UI object.
-- UI transitioned to finished.
-- Last Run showed `finished / dry_run`.
-- Summary contained `Dry-run finished. No downloads executed.`
-- Refresh preserved the finished Last Run display.
+Read-only local data state observed under `C:/TradingBot/data/ETHUSDC_BotV3_Hermes`:
+- Total files: 6589.
+- `.tmp/.part`: 0.
+- 0-byte files: 0.
+- Latest mtime: `2026-07-09T15:49:55.882725`.
+- ETHUSDC 1m: 1095 ZIP / 1095 CHECKSUM / 1095 complete pairs.
+- BTCUSDC 1m: 1095 ZIP / 1095 CHECKSUM / 1095 complete pairs.
+- ETHBTC 1m: 1096 ZIP / 1096 CHECKSUM / 1096 complete pairs; UI caps required progress at 1095/1095.
+- ETHUSDC aggTrades: 7 ZIP / 7 CHECKSUM / 7 complete pairs.
+- ETHUSDC trades: 1 ZIP / 1 CHECKSUM / 1 complete pair.
+- Public readiness minimum data progress is now 100.0% locally.
+- If all five sources are naively treated as 1095-day streams, raw pair coverage is 3294/5475 = 60.16%; UI readiness correctly uses the requirement/minimum-day plan instead.
 
-External data counts observed read-only:
-- ETHUSDC 1m: 1094 ZIP / 1094 CHECKSUM / 2189 files; newest `manifest.json`, mtime `2026-07-07T23:05:25`.
-- BTCUSDC 1m: missing / 0.
-- ETHBTC 1m: missing / 0.
-- ETHUSDC aggTrades: missing / 0.
-- ETHUSDC trades: missing / 0.
+Diagnosis:
+- The old visible `Gesamtfortschritt` came from `runtime_status["progress_pct"]`.
+- `build_dashboard_snapshot()` created a fresh idle runtime after restart with `progress_pct = 0`.
+- `refresh_status()` applied that idle runtime to the UI and progress bar when no active thread existed.
+- Therefore restart/refresh could show 0% even though valid files existed on disk.
 
 Downloads executed in this session:
 - No real downloads.
-- Only dry-run UI/controller smoke.
+- Only read-only local data inspection, dashboard snapshot smoke, and tests.
 
 Verification before handoff update:
-- Targeted tests green.
+- Targeted regression tests green.
 - `pytest tests/ -q` green.
 
 Safety unchanged:

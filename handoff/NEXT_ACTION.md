@@ -1,24 +1,25 @@
 # Next Action
 
 User action required:
-- Close any currently open dashboard window.
-- Start the dashboard using the new double-click file:
-  - `START_DASHBOARD.bat`
+- Restart the dashboard so the new progress separation is loaded.
+- Use `START_DASHBOARD.bat`.
 
-Expected UI behavior:
-1. The primary button is now `Daten prüfen & fehlende Daten laden`.
-   - This is the real public-data preparation path with `execute=True`.
-2. The secondary button is `Nur prüfen ohne Download`.
-   - This is dry-run only with `execute=False`.
-3. First smoke should be dry-run:
-   - click `Nur prüfen ohne Download`.
-   - expect Bot-Status to move to checking/running and then `Fertig`.
-   - expect Last Run to show finished/dry_run.
-   - expect summary: no downloads executed.
-   - click Refresh and confirm Last Run remains visible.
-4. Only after dry-run UI is clear, use `Daten prüfen & fehlende Daten laden` if the user wants real downloads.
-
-Do not start large BTCUSDC/ETHBTC downloads unless the user explicitly wants to continue data acquisition.
+Expected UI behavior after restart:
+1. The main progress bar shows the persistent local data state, not the current run counter.
+2. The summary shows both:
+   - `Gesamtdatenstand: xx%`
+   - `Aktueller Lauf: yy% seit Start / ...`
+3. With the currently observed local data, the dashboard should show all five public readiness rows complete:
+   - ETHUSDC 1m: 1095/1095
+   - BTCUSDC 1m: 1095/1095
+   - ETHBTC 1m: 1096/1095, effectively complete/capped for progress
+   - ETHUSDC aggTrades: 7/7
+   - ETHUSDC trades: 1/1
+4. If a new execute run starts, the current run may begin at 0%, scan, skip existing files, and download only missing files, but this must not reset the main `Gesamtdatenstand` display.
 
 Recommended next mini-ticket:
-- Add a safe small execute-smoke mode that can target exactly one missing ETHUSDC day or one controlled file, instead of starting the full data acquisition plan.
+- Add a tiny UI smoke/integration check that instantiates `DashboardApp` with a fixture local root and asserts the Tk progress bar uses `overall_data_progress_pct` while `task_var` shows current-run progress separately.
+
+Safety reminder:
+- Live/Paper/Testtrade remain locked.
+- Do not start trading/API/order functionality.

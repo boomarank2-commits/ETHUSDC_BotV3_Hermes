@@ -212,6 +212,48 @@ def test_existing_files_are_skipped(monkeypatch, tmp_path):
     assert result["checksum_results"][0]["status"] == "skipped_existing"
 
 
+def test_zero_byte_existing_file_is_not_skipped_as_complete(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_urlretrieve(url, filename):
+        calls.append((url, filename))
+        Path(filename).write_bytes(b"downloaded")
+        return filename, None
+
+    monkeypatch.setattr(downloader.urllib.request, "urlretrieve", fake_urlretrieve)
+    task = _task(tmp_path, "ETHUSDC", "trades", None, "2024-01-01", "2024-01-01")
+    plan = downloader.plan_public_download_task(task)
+    target = Path(plan["downloads"][0]["target_path"])
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b"")
+
+    result = downloader.execute_public_download_task(task, execute=True)
+
+    assert calls
+    assert result["file_results"][0]["status"] == "downloaded"
+
+
+def test_zip_without_checksum_pair_is_not_treated_as_fully_skipped(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_urlretrieve(url, filename):
+        calls.append((url, filename))
+        Path(filename).write_bytes(b"downloaded")
+        return filename, None
+
+    monkeypatch.setattr(downloader.urllib.request, "urlretrieve", fake_urlretrieve)
+    task = _task(tmp_path, "ETHUSDC", "trades", None, "2024-01-01", "2024-01-01")
+    plan = downloader.plan_public_download_task(task)
+    target = Path(plan["downloads"][0]["target_path"])
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b"zip-only")
+
+    result = downloader.execute_public_download_task(task, execute=True)
+
+    assert result["file_results"][0]["status"] == "skipped_existing"
+    assert result["checksum_results"][0]["status"] == "downloaded"
+    assert calls
+
 def test_from_readiness_executes_public_tasks_as_dry_run(tmp_path):
     report = build_data_readiness_report(tmp_path, reference_date=date(2026, 7, 8))
 
@@ -293,3 +335,4 @@ def _task(tmp_path: Path, symbol: str, data_type: str, interval: str | None, sta
         "execute_allowed": True,
         "reason": "test",
     }
+

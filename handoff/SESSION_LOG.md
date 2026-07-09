@@ -1,61 +1,70 @@
 # Session Log
 
-## 2026-07-08 - Fix dashboard operator progress visibility
+## 2026-07-09 - Show persistent overall data progress after restart
 
 Timebox: max 120 minutes.
 
 Goal:
-- Third pass on the same UI problem: fix the dashboard from the user's perspective, not just add more status fields.
+- Fix misleading dashboard restart behavior where the main progress could jump to 0% even though local files already existed.
+- Keep total local data state separate from current-run progress.
 
-Diagnosis:
-- Git status was clean before work.
-- No dashboard process was visible via `ps` query.
-- Local data counts were read-only:
-  - ETHUSDC 1m: 1094 ZIP / 1094 CHECKSUM.
-  - BTCUSDC 1m: missing.
-  - ETHBTC 1m: missing.
-  - ETHUSDC aggTrades: missing.
-  - ETHUSDC trades: missing.
-- Code review found:
-  - old visible button order made `Daten prüfen (Dry-run)` the obvious first action, so the user could easily see only dry-run behavior.
-  - execute=True was wired to the old `Backtest starten / Daten laden` button, not the primary check button.
-  - visible UI was still dominated by long diagnostic scrolltext.
-  - `refresh_status()` could apply idle runtime from a new snapshot while a run/last run should stay visible.
-  - after finish, the top runtime area could look idle even when Last Run was finished.
+Initial guard:
+- `git status --short` was clean before work.
+- Work stayed inside the allowed file list.
+- No raw data, reports, engine, strategy, exchange, backtest, live, paper, API-key, or order code was created.
 
-Tests added first:
-- Primary button starts execute mode.
-- Secondary button starts dry-run mode.
-- Operator runtime text shows running file progress.
-- 10-second and 60-second no-file-event messages.
-- Failed runtime shows visible error.
-- Concise operator data rows.
-- Concise operator summary hides raw readiness details.
-- START_DASHBOARD.bat existence/safety tests.
+Read-only local data inspection:
+- Root: `C:/TradingBot/data/ETHUSDC_BotV3_Hermes` exists.
+- Total files: 6589.
+- `.tmp/.part`: 0.
+- 0-byte files: 0.
+- Latest mtime: `2026-07-09T15:49:55.882725`.
+- ETHUSDC 1m: 1095 ZIP / 1095 CHECKSUM / 1095 complete pairs.
+- BTCUSDC 1m: 1095 ZIP / 1095 CHECKSUM / 1095 complete pairs.
+- ETHBTC 1m: 1096 ZIP / 1096 CHECKSUM / 1096 complete pairs.
+- ETHUSDC aggTrades: 7 ZIP / 7 CHECKSUM / 7 complete pairs.
+- ETHUSDC trades: 1 ZIP / 1 CHECKSUM / 1 complete pair.
+- No broken/half files were found by name/size checks.
+
+Root cause:
+- `format_operator_summary_for_display()` and the Tk progress area used runtime `progress_pct` as `Gesamtfortschritt`.
+- On restart, `build_dashboard_snapshot()` built a new idle runtime with `progress_pct = 0`.
+- With no active data thread, `refresh_status()` applied that idle runtime to the main progress bar.
+- The UI had task/run progress but no persistent overall local-data progress field.
+
+Tests added/extended first:
+- Existing local files produce `overall_data_progress_pct > 0`.
+- Idle runtime 0 does not overwrite overall data progress.
+- Operator summary shows `Gesamtdatenstand` and `Aktueller Lauf` separately.
+- ZIP without CHECKSUM is not counted as a complete day.
+- CHECKSUM without ZIP is not counted as a complete day.
+- `.part`, `.tmp`, and 0-byte files are not counted as complete days.
+- 0-byte existing downloader target is not skipped as complete.
+- ZIP-only existing file is not treated as a fully skipped pair; missing CHECKSUM is still downloaded/planned in execute path.
 
 Implementation:
-- Dashboard button labels reordered and simplified:
-  - `Daten prüfen & fehlende Daten laden` => execute=True.
-  - `Nur prüfen ohne Download` => execute=False.
-- Added `build_operator_runtime_text()` for user-facing runtime labels.
-- Added `build_operator_data_status_rows()` and `format_operator_summary_for_display()`.
-- Dashboard visible area simplified to core operator fields.
-- Long raw diagnostic text no longer dominates visible UI.
-- Refresh preserves active runtime and Last Run visibility.
-- Finished/failed Last Run sets top Bot-Status accordingly.
-- START_DASHBOARD.bat added.
+- `dashboard_state.build_overall_data_progress()` computes persistent progress from readiness requirements for the five operator-visible public sources.
+- Dashboard snapshot includes:
+  - `overall_data_progress_pct`
+  - `overall_data_progress`
+  - `current_run_progress_pct`
+- Main `data_prep_progress_pct` now maps to overall data progress for the main bar.
+- Tk dashboard keeps the main bar on overall data state and displays current-run progress as text.
+- Readiness public-data availability now requires non-empty `.zip` plus matching non-empty `.zip.CHECKSUM` for a day.
+- `.tmp`, `.part`, and 0-byte files are excluded from availability counts.
+- Downloader skip check now requires an existing non-empty final file.
 
-Local UI smoke:
-- Tkinter root created successfully.
-- DashboardApp created.
-- UI object's `Nur prüfen ohne Download` button invoked.
-- Result:
-  - initial Bot-Status: Bereit.
-  - after click Bot-Status: Fertig.
-  - Last Run: finished / dry_run.
-  - blocker visible.
-  - summary contained `Dry-run finished. No downloads executed.`
-  - Refresh kept finished Last Run.
+Local smoke:
+- `PYTHONPATH=src` dashboard snapshot against the real local data root returned:
+  - `overall_data_progress_pct 100.0`
+  - `current_run_progress_pct 0`
+  - all five operator rows complete against their configured requirements/minimums.
+- Summary shows `Gesamtdatenstand: 100.0%` and `Aktueller Lauf: 0% seit Start / Idle` separately.
+
+Verification:
+- Targeted tests failed before implementation for the intended cases.
+- Targeted tests passed after implementation.
+- `pytest tests/ -q` passed before handoff update.
 
 No real downloads were started.
 No reports/backtests were created.

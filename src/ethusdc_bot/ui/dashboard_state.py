@@ -153,6 +153,7 @@ def build_dashboard_snapshot(
     data_update_plan = build_data_update_plan(local_root)
     data_readiness_report = build_backtest_start_data_gate(local_root)
     runtime_status = build_initial_data_prep_status()
+    overall_progress = build_overall_data_progress(data_readiness_report)
     runtime_status.update(
         {
             "supported_download_task_count": data_update_plan["supported_download_task_count"],
@@ -174,7 +175,10 @@ def build_dashboard_snapshot(
         "data_prep_runtime_status": runtime_status,
         "data_prep_last_run_status": last_run_status,
         "operator_data_status_rows": build_operator_data_status_rows(data_readiness_report),
-        "data_prep_progress_pct": runtime_status["progress_pct"],
+        "overall_data_progress_pct": overall_progress["overall_data_progress_pct"],
+        "overall_data_progress": overall_progress,
+        "current_run_progress_pct": runtime_status["progress_pct"],
+        "data_prep_progress_pct": overall_progress["overall_data_progress_pct"],
         "data_prep_current_task": runtime_status["current_task_id"],
         "data_prep_mode": runtime_status["mode"],
         "bot_current_status_text": _build_bot_status_text(data_readiness_report, runtime_status),
@@ -205,6 +209,46 @@ def build_dashboard_snapshot(
             },
             "live_paper_testtrade": "locked",
         },
+    }
+
+
+def build_overall_data_progress(readiness: Mapping[str, Any]) -> dict[str, Any]:
+    """Compute persistent local-data progress from valid local files and requirements."""
+
+    requirements = readiness.get("requirements_by_id", {})
+    source_ids = [
+        "ethusdc_klines_1m",
+        "btcusdc_klines_1m",
+        "ethbtc_klines_1m",
+        "ethusdc_aggtrades",
+        "ethusdc_trades",
+    ]
+    available_total = 0
+    required_total = 0
+    sources = []
+    for requirement_id in source_ids:
+        requirement = requirements.get(requirement_id, {}) if isinstance(requirements, Mapping) else {}
+        required = int(requirement.get("required_days", 0) or requirement.get("minimum_days", 0) or 0)
+        available = int(requirement.get("available_days", 0) or 0)
+        counted_available = min(available, required) if required else available
+        available_total += counted_available
+        required_total += required
+        sources.append(
+            {
+                "requirement_id": requirement_id,
+                "available_days": available,
+                "counted_available_days": counted_available,
+                "required_days": required,
+                "status": str(requirement.get("status", "missing")),
+                "latest_available_day": requirement.get("latest_available_day"),
+            }
+        )
+    pct = round((available_total / required_total) * 100, 2) if required_total else 100.0
+    return {
+        "overall_data_progress_pct": pct,
+        "available_days": available_total,
+        "required_days": required_total,
+        "sources": sources,
     }
 
 
@@ -241,13 +285,16 @@ def format_operator_summary_for_display(snapshot: Mapping[str, Any]) -> str:
     last_run = snapshot["data_prep_last_run_status"]
     runtime = snapshot["data_prep_runtime_status"]
     progress = runtime.get("progress_pct", 0)
+    overall_progress = snapshot.get("overall_data_progress_pct", 0)
     data_rows = snapshot.get("operator_data_status_rows", [])
     lines = [
         "ETHUSDC Bot V3 Hermes",
         "",
         f"Bot-Status: {_operator_bot_status(runtime, last_run)}",
         f"Datenstatus: {snapshot['data_readiness_report']['overall_status']}",
-        f"Gesamtfortschritt: {progress}%",
+        f"Gesamtdatenstand: {overall_progress}%",
+        f"Gesamtfortschritt: {overall_progress}%",
+        f"Aktueller Lauf: {progress}% seit Start / {runtime.get('current_step', 'Idle')}",
         f"Aktueller Download: {runtime.get('current_file_name') or runtime.get('current_task_id') or 'keiner'}",
         (
             "Dateien: "
@@ -264,6 +311,12 @@ def format_operator_summary_for_display(snapshot: Mapping[str, Any]) -> str:
     ]
     for row in data_rows:
         lines.append(f"- {row['label']}: {row['files_text']} Dateien, {row['status']}")
+    if overall_progress:
+        lines.append("Hinweis: Fortsetzen möglich. Vorhandene Dateien werden übersprungen.")
+    if snapshot["data_readiness_report"]["overall_status"] != "ready":
+        lines.append("Hinweis: Fehlende Daten vorhanden. Klicke Daten prüfen & fehlende Daten laden.")
+    if any(row.get("reason", "").startswith("latest local day") for row in data_rows):
+        lines.append("Hinweis: Daten älter als 7 Tage. Bitte Daten aktualisieren.")
     return "\n".join(lines) + "\n"
 
 

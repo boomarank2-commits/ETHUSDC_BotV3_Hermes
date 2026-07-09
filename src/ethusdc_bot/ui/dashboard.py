@@ -182,6 +182,7 @@ class DashboardApp:
                 self._apply_runtime_status(self.current_runtime_status)
             else:
                 self._apply_runtime_status(snapshot["data_prep_runtime_status"])
+            self._apply_overall_data_status(snapshot)
             self._apply_last_run_status(snapshot["data_prep_last_run_status"])
             text = format_operator_summary_for_display(snapshot)
         except Exception as exc:  # pragma: no cover - defensive UI reporting
@@ -315,12 +316,15 @@ class DashboardApp:
         self.bot_state_var.set(f"Bot-Status: {text['bot_status']} ({text['activity_note']})")
         self.phase_var.set(f"Datenstatus: {text['mode']}")
         self.mode_var.set(f"Modus: {text['mode']}")
-        self.progress_var.set(int(status.get("progress_pct", 0)))
-        self.count_var.set(f"Gesamtfortschritt: {text['progress']}")
-        self.task_var.set(f"Aktueller Vorgang: {text['current_download']}")
+        self.task_var.set(f"Aktueller Lauf: {text['progress']} seit Start - {text['current_download']}")
         self.file_var.set(f"Dateien: {text['files']}")
         self.elapsed_var.set(f"Laufzeit: {text['elapsed']}")
         self.engine_var.set("Backtest: gesperrt, weil Daten/Engine fehlen. Keine Fake-Ergebnisse.")
+
+    def _apply_overall_data_status(self, snapshot: dict[str, object]) -> None:
+        progress = float(snapshot.get("overall_data_progress_pct", 0) or 0)
+        self.progress_var.set(int(progress))
+        self.count_var.set(f"Gesamtdatenstand: {progress}%")
 
     def _apply_last_run_status(self, status: dict[str, object]) -> None:
         self.last_run_var.set(

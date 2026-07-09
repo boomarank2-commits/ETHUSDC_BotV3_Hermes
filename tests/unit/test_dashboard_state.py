@@ -141,6 +141,39 @@ def test_build_snapshot_contains_last_run_status_and_refresh_preserves_supplied_
     assert refreshed["data_prep_last_run_status"]["last_run_next_blocker"] == "Backtest engine is not implemented"
 
 
+def test_build_snapshot_with_existing_files_has_overall_data_progress(tmp_path, monkeypatch):
+    download_dir = tmp_path / "raw/binance/spot/ETHUSDC/klines/1m"
+    download_dir.mkdir(parents=True)
+    for day in range(1, 4):
+        (download_dir / f"ETHUSDC-1m-2026-07-0{day}.zip").write_bytes(b"zip")
+        (download_dir / f"ETHUSDC-1m-2026-07-0{day}.zip.CHECKSUM").write_text("checksum\n", encoding="utf-8")
+
+    from ethusdc_bot.data_pipeline import kline_zip_audit
+    monkeypatch.setattr(kline_zip_audit, "DEFAULT_ALLOWED_RAW_ROOT", tmp_path)
+
+    snapshot = dashboard_state.build_dashboard_snapshot(Path.cwd(), tmp_path)
+
+    assert snapshot["overall_data_progress_pct"] > 0
+    assert snapshot["current_run_progress_pct"] == 0
+    assert snapshot["data_prep_progress_pct"] == snapshot["overall_data_progress_pct"]
+
+
+def test_idle_runtime_zero_does_not_overwrite_overall_data_progress(tmp_path, monkeypatch):
+    download_dir = tmp_path / "raw/binance/spot/ETHUSDC/klines/1m"
+    download_dir.mkdir(parents=True)
+    (download_dir / "ETHUSDC-1m-2026-07-01.zip").write_bytes(b"zip")
+    (download_dir / "ETHUSDC-1m-2026-07-01.zip.CHECKSUM").write_text("checksum\n", encoding="utf-8")
+
+    from ethusdc_bot.data_pipeline import kline_zip_audit
+    monkeypatch.setattr(kline_zip_audit, "DEFAULT_ALLOWED_RAW_ROOT", tmp_path)
+
+    snapshot = dashboard_state.build_dashboard_snapshot(Path.cwd(), tmp_path)
+    refreshed = dashboard_state.build_dashboard_snapshot(Path.cwd(), tmp_path, data_prep_last_run_status=snapshot["data_prep_last_run_status"])
+
+    assert snapshot["data_prep_runtime_status"]["progress_pct"] == 0
+    assert refreshed["overall_data_progress_pct"] == snapshot["overall_data_progress_pct"]
+    assert refreshed["data_prep_progress_pct"] == snapshot["overall_data_progress_pct"]
+
 def test_format_snapshot_for_display_contains_last_data_prep_run(tmp_path):
     last_run = dashboard_state.build_initial_data_prep_last_run_status()
     last_run.update(
@@ -191,6 +224,7 @@ def test_format_operator_summary_is_concise_and_hides_raw_readiness_lists(tmp_pa
     assert "Bot-Status:" in text
     assert "Datenstatus:" in text
     assert "Gesamtfortschritt:" in text
+    assert "Aktueller Lauf:" in text
     assert "Nächster Blocker: ETHUSDC 1m fehlt ein Tag" in text
     assert "requirements_by_id" not in text
     assert "available_days" not in text
@@ -242,3 +276,4 @@ def test_format_snapshot_for_display_contains_status_without_backtest_claims(tmp
     assert "not_audited" in text
     assert "profit_usdc" not in text
     assert "net_usdc_per_day" not in text
+

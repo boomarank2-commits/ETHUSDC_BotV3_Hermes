@@ -291,7 +291,7 @@ def _download_file_with_progress(
         "current_file_name": target.name,
         "target_path": str(target),
     }
-    if target.exists():
+    if _is_complete_existing_file(target):
         counters["completed"] += 1
         counters["skipped"] += 1
         _emit_progress(progress_callback, base, counters, "skipped_existing", f"Skipped existing file: {target.name}")
@@ -349,7 +349,7 @@ def _emit_progress(
 
 def _download_file(url: str, target_path: str | Path, execute: bool) -> dict[str, str]:
     target = Path(target_path)
-    if target.exists():
+    if _is_complete_existing_file(target):
         return {"url": url, "target_path": str(target), "status": "skipped_existing"}
     if not execute:
         return {"url": url, "target_path": str(target), "status": "planned"}
@@ -367,6 +367,14 @@ def _download_file(url: str, target_path: str | Path, execute: bool) -> dict[str
             target.unlink()
         return {"url": url, "target_path": str(target), "status": "error", "error": str(exc)}
     return {"url": url, "target_path": str(target), "status": "downloaded"}
+
+
+def _is_complete_existing_file(target: Path) -> bool:
+    if not target.exists() or not target.is_file():
+        return False
+    if target.name.endswith((".tmp", ".part")):
+        return False
+    return target.stat().st_size > 0
 
 
 def _target_dir(raw_root: str | Path, symbol: str, data_type: str, interval: str | None) -> Path:

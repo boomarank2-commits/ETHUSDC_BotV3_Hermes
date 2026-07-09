@@ -51,6 +51,19 @@ def _write_daily_data_names(root: Path, symbol: str, data_type: str, start: date
     for offset in range(days):
         day = start + timedelta(days=offset)
         (directory / f"{symbol}-{data_type}-{day.isoformat()}.zip").write_bytes(b"placeholder")
+        (directory / f"{symbol}-{data_type}-{day.isoformat()}.zip.CHECKSUM").write_text("checksum\n", encoding="utf-8")
+
+
+def _write_zip_without_checksum(root: Path, symbol: str, day: date) -> None:
+    directory = _kline_dir(root, symbol)
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / f"{symbol}-1m-{day.isoformat()}.zip").write_bytes(b"placeholder")
+
+
+def _write_checksum_without_zip(root: Path, symbol: str, day: date) -> None:
+    directory = _kline_dir(root, symbol)
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / f"{symbol}-1m-{day.isoformat()}.zip.CHECKSUM").write_text("checksum\n", encoding="utf-8")
 
 
 def test_rolling_window_uses_latest_available_day_and_has_exactly_1095_days():
@@ -95,6 +108,40 @@ def test_1094_of_1095_ethusdc_days_block_backtest(tmp_path):
     assert eth["blocking_backtest"] is True
     assert gate["data_gate_ready"] is False
 
+
+def test_zip_without_checksum_is_not_counted_as_complete_day(tmp_path):
+    _write_zip_without_checksum(tmp_path, "ETHUSDC", date(2026, 7, 6))
+
+    gate = build_backtest_start_data_gate(tmp_path, reference_date=date(2026, 7, 8))
+    eth = gate["requirements_by_id"]["ethusdc_klines_1m"]
+
+    assert eth["available_days"] == 0
+    assert eth["status"] == "missing"
+
+
+def test_checksum_without_zip_is_not_counted_as_complete_day(tmp_path):
+    _write_checksum_without_zip(tmp_path, "ETHUSDC", date(2026, 7, 6))
+
+    gate = build_backtest_start_data_gate(tmp_path, reference_date=date(2026, 7, 8))
+    eth = gate["requirements_by_id"]["ethusdc_klines_1m"]
+
+    assert eth["available_days"] == 0
+    assert eth["status"] == "missing"
+
+
+def test_tmp_part_and_zero_byte_files_are_not_counted_as_complete_days(tmp_path):
+    directory = _kline_dir(tmp_path, "ETHUSDC")
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "ETHUSDC-1m-2026-07-05.zip.part").write_bytes(b"partial")
+    (directory / "ETHUSDC-1m-2026-07-06.zip.tmp").write_bytes(b"partial")
+    (directory / "ETHUSDC-1m-2026-07-07.zip").write_bytes(b"")
+    (directory / "ETHUSDC-1m-2026-07-07.zip.CHECKSUM").write_text("checksum\n", encoding="utf-8")
+
+    gate = build_backtest_start_data_gate(tmp_path, reference_date=date(2026, 7, 8))
+    eth = gate["requirements_by_id"]["ethusdc_klines_1m"]
+
+    assert eth["available_days"] == 0
+    assert eth["status"] == "missing"
 
 def test_1095_ethusdc_days_allow_data_gate_but_not_backtest_without_engine(tmp_path):
     _write_daily_zip_names(tmp_path, "ETHUSDC", date(2023, 7, 8), 1095)
@@ -173,3 +220,4 @@ def test_readiness_report_has_no_profit_trade_candidate_or_backtest_result_field
     assert FORBIDDEN_RESULT_FIELDS.isdisjoint(report)
     for status in report["requirements"]:
         assert FORBIDDEN_RESULT_FIELDS.isdisjoint(status)
+

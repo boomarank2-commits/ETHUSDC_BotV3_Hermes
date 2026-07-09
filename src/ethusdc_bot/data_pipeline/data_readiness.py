@@ -260,19 +260,48 @@ def _available_days(requirement: Mapping[str, object], expected_path: Path) -> t
         return 0, None
     if not expected_path.exists():
         return 0, None
-    dates = sorted(_dates_from_files(expected_path, str(requirement["symbol"])))
+    if requirement["source_kind"] == "public_binance_data":
+        dates = sorted(_dates_from_complete_public_file_pairs(expected_path, str(requirement["symbol"])))
+    else:
+        dates = sorted(_dates_from_files(expected_path, str(requirement["symbol"])))
     return len(dates), dates[-1] if dates else None
+
+
+def _dates_from_complete_public_file_pairs(path: Path, symbol: str) -> set[date]:
+    """Return days that have a non-empty ZIP and matching non-empty CHECKSUM."""
+
+    zip_days: dict[str, date] = {}
+    checksum_bases = set()
+    for file_path in path.iterdir() if path.exists() else []:
+        if not _is_non_empty_final_file(file_path):
+            continue
+        name = file_path.name
+        if name.endswith(".zip") and symbol in name:
+            maybe_day = _extract_iso_day(name)
+            if maybe_day is not None:
+                zip_days[name] = maybe_day
+        elif name.endswith(".zip.CHECKSUM") and symbol in name:
+            checksum_bases.add(name[: -len(".CHECKSUM")])
+    return {day for name, day in zip_days.items() if name in checksum_bases}
 
 
 def _dates_from_files(path: Path, symbol: str) -> set[date]:
     dates = set()
     for file_path in path.iterdir() if path.exists() else []:
-        if not file_path.is_file():
+        if not _is_non_empty_final_file(file_path):
             continue
         maybe_day = _extract_iso_day(file_path.name)
         if maybe_day is not None and symbol in file_path.name:
             dates.add(maybe_day)
     return dates
+
+
+def _is_non_empty_final_file(file_path: Path) -> bool:
+    if not file_path.is_file():
+        return False
+    if file_path.name.endswith((".tmp", ".part")):
+        return False
+    return file_path.stat().st_size > 0
 
 
 def _extract_iso_day(name: str) -> date | None:
