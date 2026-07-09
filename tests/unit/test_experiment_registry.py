@@ -23,6 +23,16 @@ def _experiment(run_id: str) -> dict[str, object]:
         "target_usdc_per_day": 3.0,
         "safety": {"live": "locked", "paper": "locked", "testtrade": "locked", "orders": "not_created"},
         "report_links": {},
+        "candidate_leaderboard": [
+            {
+                "candidate_id": "momentum_trend_filter_001",
+                "family": "momentum_trend_filter",
+                "rank_position": 1,
+                "validation_metrics": {"net_usdc_per_day": 1.0},
+                "weaknesses": [],
+            }
+        ],
+        "candidate_diagnosis": {"best_validation_family": "momentum_trend_filter", "ranking_uses_blindtest": False},
     }
 
 

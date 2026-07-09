@@ -42,7 +42,19 @@ Research-run protocol:
    - `<run_id>.json`,
    - `<run_id>.txt`,
    - `index.jsonl` append entry.
-9. Report whether +3 USDC/day was reached. Never fake or force success.
+9. Include a full `candidate_leaderboard` for every tested candidate:
+   - candidate_id,
+   - family,
+   - params,
+   - training_metrics,
+   - validation_metrics,
+   - rank_score,
+   - rank_position,
+   - why_ranked_here,
+   - weaknesses/rejection reasons.
+10. Include `blindtest_metrics` inside the leaderboard only for the final selected candidate.
+11. Include a `candidate_diagnosis` summary showing best training family, best validation family, lowest-cost family, overtrading/too-few-trades families, near-one profit-factor families, and why the result still is not profitable enough.
+12. Report whether +3 USDC/day was reached. Never fake or force success.
 
 Current implemented families:
 - momentum_trend_filter

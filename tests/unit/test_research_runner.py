@@ -1,10 +1,17 @@
 """Tests for reproducible offline research runner."""
 
 from datetime import UTC, datetime, timedelta
+import json
 from pathlib import Path
 import zipfile
 
-from ethusdc_bot.backtest.research_runner import generate_research_candidates, rank_candidates, run_research
+from ethusdc_bot.backtest.research_runner import (
+    build_candidate_diagnosis,
+    build_candidate_leaderboard,
+    generate_research_candidates,
+    rank_candidates,
+    run_research,
+)
 from ethusdc_bot.backtest.simulator import StrategyCandidate
 from ethusdc_bot.backtest.metrics import BacktestMetrics
 
@@ -70,6 +77,57 @@ def test_research_report_contains_parameters_and_selection_reason(tmp_path):
     assert "not_used" in data
 
 
+def test_research_report_contains_complete_candidate_leaderboard(tmp_path):
+    result = run_research(raw_root=_fixture_root(tmp_path), reports_root=tmp_path / "research", required_days=None)
+    data = json.loads(result.experiment_paths.json_path.read_text(encoding="utf-8"))
+
+    leaderboard = data["candidate_leaderboard"]
+    assert len(leaderboard) == data["parameter_counts"]["total_candidates"]
+    assert [row["rank_position"] for row in leaderboard] == list(range(1, len(leaderboard) + 1))
+    assert all("candidate_id" in row for row in leaderboard)
+    assert all("training_metrics" in row and "validation_metrics" in row for row in leaderboard)
+
+
+def test_leaderboard_ranking_uses_no_blindtest_metrics_except_selected(tmp_path):
+    result = run_research(raw_root=_fixture_root(tmp_path), reports_root=tmp_path / "research", required_days=None)
+    data = json.loads(result.experiment_paths.json_path.read_text(encoding="utf-8"))
+
+    selected_ids = [row["candidate_id"] for row in data["candidate_leaderboard"] if "blindtest_metrics" in row]
+    assert selected_ids == [data["selected_candidate"]["candidate_id"]]
+    assert data["candidate_diagnosis"]["ranking_uses_blindtest"] is False
+
+
+def test_candidate_diagnosis_detects_validation_cost_trade_and_overtrading_weaknesses():
+    records = [
+        {
+            "candidate": StrategyCandidate("diagnostic", {}),
+            "candidate_id": "diagnostic_001",
+            "training_metrics": BacktestMetrics(-1, -1, 2, 0, 1, 0.5, -0.5, 10, 10, 1, 1),
+            "validation_metrics": BacktestMetrics(-1, -1, 2, 0, 1, 0.5, -0.5, 10, 10, 1, 1),
+        },
+        {
+            "candidate": StrategyCandidate("overtrade", {}),
+            "candidate_id": "overtrade_001",
+            "training_metrics": BacktestMetrics(1, 1, 10, 1, 1, 1.2, 0.1, 1, 1, 1, 1),
+            "validation_metrics": BacktestMetrics(1, 1, 2000, 1, 1, 1.2, 0.1, 1, 1, 1, 1),
+        },
+    ]
+
+    leaderboard = build_candidate_leaderboard(
+        records,
+        selected_candidate_id="diagnostic_001",
+        blindtest_metrics=BacktestMetrics(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1),
+    )
+    diagnosis = build_candidate_diagnosis(leaderboard)
+
+    assert "validation_negative" in leaderboard[0]["weaknesses"]
+    assert "cost_load_high" in leaderboard[0]["weaknesses"]
+    assert "too_few_trades" in leaderboard[0]["weaknesses"]
+    assert "overtrading" in leaderboard[1]["weaknesses"]
+    assert diagnosis["negative_validation_candidate_count"] >= 1
+    assert diagnosis["overtrading_candidate_count"] >= 1
+
+
 def test_generate_research_candidates_is_controlled_not_wild_bruteforce():
     candidates = generate_research_candidates()
 
@@ -82,3 +140,12 @@ def test_generate_research_candidates_is_controlled_not_wild_bruteforce():
         "session_filter",
     }
     assert all(candidate.params.get("symbol", "ETHUSDC") == "ETHUSDC" for candidate in candidates)
+
+
+def test_controlled_exit_improvement_is_deterministic_and_not_target_hardcoded():
+    first = generate_research_candidates()
+    second = generate_research_candidates()
+
+    assert first == second
+    assert any("trailing_stop_bps" in candidate.params or "break_even_after_bps" in candidate.params for candidate in first)
+    assert all("target_usdc_per_day" not in candidate.params for candidate in first)

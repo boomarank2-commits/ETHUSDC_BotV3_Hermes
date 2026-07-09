@@ -40,6 +40,9 @@ def format_experiment_text(experiment: dict[str, Any]) -> str:
     validation = experiment.get("validation_metrics", {})
     training = experiment.get("training_metrics", {})
     target_line = "Ziel erreicht" if experiment.get("target_reached") else "Ziel nicht erreicht"
+    leaderboard = experiment.get("candidate_leaderboard", [])
+    diagnosis = experiment.get("candidate_diagnosis", {})
+    top = leaderboard[0] if leaderboard else {}
     return "\n".join(
         [
             "ETHUSDC Offline Research Experiment",
@@ -53,6 +56,12 @@ def format_experiment_text(experiment: dict[str, Any]) -> str:
             f"Parameter counts: {experiment.get('parameter_counts')}",
             f"Selected candidate: {experiment.get('selected_candidate')}",
             f"Why selected: {experiment.get('why_selected')}",
+            f"Candidate leaderboard rows: {len(leaderboard)}",
+            f"Top validation candidate: {top.get('candidate_id')} {top.get('family')} score={top.get('rank_score')}",
+            f"Best training family: {diagnosis.get('best_training_family')}",
+            f"Best validation family: {diagnosis.get('best_validation_family')}",
+            f"Lowest cost family: {diagnosis.get('lowest_cost_family')}",
+            f"Why not profitable enough: {diagnosis.get('why_not_profitable_enough')}",
             f"Training net_usdc_per_day: {training.get('net_usdc_per_day')}",
             f"Validation net_usdc_per_day: {validation.get('net_usdc_per_day')}",
             f"Blindtest net_usdc_per_day: {blind.get('net_usdc_per_day')}",

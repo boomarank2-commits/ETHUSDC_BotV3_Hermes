@@ -1,64 +1,77 @@
 # Current Status
 
-Status: Reproducible offline ETHUSDC strategy-research runner is implemented and exercised.
+Status: Research reports now include a full per-candidate leaderboard, candidate diagnosis, and one controlled training-only strategy improvement.
 
 Latest completed changes:
-- Added report diagnosis helper: `src/ethusdc_bot/backtest/report_diagnosis.py`.
-- Added research protocol guardrails: `src/ethusdc_bot/backtest/research_protocol.py`.
-- Added append-only experiment registry: `src/ethusdc_bot/backtest/experiment_registry.py`.
-- Added no-lookahead feature generation: `src/ethusdc_bot/backtest/features.py`.
-- Added context helpers for BTCUSDC/ETHBTC safety: `src/ethusdc_bot/backtest/context_loader.py`.
-- Added CLI research runner: `src/ethusdc_bot/backtest/research_runner.py`.
-- Extended simulator with controlled research families and cooldown/session/volatility/trend filters.
-- Added docs:
+- Extended `src/ethusdc_bot/backtest/research_runner.py`:
+  - full `candidate_leaderboard` for every candidate,
+  - candidate_id, params, training metrics, validation metrics, rank score, rank position, ranking explanation, and weaknesses,
+  - blindtest metrics only on the final selected leaderboard row,
+  - `candidate_diagnosis` summary,
+  - two controlled exit-improvement candidates using trailing-stop and break-even-stop parameters.
+- Extended `src/ethusdc_bot/backtest/simulator.py`:
+  - optional no-lookahead trailing stop based on prior closes only,
+  - optional break-even stop after a favorable move, also prior-close based.
+- Extended `src/ethusdc_bot/backtest/experiment_registry.py` text report output with leaderboard/diagnosis summary.
+- Updated docs:
   - `docs/25_BACKTEST_RESEARCH_PROTOCOL.md`
   - `docs/26_BACKTEST_EXPERIMENT_LOG.md`
+- Extended tests in:
+  - `tests/unit/test_research_runner.py`
+  - `tests/unit/test_experiment_registry.py`
 
-Baseline diagnosis:
-- Source report: `reports/backtests/bt_20260709T151036Z.json` / `.txt`.
-- Target was not reached.
-- Training was negative.
-- Blindtest was negative.
-- Profit factor was below 1.
-- Winrate was low.
-- Fee/slippage load was high.
-- Overtrading was suspected.
-- Drawdown was high.
-- Diagnosis: no reliable edge indicated for the tested baseline candidate.
-
-Real research run executed:
-- Command: `PYTHONPATH=src python -m ethusdc_bot.backtest.research_runner --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes`
-- Research run_id: `research_20260709T170636Z`.
-- Report files:
-  - `reports/research/research_20260709T170636Z.json`
-  - `reports/research/research_20260709T170636Z.txt`
-  - `reports/research/index.jsonl`
-- Git commit recorded by report: `7cf9940-dirty` because the requested research run was executed before the final session commit.
-- Data window: 2023-07-09..2026-07-07.
-- Training: 2023-07-09..2025-07-07.
-- Validation: last 20% of training, selection only.
-- Blindtest: 2025-07-08..2026-07-07, final evaluation only.
-- Strategy families tested: momentum_trend_filter, breakout_volatility_filter, mean_reversion_regime_filter, pullback_in_trend, session_filter, cooldown_fee_aware.
-- Candidates tested: 12.
-- Selected candidate: breakout_volatility_filter, lookback 120, threshold 10 bps, volatility lookback 240, min/max volatility 10/120 bps, TP 140 bps, SL 90 bps, max hold 180 min, cooldown 90 min.
-- Selection reason: highest conservative validation rank using validation net/day, profit factor, drawdown, stability, trade frequency, and cost load; blindtest not used.
-- Training net_usdc_per_day: -0.1171462622.
-- Validation net_usdc_per_day: -0.2452730967.
-- Blindtest net_usdc_per_day: -0.0674168068.
-- Blindtest net_profit_usdc: -24.60713449.
+Previous research run:
+- `research_20260709T170636Z`
+- Candidates: 12.
+- Selected: breakout_volatility_filter.
+- Training: -0.1171462622 USDC/day.
+- Validation: -0.2452730967 USDC/day.
+- Blindtest: -0.0674168068 USDC/day.
 - Target +3 USDC/day: not reached.
 
-Comparison to previous baseline:
-- Previous blindtest: -1.3459078771 USDC/day.
-- Research run blindtest: -0.0674168068 USDC/day.
-- Loss, drawdown, and overtrading were reduced, but no sufficient positive edge was found.
+New real research run:
+- Command: `PYTHONPATH=src python -m ethusdc_bot.backtest.research_runner --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes`
+- Run-ID: `research_20260709T181800Z`.
+- Reports:
+  - `reports/research/research_20260709T181800Z.json`
+  - `reports/research/research_20260709T181800Z.txt`
+  - `reports/research/index.jsonl`
+- Git commit recorded by report: `c940d77-dirty` because the run was executed before final commit.
+- Candidates: 14.
+- Families: 6.
+- Selected candidate:
+  - candidate_id: `breakout_volatility_filter_013`
+  - family: breakout_volatility_filter
+  - params: lookback 120, threshold 10 bps, volatility lookback 240, min/max volatility 12/110 bps, TP 160 bps, SL 90 bps, trailing stop 70 bps, break-even after 65 bps, max hold 180 min, cooldown 120 min.
+- Training: -0.0722564539 USDC/day.
+- Validation: -0.1363876748 USDC/day.
+- Blindtest: -0.0327853251 USDC/day.
+- Blindtest net profit: -11.9666436613 USDC.
+- Blindtest trade count: 50.
+- Blindtest profit factor: 0.5945557275.
+- Blindtest max drawdown: 12.2184541211 USDC.
+- Target +3 USDC/day: not reached.
+
+Candidate diagnosis from leaderboard:
+- Best training family: breakout_volatility_filter.
+- Best validation family: breakout_volatility_filter.
+- Lowest-cost family: breakout_volatility_filter.
+- Negative validation candidates: 14/14.
+- High-cost candidates: 14/14.
+- Overtrading candidates: 3.
+- Too-few-trades candidates: 0.
+- Profit-factor-near-one families: none.
+- Why not profitable enough: best validation candidate is still negative before blindtest; no sufficient edge shown.
+
+Comparison:
+- Previous research blindtest: -0.0674168068 USDC/day.
+- New research blindtest: -0.0327853251 USDC/day.
+- Result improved, but still negative and far below +3 USDC/day.
 
 Verification:
-- Pre-change `pytest tests/ -q` passed.
-- New tests were written first and failed on missing modules.
-- Targeted tests passed after implementation.
-- Full `pytest tests/ -q` passed before real research run.
-- Full test rerun after handoff update still required before commit.
+- Targeted tests for leaderboard/registry passed.
+- Full `pytest tests/ -q` passed before the real research run.
+- Final full test rerun after handoff/docs is still required before commit.
 
 Safety unchanged:
 - No Binance Trading API.

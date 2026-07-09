@@ -53,27 +53,138 @@ def generate_research_candidates() -> list[StrategyCandidate]:
         StrategyCandidate("session_filter", {"base_family": "breakout", "lookback": 60, "threshold_bps": 8, "session_start_hour": 12, "session_end_hour": 22, "take_profit_bps": 120, "stop_loss_bps": 80, "max_hold_minutes": 120, "cooldown_minutes": 90}),
         StrategyCandidate("cooldown_fee_aware", {"base_family": "breakout", "lookback": 90, "threshold_bps": 12, "min_expected_move_bps": 35, "take_profit_bps": 140, "stop_loss_bps": 80, "max_hold_minutes": 180, "cooldown_minutes": 180}),
         StrategyCandidate("cooldown_fee_aware", {"base_family": "momentum", "lookback": 120, "threshold_bps": 40, "min_expected_move_bps": 45, "take_profit_bps": 160, "stop_loss_bps": 100, "max_hold_minutes": 240, "cooldown_minutes": 240}),
+        StrategyCandidate("breakout_volatility_filter", {"lookback": 120, "threshold_bps": 10, "volatility_lookback": 240, "min_vol_bps": 12, "max_vol_bps": 110, "take_profit_bps": 160, "stop_loss_bps": 90, "trailing_stop_bps": 70, "break_even_after_bps": 65, "max_hold_minutes": 180, "cooldown_minutes": 120}),
+        StrategyCandidate("cooldown_fee_aware", {"base_family": "breakout", "lookback": 120, "threshold_bps": 15, "min_expected_move_bps": 45, "take_profit_bps": 170, "stop_loss_bps": 90, "trailing_stop_bps": 80, "break_even_after_bps": 70, "max_hold_minutes": 240, "cooldown_minutes": 240}),
     ]
 
 
 def rank_candidates(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Rank without consulting blindtest metrics."""
 
-    def score(record: dict[str, Any]) -> tuple[float, float, float, float, float]:
+    return sorted(records, key=lambda record: _rank_tuple(record), reverse=True)
+
+
+def build_candidate_leaderboard(
+    records: list[dict[str, Any]],
+    *,
+    selected_candidate_id: str,
+    blindtest_metrics: BacktestMetrics,
+) -> list[dict[str, Any]]:
+    """Build a full training/validation leaderboard without blindtest ranking leakage."""
+
+    ranked = rank_candidates(records)
+    leaderboard: list[dict[str, Any]] = []
+    for position, record in enumerate(ranked, start=1):
+        candidate = record["candidate"]
         training = record["training_metrics"]
         validation = record["validation_metrics"]
-        stability = -abs(validation.net_usdc_per_day - training.net_usdc_per_day)
-        overtrade_penalty = -max(0, validation.trade_count - 1000) / 1000
-        cost_penalty = -(validation.fees_usdc + validation.slippage_usdc) / 1000
-        return (
-            validation.net_usdc_per_day,
-            validation.profit_factor,
-            -validation.max_drawdown_usdc,
-            stability + overtrade_penalty,
-            cost_penalty,
-        )
+        row = {
+            "candidate_id": record["candidate_id"],
+            "family": candidate.family,
+            "params": dict(candidate.params),
+            "training_metrics": training.to_dict(),
+            "validation_metrics": validation.to_dict(),
+            "rank_score": round(_rank_score(record), 10),
+            "rank_position": position,
+            "why_ranked_here": _why_ranked_here(position, validation),
+            "weaknesses": _candidate_weaknesses(training, validation),
+        }
+        if record["candidate_id"] == selected_candidate_id:
+            row["blindtest_metrics"] = blindtest_metrics.to_dict()
+        leaderboard.append(row)
+    return leaderboard
 
-    return sorted(records, key=score, reverse=True)
+
+def build_candidate_diagnosis(leaderboard: list[dict[str, Any]]) -> dict[str, Any]:
+    """Summarize family-level candidate behavior from training/validation only."""
+
+    best_training = max(leaderboard, key=lambda row: row["training_metrics"]["net_usdc_per_day"])
+    best_validation = min(leaderboard, key=lambda row: row["rank_position"])
+    least_cost = min(leaderboard, key=lambda row: row["validation_metrics"]["fees_usdc"] + row["validation_metrics"]["slippage_usdc"])
+    overtrading = [row["family"] for row in leaderboard if "overtrading" in row["weaknesses"]]
+    too_few = [row["family"] for row in leaderboard if "too_few_trades" in row["weaknesses"]]
+    near_one = [row["family"] for row in leaderboard if 0.85 <= row["validation_metrics"].get("profit_factor", 0) < 1.15]
+    negative_validation = [row for row in leaderboard if "validation_negative" in row["weaknesses"]]
+    cost_high = [row for row in leaderboard if "cost_load_high" in row["weaknesses"]]
+    return {
+        "ranking_uses_blindtest": False,
+        "best_training_family": best_training["family"],
+        "best_training_candidate_id": best_training["candidate_id"],
+        "best_validation_family": best_validation["family"],
+        "best_validation_candidate_id": best_validation["candidate_id"],
+        "lowest_cost_family": least_cost["family"],
+        "lowest_cost_candidate_id": least_cost["candidate_id"],
+        "overtrading_families": sorted(set(overtrading)),
+        "too_few_trades_families": sorted(set(too_few)),
+        "profit_factor_near_one_families": sorted(set(near_one)),
+        "negative_validation_candidate_count": len(negative_validation),
+        "high_cost_candidate_count": len(cost_high),
+        "overtrading_candidate_count": len(overtrading),
+        "too_few_trades_candidate_count": len(too_few),
+        "why_not_profitable_enough": _why_not_profitable_enough(best_validation),
+    }
+
+
+def _rank_tuple(record: dict[str, Any]) -> tuple[float, float, float, float, float]:
+    validation = record["validation_metrics"]
+    return (
+        _rank_score(record),
+        validation.net_usdc_per_day,
+        validation.profit_factor,
+        -validation.max_drawdown_usdc,
+        -validation.trade_count,
+    )
+
+
+def _rank_score(record: dict[str, Any]) -> float:
+    training = record["training_metrics"]
+    validation = record["validation_metrics"]
+    stability = -abs(validation.net_usdc_per_day - training.net_usdc_per_day)
+    overtrade_penalty = -max(0, validation.trade_count - 1000) / 100
+    undertrade_penalty = -max(0, 20 - validation.trade_count) / 20
+    cost_penalty = -(validation.fees_usdc + validation.slippage_usdc) / 100
+    drawdown_penalty = -validation.max_drawdown_usdc / 100
+    return validation.net_usdc_per_day + validation.profit_factor * 0.2 + stability * 0.5 + cost_penalty + drawdown_penalty + overtrade_penalty + undertrade_penalty
+
+
+def _candidate_weaknesses(training: BacktestMetrics, validation: BacktestMetrics) -> list[str]:
+    weaknesses: list[str] = []
+    if training.net_usdc_per_day < 0:
+        weaknesses.append("training_negative")
+    if validation.net_usdc_per_day < 0:
+        weaknesses.append("validation_negative")
+    if validation.profit_factor < 1:
+        weaknesses.append("profit_factor_below_one")
+    if validation.trade_count < 20:
+        weaknesses.append("too_few_trades")
+    if validation.trade_count > 1000:
+        weaknesses.append("overtrading")
+    cost_load = validation.fees_usdc + validation.slippage_usdc
+    if cost_load > max(1.0, abs(validation.net_profit_usdc)) * 2:
+        weaknesses.append("cost_load_high")
+    if validation.max_drawdown_usdc > max(25.0, abs(validation.net_profit_usdc) * 1.5):
+        weaknesses.append("drawdown_high")
+    if abs(validation.net_usdc_per_day - training.net_usdc_per_day) > max(0.25, abs(training.net_usdc_per_day) * 2):
+        weaknesses.append("unstable_train_validation")
+    return weaknesses
+
+
+def _why_ranked_here(position: int, validation: BacktestMetrics) -> str:
+    if position == 1:
+        return "best conservative validation-only rank; blindtest not used"
+    return f"ranked {position} by validation-only score; net/day={validation.net_usdc_per_day}, pf={validation.profit_factor}, trades={validation.trade_count}"
+
+
+def _why_not_profitable_enough(best_validation: dict[str, Any]) -> str:
+    validation = best_validation["validation_metrics"]
+    weaknesses = best_validation.get("weaknesses", [])
+    if validation["net_usdc_per_day"] < 0:
+        return "best validation candidate is still negative before blindtest; no sufficient edge shown"
+    if validation["profit_factor"] < 1:
+        return "best validation candidate has profit factor below one"
+    if "cost_load_high" in weaknesses:
+        return "cost load remains high relative to net result"
+    return "validation result is below the strategic target and still needs independent blindtest confirmation"
 
 
 def run_research(
@@ -103,11 +214,12 @@ def run_research(
     records: list[dict[str, Any]] = []
     subtrain_days = max(1, split.training_days * len(subtrain) // max(1, len(split.training)))
     validation_days = max(1, split.training_days - subtrain_days)
-    for candidate in candidates:
+    for candidate_index, candidate in enumerate(candidates, start=1):
         train_result = simulate_strategy(subtrain, candidate, days=subtrain_days, training_days=split.training_days, blindtest_days=split.blindtest_days)
         validation_result = simulate_strategy(validation, candidate, days=validation_days, training_days=split.training_days, blindtest_days=split.blindtest_days)
         records.append(
             {
+                "candidate_id": f"{candidate.family}_{candidate_index:03d}",
                 "candidate": candidate,
                 "training_result": train_result,
                 "validation_result": validation_result,
@@ -119,6 +231,7 @@ def run_research(
     ranked = rank_candidates(records)
     selected_record = ranked[0]
     selected = selected_record["candidate"]
+    selected_candidate_id = selected_record["candidate_id"]
     why_selected = "highest conservative validation rank using validation net/day, profit factor, drawdown, stability, trade frequency and cost load; blindtest not used"
     event_log.append("candidate_selected")
     full_training_result = simulate_strategy(split.training, selected, days=split.training_days, training_days=split.training_days, blindtest_days=split.blindtest_days)
@@ -137,6 +250,8 @@ def run_research(
     validation_protocol = validate_research_protocol(protocol)
     if not validation_protocol["valid"]:
         raise RuntimeError(f"Invalid research protocol: {validation_protocol['errors']}")
+    candidate_leaderboard = build_candidate_leaderboard(records, selected_candidate_id=selected_candidate_id, blindtest_metrics=blindtest_result.metrics)
+    candidate_diagnosis = build_candidate_diagnosis(candidate_leaderboard)
     experiment = _experiment_record(
         run_id=run_id,
         git_commit=git_commit,
@@ -152,6 +267,9 @@ def run_research(
         event_log=event_log,
         feature_sample_count=len(feature_sample),
         protocol=protocol,
+        candidate_leaderboard=candidate_leaderboard,
+        candidate_diagnosis=candidate_diagnosis,
+        selected_candidate_id=selected_candidate_id,
     )
     paths = record_experiment(experiment, reports_root)
     return ResearchRunResult(
@@ -187,8 +305,10 @@ def _experiment_record(**kwargs: Any) -> dict[str, Any]:
         "strategy_families": sorted({candidate.family for candidate in candidates}),
         "parameter_space": _parameter_space(candidates),
         "parameter_counts": {"total_candidates": len(candidates), "families": len({candidate.family for candidate in candidates})},
-        "selected_candidate": {"family": selected.family, "params": dict(selected.params)},
+        "selected_candidate": {"candidate_id": kwargs["selected_candidate_id"], "family": selected.family, "params": dict(selected.params)},
         "why_selected": kwargs["why_selected"],
+        "candidate_leaderboard": kwargs["candidate_leaderboard"],
+        "candidate_diagnosis": kwargs["candidate_diagnosis"],
         "training_metrics": kwargs["full_training_result"].metrics.to_dict(),
         "validation_metrics": kwargs["selected_validation_result"].metrics.to_dict(),
         "blindtest_metrics": kwargs["blindtest_result"].metrics.to_dict(),

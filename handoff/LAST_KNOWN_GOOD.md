@@ -27,19 +27,30 @@ Last baseline backtest:
 - Blindtest: -1.3459078771 USDC/day.
 - Target +3 USDC/day: not reached.
 
-Last research run:
+Research run before this session:
 - Report: `reports/research/research_20260709T170636Z.json` and `.txt`.
-- Index: `reports/research/index.jsonl`.
 - Tested 12 candidates across 6 families.
 - Selected family: breakout_volatility_filter.
 - Training: -0.1171462622 USDC/day.
 - Validation: -0.2452730967 USDC/day.
 - Blindtest: -0.0674168068 USDC/day.
 - Target +3 USDC/day: not reached.
-- Improvement vs baseline: less negative and far fewer trades, but still no sufficient edge.
+
+Latest research run:
+- Report: `reports/research/research_20260709T181800Z.json` and `.txt`.
+- Index: `reports/research/index.jsonl`.
+- Tested 14 candidates across 6 families.
+- Report contains full `candidate_leaderboard` and `candidate_diagnosis`.
+- Selected candidate: `breakout_volatility_filter_013` with trailing-stop and break-even-stop exit controls.
+- Training: -0.0722564539 USDC/day.
+- Validation: -0.1363876748 USDC/day.
+- Blindtest: -0.0327853251 USDC/day.
+- Target +3 USDC/day: not reached.
+- Improvement vs previous research: less negative and lower drawdown, but still no sufficient edge.
 
 Verification:
-- `pytest tests/ -q` passed before handoff update.
+- Targeted leaderboard/registry tests passed.
+- `pytest tests/ -q` passed before real research run.
 - Final rerun required before commit.
 
 Safety:

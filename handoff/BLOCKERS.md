@@ -2,20 +2,21 @@
 
 Current blockers:
 - The strategic target is still not reached.
-- Latest research run `research_20260709T170636Z` produced blindtest -0.0674168068 USDC/day, below the +3 USDC/day target.
-- Validation was also negative (-0.2452730967 USDC/day), so the selected candidate is not a strong candidate even before blindtest.
-- Research reports currently store the selected candidate and parameter space, but not a full per-candidate leaderboard; this limits diagnosis of why other families failed.
+- Latest research run `research_20260709T181800Z` produced blindtest -0.0327853251 USDC/day, below the +3 USDC/day target.
+- Validation for the selected candidate remained negative (-0.1363876748 USDC/day).
+- Candidate leaderboard shows all 14 candidates have negative validation and high cost load.
+- No family has validation profit factor near 1.
+- Overtrading remains present in 3 candidates/families, but the selected candidate is not overtrading; its issue is still negative validation/profit factor below 1/cost load.
 - Exchange info remains unsupported by current public-data downloader path.
 - BookTicker and orderbook snapshot tasks remain live-collector tasks and are not implemented in this UI workflow.
 - Dashboard button is represented in state, but full background UI execution/progress wiring remains a next step.
 
 Resolved in this session:
-- Baseline backtest diagnosis helper exists.
-- Formal research protocol exists and forbids blindtest selection.
-- Experiment registry writes `reports/research/index.jsonl`, JSON, and TXT without overwriting old runs.
-- No-lookahead features exist.
-- Context helpers explicitly prevent BTCUSDC/ETHBTC from triggering trades.
-- Research runner can run from CLI and save a real experiment.
+- Research reports now include a full per-candidate leaderboard.
+- Leaderboard ranking uses training/validation only.
+- Blindtest metrics appear only on the final selected candidate row.
+- Candidate diagnosis answers best training family, best validation family, lowest-cost family, overtrading/too-few-trades groups, near-one profit-factor groups, and why result is not profitable enough.
+- One controlled improvement was added: trailing-stop/break-even-stop exit variants.
 
 Safety locks remain:
 - Live locked.

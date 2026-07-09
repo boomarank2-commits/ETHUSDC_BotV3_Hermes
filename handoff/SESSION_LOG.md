@@ -197,3 +197,74 @@ Safety:
 - No API keys.
 - No Binance Trading API.
 - No raw data in repo.
+
+## 2026-07-09 - Candidate leaderboard and controlled exit improvement
+
+Timebox: max 240 minutes.
+
+Goal:
+- Add full per-candidate leaderboard to research reports.
+- Diagnose candidate/family behavior before any further strategy changes.
+- Add exactly one controlled training-only improvement.
+
+Initial guard:
+- `git status --short` was clean before work.
+- Handoff was read.
+- Existing research report `research_20260709T170636Z` was read.
+- Current research code was read before edits.
+
+TDD:
+- Tests were added first for:
+  - report contains `candidate_leaderboard`,
+  - leaderboard contains all candidates,
+  - only selected candidate has blindtest metrics,
+  - ranking diagnosis declares no blindtest ranking,
+  - candidate diagnosis detects negative validation, cost load, too few trades, and overtrading,
+  - controlled improvement is deterministic and does not use target as a parameter.
+- Targeted tests initially failed because `build_candidate_leaderboard` / `build_candidate_diagnosis` did not exist.
+
+Implementation:
+- `research_runner.py` now creates candidate ids and stores a full leaderboard.
+- Leaderboard fields include candidate_id, family, params, training_metrics, validation_metrics, rank_score, rank_position, why_ranked_here, and weaknesses.
+- Blindtest metrics are only embedded on the final selected candidate row.
+- `candidate_diagnosis` summarizes best training family, best validation family, lowest-cost family, overtrading families, too-few-trades families, profit-factor-near-one families, and why no candidate is profitable enough.
+- `simulator.py` gained optional trailing-stop and break-even-stop exits using only prior closes, not future candles.
+- `experiment_registry.py` text report output now includes leaderboard/diagnosis summary.
+
+Controlled improvement:
+- Added two controlled candidates using the same exit-improvement idea:
+  - trailing stop,
+  - break-even stop after favorable movement.
+- No broad brute force was added.
+- Candidate count increased from 12 to 14.
+
+Real research run:
+- Command: `PYTHONPATH=src python -m ethusdc_bot.backtest.research_runner --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes`
+- Run-ID: `research_20260709T181800Z`.
+- Reports:
+  - `reports/research/research_20260709T181800Z.json`
+  - `reports/research/research_20260709T181800Z.txt`
+  - `reports/research/index.jsonl`
+- Selected candidate: `breakout_volatility_filter_013`.
+- Training: -0.0722564539 USDC/day.
+- Validation: -0.1363876748 USDC/day.
+- Blindtest: -0.0327853251 USDC/day.
+- Target +3 USDC/day: not reached.
+
+Leaderboard diagnosis:
+- Best training family: breakout_volatility_filter.
+- Best validation family: breakout_volatility_filter.
+- Lowest-cost family: breakout_volatility_filter.
+- Negative validation candidates: 14/14.
+- High-cost candidates: 14/14.
+- Overtrading candidates: 3.
+- Too-few-trades candidates: 0.
+- Profit-factor-near-one families: none.
+- Interpretation: improvement reduced losses again, but all candidates are still negative in validation; no sufficient edge.
+
+Safety:
+- No live, paper, or testtrade.
+- No orders.
+- No API keys.
+- No Binance Trading API.
+- No raw data in repo.

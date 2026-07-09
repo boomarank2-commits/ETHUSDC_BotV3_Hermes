@@ -179,10 +179,21 @@ def _should_exit(candles: list[Candle], index: int, position: dict[str, float | 
     if index - entry_index >= max_hold:
         return True
     entry_price = float(position["entry_price"])
-    change_bps = (candles[index - 1].close / entry_price - 1) * 10_000
+    previous_close = candles[index - 1].close
+    change_bps = (previous_close / entry_price - 1) * 10_000
     take_profit = float(strategy.params.get("take_profit_bps", 80) or 80)
     stop_loss = float(strategy.params.get("stop_loss_bps", 60) or 60)
-    return change_bps >= take_profit or change_bps <= -stop_loss
+    if change_bps >= take_profit or change_bps <= -stop_loss:
+        return True
+    best_close = max(c.close for c in candles[entry_index:index])
+    best_change_bps = (best_close / entry_price - 1) * 10_000
+    break_even_after = float(strategy.params.get("break_even_after_bps", 0) or 0)
+    if break_even_after > 0 and best_change_bps >= break_even_after and change_bps <= 0:
+        return True
+    trailing_stop = float(strategy.params.get("trailing_stop_bps", 0) or 0)
+    if trailing_stop > 0 and best_change_bps > trailing_stop and (best_close / previous_close - 1) * 10_000 >= trailing_stop:
+        return True
+    return False
 
 
 def _exit_trade(
