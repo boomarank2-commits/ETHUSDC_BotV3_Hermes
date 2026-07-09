@@ -1,21 +1,22 @@
 # Next Action
 
 Recommended next mini-ticket:
-- Improve strategy research after the first honest blindtest failed the 3 USDC/day target.
-- Do not loosen gates or reuse blindtest for optimization.
-- Analyze the new report first:
-  - `reports/backtests/bt_20260709T151036Z.json`
-  - `reports/backtests/bt_20260709T151036Z.txt`
+- Add report-level research diagnosis for `reports/research/research_20260709T170636Z.json` and use it to design the next training-only improvement.
 
 Suggested next smallest safe step:
-1. Add a report-diagnosis helper that reads completed backtest reports and summarizes why candidates failed.
-2. Add one additional training-only strategy family or filter at a time.
-3. Keep the blindtest untouched for final one-time evaluation after training/validation selection.
-4. Preserve live/paper/testtrade locks.
+1. Read the new research report and compare candidate family behavior.
+2. Add per-candidate result tables to the research report so failed families can be diagnosed, not only the selected candidate.
+3. Investigate why validation remained negative and why the best candidate still had blindtest profit_factor < 1.
+4. Add one controlled improvement at a time, for example:
+   - better exit model,
+   - lower-cost trade frequency rules,
+   - volatility/session filter refinement,
+   - context filter from BTCUSDC/ETHBTC that is past-only and cannot trigger trades.
+5. Keep Blindtest final-only. Do not tune parameters from blindtest results.
 
 UI next step:
-- Wire the dashboard button to run the backtest runner in a background thread with progress updates.
-- Keep data mode and backtest mode separate.
+- Wire the dashboard “Backtest / Strategie-Suche starten” button to run `ethusdc_bot.backtest.research_runner` in a background thread.
+- Display real stages only: data gate, data load, feature prep, subtrain, validation, selection, blindtest, report written.
 - Do not show fake progress or fake results.
 
 Safety reminder:

@@ -1,0 +1,17 @@
+ETHUSDC Offline Research Experiment
+Run-ID: research_20260709T170636Z
+Git commit: 7cf9940-dirty
+Data window: {'data_start': '2023-07-09', 'data_end': '2026-07-07'}
+Training window: {'training_start': '2023-07-09', 'training_end': '2025-07-07', 'training_days': 730}
+Validation window: {'source': 'last_20_percent_of_training', 'selection_only': True}
+Blindtest window: {'blind_start': '2025-07-08', 'blind_end': '2026-07-07', 'blindtest_days': 365, 'final_evaluation_only': True}
+Families: ['breakout_volatility_filter', 'cooldown_fee_aware', 'mean_reversion_regime_filter', 'momentum_trend_filter', 'pullback_in_trend', 'session_filter']
+Parameter counts: {'total_candidates': 12, 'families': 6}
+Selected candidate: {'family': 'breakout_volatility_filter', 'params': {'lookback': 120, 'threshold_bps': 10, 'volatility_lookback': 240, 'min_vol_bps': 10, 'max_vol_bps': 120, 'take_profit_bps': 140, 'stop_loss_bps': 90, 'max_hold_minutes': 180, 'cooldown_minutes': 90}}
+Why selected: highest conservative validation rank using validation net/day, profit factor, drawdown, stability, trade frequency and cost load; blindtest not used
+Training net_usdc_per_day: -0.1171462622
+Validation net_usdc_per_day: -0.2452730967
+Blindtest net_usdc_per_day: -0.0674168068
+Target: >= 3.0 USDC/day
+Ziel nicht erreicht
+Live/Paper/Testtrade locked. No orders, no Trading API, no API keys.

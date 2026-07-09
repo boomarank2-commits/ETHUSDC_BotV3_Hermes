@@ -1,53 +1,64 @@
 # Current Status
 
-Status: First real local ETHUSDC backtest foundation has been implemented and exercised.
+Status: Reproducible offline ETHUSDC strategy-research runner is implemented and exercised.
 
 Latest completed changes:
-- Added `src/ethusdc_bot/backtest/` package:
-  - read-only ETHUSDC 1m ZIP/CHECKSUM data loader,
-  - 730/365 train/blind split,
-  - conservative Binance Spot LONG-only simulator,
-  - metrics,
-  - small deterministic strategy search,
-  - honest JSON/TXT reporting,
-  - `python -m ethusdc_bot.backtest.runner` CLI runner.
-- Added TDD/unit/integration coverage for loader, split, simulator, strategy search, metrics, reporting, runner smoke, safety, and UI backtest-mode state.
-- Updated dashboard state model so a local backtest/strategy-search button can be represented separately from data-prep mode.
-- Added `docs/24_BACKTEST_ENGINE_AND_STRATEGY_SEARCH.md`.
+- Added report diagnosis helper: `src/ethusdc_bot/backtest/report_diagnosis.py`.
+- Added research protocol guardrails: `src/ethusdc_bot/backtest/research_protocol.py`.
+- Added append-only experiment registry: `src/ethusdc_bot/backtest/experiment_registry.py`.
+- Added no-lookahead feature generation: `src/ethusdc_bot/backtest/features.py`.
+- Added context helpers for BTCUSDC/ETHBTC safety: `src/ethusdc_bot/backtest/context_loader.py`.
+- Added CLI research runner: `src/ethusdc_bot/backtest/research_runner.py`.
+- Extended simulator with controlled research families and cooldown/session/volatility/trend filters.
+- Added docs:
+  - `docs/25_BACKTEST_RESEARCH_PROTOCOL.md`
+  - `docs/26_BACKTEST_EXPERIMENT_LOG.md`
 
-Read-only local data state observed under `C:/TradingBot/data/ETHUSDC_BotV3_Hermes` before implementation:
-- Root exists: yes.
-- `START_DASHBOARD.bat` exists: yes.
-- Total files: 6589.
-- `.tmp`: 0.
-- `.part`: 0.
-- 0-byte files: 0.
-- Data readiness: ready / data gate true.
-- ETHUSDC 1m: 1095/1095 current, latest 2026-07-07.
-- BTCUSDC 1m: 1095/1095 current, latest 2026-07-07.
-- ETHBTC 1m: 1096/1095 current, latest 2026-07-08.
-- ETHUSDC aggTrades: 7/7 current, latest 2026-07-08.
-- ETHUSDC trades: 1/1 current, latest 2026-07-08.
-- ZIP/CHECKSUM pairs matched for all observed public sources.
-- Backtest window from readiness: data 2023-07-09..2026-07-07, training 2023-07-09..2025-07-07, blindtest 2025-07-08..2026-07-07.
+Baseline diagnosis:
+- Source report: `reports/backtests/bt_20260709T151036Z.json` / `.txt`.
+- Target was not reached.
+- Training was negative.
+- Blindtest was negative.
+- Profit factor was below 1.
+- Winrate was low.
+- Fee/slippage load was high.
+- Overtrading was suspected.
+- Drawdown was high.
+- Diagnosis: no reliable edge indicated for the tested baseline candidate.
 
-Real backtest run executed:
-- Command: `PYTHONPATH=src python -m ethusdc_bot.backtest.runner --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes`
-- Candles loaded: 1,576,800.
-- Split: 730 training days / 365 blindtest days.
-- Strategy families tested: momentum, mean_reversion, breakout.
-- Selected candidate from training/validation only: breakout, lookback 60, threshold 10 bps, TP 120 bps, SL 80 bps, max hold 90 minutes.
-- Blindtest result: -491.2563751241 USDC total, -1.3459078771 USDC/day, 1623 trades.
-- Target 3 USDC/day: not reached.
-- Report: `reports/backtests/bt_20260709T151036Z.json` and `.txt`.
+Real research run executed:
+- Command: `PYTHONPATH=src python -m ethusdc_bot.backtest.research_runner --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes`
+- Research run_id: `research_20260709T170636Z`.
+- Report files:
+  - `reports/research/research_20260709T170636Z.json`
+  - `reports/research/research_20260709T170636Z.txt`
+  - `reports/research/index.jsonl`
+- Git commit recorded by report: `7cf9940-dirty` because the requested research run was executed before the final session commit.
+- Data window: 2023-07-09..2026-07-07.
+- Training: 2023-07-09..2025-07-07.
+- Validation: last 20% of training, selection only.
+- Blindtest: 2025-07-08..2026-07-07, final evaluation only.
+- Strategy families tested: momentum_trend_filter, breakout_volatility_filter, mean_reversion_regime_filter, pullback_in_trend, session_filter, cooldown_fee_aware.
+- Candidates tested: 12.
+- Selected candidate: breakout_volatility_filter, lookback 120, threshold 10 bps, volatility lookback 240, min/max volatility 10/120 bps, TP 140 bps, SL 90 bps, max hold 180 min, cooldown 90 min.
+- Selection reason: highest conservative validation rank using validation net/day, profit factor, drawdown, stability, trade frequency, and cost load; blindtest not used.
+- Training net_usdc_per_day: -0.1171462622.
+- Validation net_usdc_per_day: -0.2452730967.
+- Blindtest net_usdc_per_day: -0.0674168068.
+- Blindtest net_profit_usdc: -24.60713449.
+- Target +3 USDC/day: not reached.
+
+Comparison to previous baseline:
+- Previous blindtest: -1.3459078771 USDC/day.
+- Research run blindtest: -0.0674168068 USDC/day.
+- Loss, drawdown, and overtrading were reduced, but no sufficient positive edge was found.
 
 Verification:
-- Initial clean check: `git status --short` was clean.
-- Pre-change full suite: `pytest tests/ -q` passed.
-- RED: new tests failed with missing `ethusdc_bot.backtest` package.
-- Targeted green tests passed.
-- Real CLI runner passed after timestamp-unit normalization.
-- Final `pytest tests/ -q` passed.
+- Pre-change `pytest tests/ -q` passed.
+- New tests were written first and failed on missing modules.
+- Targeted tests passed after implementation.
+- Full `pytest tests/ -q` passed before real research run.
+- Full test rerun after handoff update still required before commit.
 
 Safety unchanged:
 - No Binance Trading API.
@@ -55,5 +66,4 @@ Safety unchanged:
 - No exchange client.
 - No orders.
 - No live/paper/testtrade folders or activation.
-- BTCUSDC and ETHBTC remain context-only and cannot trigger simulated ETHUSDC orders.
-- Backtest report explicitly keeps live/paper/testtrade locked and candidate_adoptable false.
+- BTCUSDC and ETHBTC remain context-only and cannot trigger trades.

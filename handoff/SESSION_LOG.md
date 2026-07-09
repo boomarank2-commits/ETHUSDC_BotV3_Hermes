@@ -127,3 +127,73 @@ Safety:
 - No orders.
 - No live/paper/testtrade activation.
 - Reports keep live/paper/testtrade locked and candidate_adoptable false.
+
+## 2026-07-09 - Add reproducible offline strategy research runner
+
+Timebox: max 240 minutes.
+
+Goal:
+- Move from a single baseline backtest to a reproducible offline strategy-research system.
+- Diagnose the first negative backtest.
+- Add protocol, features, context safety, experiment registry, and a CLI research runner.
+
+Initial guard:
+- `git status --short` was clean before work.
+- Handoff and existing baseline reports were read first.
+- Current backtest code was inspected before implementation.
+- Baseline `pytest tests/ -q` passed.
+
+Baseline diagnosis:
+- Source: `reports/backtests/bt_20260709T151036Z.json` and `.txt`.
+- Ziel nicht erreicht.
+- Training negative.
+- Blindtest negative.
+- Profit factor < 1.
+- Winrate low.
+- Costs/slippage high.
+- Overtrading suspected.
+- Drawdown high.
+- Interpretation: no reliable edge shown by the baseline candidate; no claim that a simple change will fix it.
+
+TDD:
+- Tests were added first for report diagnosis, research protocol, experiment registry, no-lookahead features, context safety, and research runner.
+- RED was observed as missing modules.
+- Implementation followed the failing tests.
+
+Implementation:
+- `report_diagnosis.py`: reads completed backtest reports and emits honest JSON/text diagnosis.
+- `research_protocol.py`: defines reproducibility fields and forbids blindtest selection.
+- `experiment_registry.py`: writes append-only research JSON/TXT/index.jsonl without overwriting old runs.
+- `features.py`: returns, rolling volatility, intraday range, breakout distance, mean-reversion distance, trend slope, relative volume, time/session fields.
+- `context_loader.py`: BTCUSDC/ETHBTC context helper; context symbols cannot trigger trades.
+- `research_runner.py`: CLI research runner with controlled candidate grid and validation-only ranking.
+- `simulator.py`: extended with trend, volatility, regime, pullback, session, cooldown, and fee-aware filters.
+
+Real research run:
+- Command: `PYTHONPATH=src python -m ethusdc_bot.backtest.research_runner --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes`
+- Run-ID: `research_20260709T170636Z`.
+- Reports:
+  - `reports/research/research_20260709T170636Z.json`
+  - `reports/research/research_20260709T170636Z.txt`
+  - `reports/research/index.jsonl`
+- Families tested: momentum_trend_filter, breakout_volatility_filter, mean_reversion_regime_filter, pullback_in_trend, session_filter, cooldown_fee_aware.
+- Candidates: 12.
+- Selected: breakout_volatility_filter with lookback 120, threshold 10 bps, volatility filter 10..120 bps, TP 140 bps, SL 90 bps, max hold 180 minutes, cooldown 90 minutes.
+- Selection used subtrain/validation only; blindtest was evaluated after candidate selection.
+- Training: -0.1171462622 USDC/day.
+- Validation: -0.2452730967 USDC/day.
+- Blindtest: -0.0674168068 USDC/day.
+- Target +3 USDC/day: not reached.
+- Compared to baseline, loss and trade frequency were reduced, but no sufficient edge exists yet.
+
+Verification:
+- Targeted new tests passed.
+- Full `pytest tests/ -q` passed before the real research run.
+- Final `pytest tests/ -q` will be rerun after handoff/docs before commit.
+
+Safety:
+- No live, paper, or testtrade.
+- No orders.
+- No API keys.
+- No Binance Trading API.
+- No raw data in repo.

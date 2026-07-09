@@ -6,13 +6,12 @@ Last known safe state:
   - `Daten prüfen & fehlende Daten laden` maps to execute=True.
   - `Nur prüfen ohne Download` maps to execute=False.
 - Backtest state is represented separately from data mode.
-- Local backtest runner exists and is CLI-startable:
+- Local baseline backtest runner exists:
   - `PYTHONPATH=src python -m ethusdc_bot.backtest.runner --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes`
-- Runner completed a real local backtest and wrote:
-  - `reports/backtests/bt_20260709T151036Z.json`
-  - `reports/backtests/bt_20260709T151036Z.txt`
+- Local research runner exists:
+  - `PYTHONPATH=src python -m ethusdc_bot.backtest.research_runner --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes`
 
-Last verified data counts, read-only:
+Last verified data counts, read-only from previous data gate:
 - Total files: 6589.
 - `.tmp/.part`: 0.
 - 0-byte files: 0.
@@ -22,21 +21,30 @@ Last verified data counts, read-only:
 - ETHUSDC aggTrades: 7 ZIP / 7 CHECKSUM / 7 complete pairs.
 - ETHUSDC trades: 1 ZIP / 1 CHECKSUM / 1 complete pair.
 
-Last verified backtest result:
-- Data window: 2023-07-09..2026-07-07.
-- Training: 2023-07-09..2025-07-07 (730 days).
-- Blindtest: 2025-07-08..2026-07-07 (365 days).
-- Selected family: breakout.
-- Blindtest net result: -491.2563751241 USDC.
-- Blindtest average: -1.3459078771 USDC/day.
-- Target 3 USDC/day: not reached.
+Last baseline backtest:
+- Report: `reports/backtests/bt_20260709T151036Z.json` and `.txt`.
+- Training: -1.197560472 USDC/day.
+- Blindtest: -1.3459078771 USDC/day.
+- Target +3 USDC/day: not reached.
+
+Last research run:
+- Report: `reports/research/research_20260709T170636Z.json` and `.txt`.
+- Index: `reports/research/index.jsonl`.
+- Tested 12 candidates across 6 families.
+- Selected family: breakout_volatility_filter.
+- Training: -0.1171462622 USDC/day.
+- Validation: -0.2452730967 USDC/day.
+- Blindtest: -0.0674168068 USDC/day.
+- Target +3 USDC/day: not reached.
+- Improvement vs baseline: less negative and far fewer trades, but still no sufficient edge.
 
 Verification:
-- `pytest tests/ -q` passed after handoff update still needs final rerun before commit.
+- `pytest tests/ -q` passed before handoff update.
+- Final rerun required before commit.
 
 Safety:
 - No live/paper/testtrade unlock.
 - No orders.
 - No API keys.
 - No trading API.
-- Reports are real backtest reports only and mark candidate_adoptable false.
+- BTCUSDC/ETHBTC context remains non-trading.

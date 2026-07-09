@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 from ethusdc_bot.backtest.data_loader import Candle, SYMBOL
 from ethusdc_bot.backtest.metrics import BacktestMetrics, compute_metrics
@@ -80,6 +81,7 @@ def simulate_strategy(
     trades: list[Trade] = []
     position: dict[str, float | int] | None = None
     pending_entry = False
+    cooldown_until_index = -1
     for index, candle in enumerate(candles):
         if pending_entry and position is None:
             entry_price = candle.open * (1 + slippage_bps / 10_000)
@@ -90,8 +92,9 @@ def simulate_strategy(
             trade = _exit_trade(candle, position, fee_rate, slippage_bps, trade_usdc)
             trades.append(trade)
             position = None
+            cooldown_until_index = index + int(strategy.params.get("cooldown_minutes", 0) or 0)
             # A signal on this same candle may schedule a next-candle entry below.
-        if position is None and index < len(candles) - 1 and _signal(candles, index, strategy):
+        if position is None and index >= cooldown_until_index and index < len(candles) - 1 and _signal(candles, index, strategy):
             pending_entry = True
     if position is not None and candles:
         trades.append(_exit_trade(candles[-1], position, fee_rate, slippage_bps, trade_usdc, exit_reason="end_of_data"))
@@ -118,7 +121,54 @@ def _signal(candles: list[Candle], index: int, strategy: StrategyCandidate) -> b
     if strategy.family == "breakout":
         previous_high = max(c.high for c in candles[index - lookback : index])
         return current >= previous_high * (1 + threshold)
+    if strategy.family == "momentum_trend_filter":
+        trend = _trend_bps(candles, index, int(strategy.params.get("trend_lookback", lookback) or lookback))
+        return change >= threshold and trend >= float(strategy.params.get("trend_min_bps", 0) or 0)
+    if strategy.family == "breakout_volatility_filter":
+        previous_high = max(c.high for c in candles[index - lookback : index])
+        vol = _volatility_bps(candles, index, int(strategy.params.get("volatility_lookback", lookback) or lookback))
+        return current >= previous_high * (1 + threshold) and float(strategy.params.get("min_vol_bps", 0) or 0) <= vol <= float(strategy.params.get("max_vol_bps", 10_000) or 10_000)
+    if strategy.family == "mean_reversion_regime_filter":
+        trend = abs(_trend_bps(candles, index, int(strategy.params.get("trend_lookback", lookback) or lookback)))
+        return change <= -threshold and trend <= float(strategy.params.get("max_abs_trend_bps", 10_000) or 10_000)
+    if strategy.family == "pullback_in_trend":
+        trend = _trend_bps(candles, index, int(strategy.params.get("trend_lookback", lookback) or lookback))
+        return change <= -threshold and trend >= float(strategy.params.get("trend_min_bps", 0) or 0)
+    if strategy.family == "session_filter":
+        if not _in_session(candles[index].open_time, int(strategy.params.get("session_start_hour", 0) or 0), int(strategy.params.get("session_end_hour", 24) or 24)):
+            return False
+        return _signal(candles, index, StrategyCandidate(str(strategy.params.get("base_family", "momentum")), dict(strategy.params)))
+    if strategy.family == "cooldown_fee_aware":
+        if abs(change) * 10_000 < float(strategy.params.get("min_expected_move_bps", 0) or 0):
+            return False
+        return _signal(candles, index, StrategyCandidate(str(strategy.params.get("base_family", "momentum")), dict(strategy.params)))
     return False
+
+
+def _trend_bps(candles: list[Candle], index: int, lookback: int) -> float:
+    if index < lookback:
+        return 0.0
+    reference = candles[index - lookback].close
+    return ((candles[index].close / reference) - 1) * 10_000 if reference else 0.0
+
+
+def _volatility_bps(candles: list[Candle], index: int, lookback: int) -> float:
+    if index <= 0:
+        return 0.0
+    start = max(1, index - lookback + 1)
+    moves = []
+    for cursor in range(start, index + 1):
+        previous = candles[cursor - 1].close
+        if previous:
+            moves.append(abs(candles[cursor].close / previous - 1) * 10_000)
+    return sum(moves) / len(moves) if moves else 0.0
+
+
+def _in_session(open_time: int, start_hour: int, end_hour: int) -> bool:
+    hour = datetime.fromtimestamp(open_time / 1000, tz=UTC).hour
+    if start_hour <= end_hour:
+        return start_hour <= hour < end_hour
+    return hour >= start_hour or hour < end_hour
 
 
 def _should_exit(candles: list[Candle], index: int, position: dict[str, float | int], strategy: StrategyCandidate) -> bool:

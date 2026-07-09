@@ -1,0 +1,523 @@
+{
+  "blindtest_metrics": {
+    "average_trade_usdc": -0.2321427782,
+    "blindtest_days": 365,
+    "fees_usdc": 21.1965894544,
+    "max_drawdown_usdc": 26.2866075483,
+    "net_profit_usdc": -24.60713449,
+    "net_usdc_per_day": -0.0674168068,
+    "profit_factor": 0.6548895154,
+    "slippage_usdc": 116.6652236009,
+    "trade_count": 106,
+    "training_days": 730,
+    "winrate": 0.3679245283
+  },
+  "blindtest_window": {
+    "blind_end": "2026-07-07",
+    "blind_start": "2025-07-08",
+    "blindtest_days": 365,
+    "final_evaluation_only": true
+  },
+  "comparison_to_previous_report": {
+    "previous_blindtest_net_usdc_per_day": -1.3459078771,
+    "previous_run_id": "bt_20260709T151036Z"
+  },
+  "data_window": {
+    "data_end": "2026-07-07",
+    "data_start": "2023-07-09"
+  },
+  "event_log": [
+    "data_gate_check_started",
+    "data_gate_ready",
+    "ethusdc_loaded",
+    "split_built",
+    "features_prepared",
+    "candidates_evaluated_on_subtrain_validation",
+    "candidate_selected",
+    "blindtest_evaluated"
+  ],
+  "feature_sample_count": 5000,
+  "git_commit": "7cf9940-dirty",
+  "parameter_counts": {
+    "families": 6,
+    "total_candidates": 12
+  },
+  "parameter_space": {
+    "by_family": {
+      "breakout_volatility_filter": 2,
+      "cooldown_fee_aware": 2,
+      "mean_reversion_regime_filter": 2,
+      "momentum_trend_filter": 2,
+      "pullback_in_trend": 2,
+      "session_filter": 2
+    },
+    "candidate_count": 12,
+    "candidates": [
+      {
+        "family": "momentum_trend_filter",
+        "params": {
+          "cooldown_minutes": 20,
+          "lookback": 15,
+          "max_hold_minutes": 45,
+          "stop_loss_bps": 55,
+          "take_profit_bps": 80,
+          "threshold_bps": 12,
+          "trend_lookback": 120,
+          "trend_min_bps": 8
+        }
+      },
+      {
+        "family": "momentum_trend_filter",
+        "params": {
+          "cooldown_minutes": 45,
+          "lookback": 60,
+          "max_hold_minutes": 120,
+          "stop_loss_bps": 75,
+          "take_profit_bps": 120,
+          "threshold_bps": 25,
+          "trend_lookback": 240,
+          "trend_min_bps": 20
+        }
+      },
+      {
+        "family": "breakout_volatility_filter",
+        "params": {
+          "cooldown_minutes": 30,
+          "lookback": 30,
+          "max_hold_minutes": 60,
+          "max_vol_bps": 80,
+          "min_vol_bps": 8,
+          "stop_loss_bps": 60,
+          "take_profit_bps": 90,
+          "threshold_bps": 5,
+          "volatility_lookback": 60
+        }
+      },
+      {
+        "family": "breakout_volatility_filter",
+        "params": {
+          "cooldown_minutes": 90,
+          "lookback": 120,
+          "max_hold_minutes": 180,
+          "max_vol_bps": 120,
+          "min_vol_bps": 10,
+          "stop_loss_bps": 90,
+          "take_profit_bps": 140,
+          "threshold_bps": 10,
+          "volatility_lookback": 240
+        }
+      },
+      {
+        "family": "mean_reversion_regime_filter",
+        "params": {
+          "cooldown_minutes": 20,
+          "lookback": 20,
+          "max_abs_trend_bps": 80,
+          "max_hold_minutes": 45,
+          "stop_loss_bps": 45,
+          "take_profit_bps": 50,
+          "threshold_bps": 35,
+          "trend_lookback": 180
+        }
+      },
+      {
+        "family": "mean_reversion_regime_filter",
+        "params": {
+          "cooldown_minutes": 60,
+          "lookback": 60,
+          "max_abs_trend_bps": 120,
+          "max_hold_minutes": 120,
+          "stop_loss_bps": 70,
+          "take_profit_bps": 80,
+          "threshold_bps": 70,
+          "trend_lookback": 360
+        }
+      },
+      {
+        "family": "pullback_in_trend",
+        "params": {
+          "cooldown_minutes": 30,
+          "lookback": 15,
+          "max_hold_minutes": 60,
+          "stop_loss_bps": 55,
+          "take_profit_bps": 75,
+          "threshold_bps": 18,
+          "trend_lookback": 240,
+          "trend_min_bps": 25
+        }
+      },
+      {
+        "family": "pullback_in_trend",
+        "params": {
+          "cooldown_minutes": 90,
+          "lookback": 45,
+          "max_hold_minutes": 180,
+          "stop_loss_bps": 80,
+          "take_profit_bps": 110,
+          "threshold_bps": 35,
+          "trend_lookback": 480,
+          "trend_min_bps": 40
+        }
+      },
+      {
+        "family": "session_filter",
+        "params": {
+          "base_family": "momentum",
+          "cooldown_minutes": 60,
+          "lookback": 30,
+          "max_hold_minutes": 90,
+          "session_end_hour": 20,
+          "session_start_hour": 7,
+          "stop_loss_bps": 70,
+          "take_profit_bps": 90,
+          "threshold_bps": 20
+        }
+      },
+      {
+        "family": "session_filter",
+        "params": {
+          "base_family": "breakout",
+          "cooldown_minutes": 90,
+          "lookback": 60,
+          "max_hold_minutes": 120,
+          "session_end_hour": 22,
+          "session_start_hour": 12,
+          "stop_loss_bps": 80,
+          "take_profit_bps": 120,
+          "threshold_bps": 8
+        }
+      },
+      {
+        "family": "cooldown_fee_aware",
+        "params": {
+          "base_family": "breakout",
+          "cooldown_minutes": 180,
+          "lookback": 90,
+          "max_hold_minutes": 180,
+          "min_expected_move_bps": 35,
+          "stop_loss_bps": 80,
+          "take_profit_bps": 140,
+          "threshold_bps": 12
+        }
+      },
+      {
+        "family": "cooldown_fee_aware",
+        "params": {
+          "base_family": "momentum",
+          "cooldown_minutes": 240,
+          "lookback": 120,
+          "max_hold_minutes": 240,
+          "min_expected_move_bps": 45,
+          "stop_loss_bps": 100,
+          "take_profit_bps": 160,
+          "threshold_bps": 40
+        }
+      }
+    ]
+  },
+  "raw_root": "C:\\TradingBot\\data\\ETHUSDC_BotV3_Hermes",
+  "report_links": {
+    "json": "reports\\research\\research_20260709T170636Z.json",
+    "txt": "reports\\research\\research_20260709T170636Z.txt"
+  },
+  "research_protocol": {
+    "blindtest_usage": "final_evaluation_only",
+    "created_at": "2026-07-09T17:06:36.753965Z",
+    "data_window": {
+      "data_end": "2026-07-07",
+      "data_start": "2023-07-09"
+    },
+    "git_commit": "7cf9940-dirty",
+    "parameter_space": {
+      "by_family": {
+        "breakout_volatility_filter": 2,
+        "cooldown_fee_aware": 2,
+        "mean_reversion_regime_filter": 2,
+        "momentum_trend_filter": 2,
+        "pullback_in_trend": 2,
+        "session_filter": 2
+      },
+      "candidate_count": 12,
+      "candidates": [
+        {
+          "family": "momentum_trend_filter",
+          "params": {
+            "cooldown_minutes": 20,
+            "lookback": 15,
+            "max_hold_minutes": 45,
+            "stop_loss_bps": 55,
+            "take_profit_bps": 80,
+            "threshold_bps": 12,
+            "trend_lookback": 120,
+            "trend_min_bps": 8
+          }
+        },
+        {
+          "family": "momentum_trend_filter",
+          "params": {
+            "cooldown_minutes": 45,
+            "lookback": 60,
+            "max_hold_minutes": 120,
+            "stop_loss_bps": 75,
+            "take_profit_bps": 120,
+            "threshold_bps": 25,
+            "trend_lookback": 240,
+            "trend_min_bps": 20
+          }
+        },
+        {
+          "family": "breakout_volatility_filter",
+          "params": {
+            "cooldown_minutes": 30,
+            "lookback": 30,
+            "max_hold_minutes": 60,
+            "max_vol_bps": 80,
+            "min_vol_bps": 8,
+            "stop_loss_bps": 60,
+            "take_profit_bps": 90,
+            "threshold_bps": 5,
+            "volatility_lookback": 60
+          }
+        },
+        {
+          "family": "breakout_volatility_filter",
+          "params": {
+            "cooldown_minutes": 90,
+            "lookback": 120,
+            "max_hold_minutes": 180,
+            "max_vol_bps": 120,
+            "min_vol_bps": 10,
+            "stop_loss_bps": 90,
+            "take_profit_bps": 140,
+            "threshold_bps": 10,
+            "volatility_lookback": 240
+          }
+        },
+        {
+          "family": "mean_reversion_regime_filter",
+          "params": {
+            "cooldown_minutes": 20,
+            "lookback": 20,
+            "max_abs_trend_bps": 80,
+            "max_hold_minutes": 45,
+            "stop_loss_bps": 45,
+            "take_profit_bps": 50,
+            "threshold_bps": 35,
+            "trend_lookback": 180
+          }
+        },
+        {
+          "family": "mean_reversion_regime_filter",
+          "params": {
+            "cooldown_minutes": 60,
+            "lookback": 60,
+            "max_abs_trend_bps": 120,
+            "max_hold_minutes": 120,
+            "stop_loss_bps": 70,
+            "take_profit_bps": 80,
+            "threshold_bps": 70,
+            "trend_lookback": 360
+          }
+        },
+        {
+          "family": "pullback_in_trend",
+          "params": {
+            "cooldown_minutes": 30,
+            "lookback": 15,
+            "max_hold_minutes": 60,
+            "stop_loss_bps": 55,
+            "take_profit_bps": 75,
+            "threshold_bps": 18,
+            "trend_lookback": 240,
+            "trend_min_bps": 25
+          }
+        },
+        {
+          "family": "pullback_in_trend",
+          "params": {
+            "cooldown_minutes": 90,
+            "lookback": 45,
+            "max_hold_minutes": 180,
+            "stop_loss_bps": 80,
+            "take_profit_bps": 110,
+            "threshold_bps": 35,
+            "trend_lookback": 480,
+            "trend_min_bps": 40
+          }
+        },
+        {
+          "family": "session_filter",
+          "params": {
+            "base_family": "momentum",
+            "cooldown_minutes": 60,
+            "lookback": 30,
+            "max_hold_minutes": 90,
+            "session_end_hour": 20,
+            "session_start_hour": 7,
+            "stop_loss_bps": 70,
+            "take_profit_bps": 90,
+            "threshold_bps": 20
+          }
+        },
+        {
+          "family": "session_filter",
+          "params": {
+            "base_family": "breakout",
+            "cooldown_minutes": 90,
+            "lookback": 60,
+            "max_hold_minutes": 120,
+            "session_end_hour": 22,
+            "session_start_hour": 12,
+            "stop_loss_bps": 80,
+            "take_profit_bps": 120,
+            "threshold_bps": 8
+          }
+        },
+        {
+          "family": "cooldown_fee_aware",
+          "params": {
+            "base_family": "breakout",
+            "cooldown_minutes": 180,
+            "lookback": 90,
+            "max_hold_minutes": 180,
+            "min_expected_move_bps": 35,
+            "stop_loss_bps": 80,
+            "take_profit_bps": 140,
+            "threshold_bps": 12
+          }
+        },
+        {
+          "family": "cooldown_fee_aware",
+          "params": {
+            "base_family": "momentum",
+            "cooldown_minutes": 240,
+            "lookback": 120,
+            "max_hold_minutes": 240,
+            "min_expected_move_bps": 45,
+            "stop_loss_bps": 100,
+            "take_profit_bps": 160,
+            "threshold_bps": 40
+          }
+        }
+      ]
+    },
+    "ranking_rules": [
+      "validation_net_usdc_per_day_desc",
+      "validation_profit_factor_desc",
+      "validation_max_drawdown_asc",
+      "trade_count_sufficient_not_overtrading",
+      "fees_slippage_load_penalty",
+      "training_validation_stability"
+    ],
+    "raw_root": "C:\\TradingBot\\data\\ETHUSDC_BotV3_Hermes",
+    "required_outputs": [
+      "run_id",
+      "git_commit",
+      "raw_root",
+      "windows",
+      "parameters",
+      "training_results",
+      "validation_results",
+      "blindtest_result_after_selection",
+      "safety_status"
+    ],
+    "run_id": "research_20260709T170636Z",
+    "safety": {
+      "api_keys": "not_used",
+      "binance_trading_api": "not_used",
+      "candidate_adoptable": false,
+      "live": "locked",
+      "orders": "not_created",
+      "paper": "locked",
+      "short_margin_futures_leverage": "forbidden",
+      "testtrade": "locked"
+    },
+    "schema_version": 1,
+    "selection_data": [
+      "subtrain",
+      "validation"
+    ],
+    "strategy_families": [
+      "momentum_trend_filter",
+      "breakout_volatility_filter",
+      "mean_reversion_regime_filter",
+      "pullback_in_trend",
+      "session_filter",
+      "cooldown_fee_aware"
+    ]
+  },
+  "run_id": "research_20260709T170636Z",
+  "safety": {
+    "api_keys": "not_used",
+    "binance_trading_api": "not_used",
+    "candidate_adoptable": false,
+    "live": "locked",
+    "orders": "not_created",
+    "paper": "locked",
+    "short_margin_futures_leverage": "forbidden",
+    "testtrade": "locked"
+  },
+  "schema_version": 1,
+  "selected_candidate": {
+    "family": "breakout_volatility_filter",
+    "params": {
+      "cooldown_minutes": 90,
+      "lookback": 120,
+      "max_hold_minutes": 180,
+      "max_vol_bps": 120,
+      "min_vol_bps": 10,
+      "stop_loss_bps": 90,
+      "take_profit_bps": 140,
+      "threshold_bps": 10,
+      "volatility_lookback": 240
+    }
+  },
+  "selection_source": "subtrain_validation_only",
+  "strategy_families": [
+    "breakout_volatility_filter",
+    "cooldown_fee_aware",
+    "mean_reversion_regime_filter",
+    "momentum_trend_filter",
+    "pullback_in_trend",
+    "session_filter"
+  ],
+  "target_reached": false,
+  "target_usdc_per_day": 3.0,
+  "timestamp": "2026-07-09T17:06:36.753965Z",
+  "training_metrics": {
+    "average_trade_usdc": -0.4033809971,
+    "blindtest_days": 365,
+    "fees_usdc": 42.3568400686,
+    "max_drawdown_usdc": 90.6334528257,
+    "net_profit_usdc": -85.51677138,
+    "net_usdc_per_day": -0.1171462622,
+    "profit_factor": 0.4744175299,
+    "slippage_usdc": 233.8051832195,
+    "trade_count": 212,
+    "training_days": 730,
+    "winrate": 0.320754717
+  },
+  "training_window": {
+    "training_days": 730,
+    "training_end": "2025-07-07",
+    "training_start": "2023-07-09"
+  },
+  "validation_metrics": {
+    "average_trade_usdc": -0.4532895204,
+    "blindtest_days": 365,
+    "fees_usdc": 15.7799700975,
+    "max_drawdown_usdc": 40.8506027399,
+    "net_profit_usdc": -35.8098721151,
+    "net_usdc_per_day": -0.2452730967,
+    "profit_factor": 0.424519183,
+    "slippage_usdc": 85.581045819,
+    "trade_count": 79,
+    "training_days": 730,
+    "winrate": 0.2911392405
+  },
+  "validation_window": {
+    "selection_only": true,
+    "source": "last_20_percent_of_training"
+  },
+  "why_selected": "highest conservative validation rank using validation net/day, profit factor, drawdown, stability, trade frequency and cost load; blindtest not used"
+}
