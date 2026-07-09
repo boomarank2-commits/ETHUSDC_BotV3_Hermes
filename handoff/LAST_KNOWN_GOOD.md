@@ -28,28 +28,28 @@ Last baseline backtest:
 - Target +3 USDC/day: not reached.
 
 Research run before this session:
-- Report: `reports/research/research_20260709T170636Z.json` and `.txt`.
-- Tested 12 candidates across 6 families.
-- Selected family: breakout_volatility_filter.
-- Training: -0.1171462622 USDC/day.
-- Validation: -0.2452730967 USDC/day.
-- Blindtest: -0.0674168068 USDC/day.
-- Target +3 USDC/day: not reached.
-
-Latest research run:
 - Report: `reports/research/research_20260709T181800Z.json` and `.txt`.
-- Index: `reports/research/index.jsonl`.
 - Tested 14 candidates across 6 families.
-- Report contains full `candidate_leaderboard` and `candidate_diagnosis`.
-- Selected candidate: `breakout_volatility_filter_013` with trailing-stop and break-even-stop exit controls.
+- Selected candidate: `breakout_volatility_filter_013`.
 - Training: -0.0722564539 USDC/day.
 - Validation: -0.1363876748 USDC/day.
 - Blindtest: -0.0327853251 USDC/day.
 - Target +3 USDC/day: not reached.
-- Improvement vs previous research: less negative and lower drawdown, but still no sufficient edge.
+
+Latest research run:
+- Report: `reports/research/research_20260709T193221Z.json` and `.txt`.
+- Index: `reports/research/index.jsonl`.
+- Tested 16 candidates across 6 families.
+- Report contains `candidate_leaderboard`, `candidate_diagnosis`, `family_aggregates`, and `family_diagnosis`.
+- Selected candidate remained: `breakout_volatility_filter_013`.
+- Training: -0.0722564539 USDC/day.
+- Validation: -0.1363876748 USDC/day.
+- Blindtest: -0.0327853251 USDC/day.
+- Target +3 USDC/day: not reached.
+- Family diagnosis: best validation and lowest cost family are breakout_volatility_filter; all families are high-cost; problem assessment is costs_and_insufficient_edge.
 
 Verification:
-- Targeted leaderboard/registry tests passed.
+- Targeted family aggregate tests passed.
 - `pytest tests/ -q` passed before real research run.
 - Final rerun required before commit.
 

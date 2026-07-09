@@ -42,6 +42,8 @@ def format_experiment_text(experiment: dict[str, Any]) -> str:
     target_line = "Ziel erreicht" if experiment.get("target_reached") else "Ziel nicht erreicht"
     leaderboard = experiment.get("candidate_leaderboard", [])
     diagnosis = experiment.get("candidate_diagnosis", {})
+    family_aggregates = experiment.get("family_aggregates", [])
+    family_diagnosis = experiment.get("family_diagnosis", {})
     top = leaderboard[0] if leaderboard else {}
     return "\n".join(
         [
@@ -61,6 +63,10 @@ def format_experiment_text(experiment: dict[str, Any]) -> str:
             f"Best training family: {diagnosis.get('best_training_family')}",
             f"Best validation family: {diagnosis.get('best_validation_family')}",
             f"Lowest cost family: {diagnosis.get('lowest_cost_family')}",
+            f"Family aggregate rows: {len(family_aggregates)}",
+            f"Family diagnosis best validation: {family_diagnosis.get('best_validation_family')}",
+            f"Family diagnosis lowest cost: {family_diagnosis.get('lowest_cost_family')}",
+            f"Family problem assessment: {family_diagnosis.get('problem_assessment')}",
             f"Why not profitable enough: {diagnosis.get('why_not_profitable_enough')}",
             f"Training net_usdc_per_day: {training.get('net_usdc_per_day')}",
             f"Validation net_usdc_per_day: {validation.get('net_usdc_per_day')}",

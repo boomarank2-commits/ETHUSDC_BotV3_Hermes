@@ -8,6 +8,8 @@ import zipfile
 from ethusdc_bot.backtest.research_runner import (
     build_candidate_diagnosis,
     build_candidate_leaderboard,
+    build_family_aggregates,
+    build_family_diagnosis,
     generate_research_candidates,
     rank_candidates,
     run_research,
@@ -97,6 +99,68 @@ def test_leaderboard_ranking_uses_no_blindtest_metrics_except_selected(tmp_path)
     assert data["candidate_diagnosis"]["ranking_uses_blindtest"] is False
 
 
+def test_research_report_contains_family_aggregates_for_all_families(tmp_path):
+    result = run_research(raw_root=_fixture_root(tmp_path), reports_root=tmp_path / "research", required_days=None)
+    data = json.loads(result.experiment_paths.json_path.read_text(encoding="utf-8"))
+
+    aggregates = data["family_aggregates"]
+    assert {row["family"] for row in aggregates} == set(data["strategy_families"])
+    for row in aggregates:
+        for key in [
+            "candidate_count",
+            "best_validation_candidate_id",
+            "best_validation_net_usdc_per_day",
+            "average_validation_net_usdc_per_day",
+            "best_training_net_usdc_per_day",
+            "average_training_net_usdc_per_day",
+            "average_trade_count",
+            "min_trade_count",
+            "max_trade_count",
+            "average_fees_usdc",
+            "average_slippage_usdc",
+            "average_cost_load",
+            "best_profit_factor",
+            "average_profit_factor",
+            "best_drawdown",
+            "worst_drawdown",
+            "overtrading_count",
+            "too_few_trades_count",
+            "negative_validation_count",
+            "high_cost_count",
+        ]:
+            assert key in row
+        assert "blindtest" not in json.dumps(row).lower()
+
+
+def test_family_diagnosis_uses_validation_and_costs_without_blindtest():
+    leaderboard = [
+        {
+            "candidate_id": "alpha_001",
+            "family": "alpha",
+            "training_metrics": {"net_usdc_per_day": 1, "trade_count": 10, "fees_usdc": 1, "slippage_usdc": 1, "profit_factor": 1.2, "max_drawdown_usdc": 5},
+            "validation_metrics": {"net_usdc_per_day": 0.1, "trade_count": 10, "fees_usdc": 1, "slippage_usdc": 1, "profit_factor": 0.95, "max_drawdown_usdc": 5},
+            "weaknesses": [],
+        },
+        {
+            "candidate_id": "beta_001",
+            "family": "beta",
+            "training_metrics": {"net_usdc_per_day": -1, "trade_count": 2000, "fees_usdc": 20, "slippage_usdc": 20, "profit_factor": 0.5, "max_drawdown_usdc": 50},
+            "validation_metrics": {"net_usdc_per_day": -1, "trade_count": 2000, "fees_usdc": 20, "slippage_usdc": 20, "profit_factor": 0.5, "max_drawdown_usdc": 50},
+            "weaknesses": ["overtrading", "cost_load_high", "validation_negative"],
+            "blindtest_metrics": {"net_usdc_per_day": 999},
+        },
+    ]
+
+    aggregates = build_family_aggregates(leaderboard)
+    diagnosis = build_family_diagnosis(aggregates)
+
+    assert diagnosis["best_validation_family"] == "alpha"
+    assert diagnosis["lowest_cost_family"] == "alpha"
+    assert diagnosis["overtrading_families"] == ["beta"]
+    assert diagnosis["profit_factor_nearest_one_family"] == "alpha"
+    assert diagnosis["ranking_uses_blindtest"] is False
+
+
 def test_candidate_diagnosis_detects_validation_cost_trade_and_overtrading_weaknesses():
     records = [
         {
@@ -149,3 +213,14 @@ def test_controlled_exit_improvement_is_deterministic_and_not_target_hardcoded()
     assert first == second
     assert any("trailing_stop_bps" in candidate.params or "break_even_after_bps" in candidate.params for candidate in first)
     assert all("target_usdc_per_day" not in candidate.params for candidate in first)
+
+
+def test_controlled_cost_filter_improvement_is_deterministic_and_not_target_hardcoded():
+    candidates = generate_research_candidates()
+    strict_cost_filters = [
+        candidate for candidate in candidates if float(candidate.params.get("min_expected_move_bps", 0) or 0) >= 70
+    ]
+
+    assert strict_cost_filters
+    assert len(candidates) <= 30
+    assert all("target_usdc_per_day" not in candidate.params for candidate in strict_cost_filters)

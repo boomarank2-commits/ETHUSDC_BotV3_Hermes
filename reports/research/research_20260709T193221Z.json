@@ -1,0 +1,1646 @@
+{
+  "blindtest_metrics": {
+    "average_trade_usdc": -0.2393328732,
+    "blindtest_days": 365,
+    "fees_usdc": 9.9980313874,
+    "max_drawdown_usdc": 12.2184541211,
+    "net_profit_usdc": -11.9666436613,
+    "net_usdc_per_day": -0.0327853251,
+    "profit_factor": 0.5945557275,
+    "slippage_usdc": 46.9699945722,
+    "trade_count": 50,
+    "training_days": 730,
+    "winrate": 0.38
+  },
+  "blindtest_window": {
+    "blind_end": "2026-07-07",
+    "blind_start": "2025-07-08",
+    "blindtest_days": 365,
+    "final_evaluation_only": true
+  },
+  "candidate_diagnosis": {
+    "best_training_candidate_id": "breakout_volatility_filter_013",
+    "best_training_family": "breakout_volatility_filter",
+    "best_validation_candidate_id": "breakout_volatility_filter_013",
+    "best_validation_family": "breakout_volatility_filter",
+    "high_cost_candidate_count": 16,
+    "lowest_cost_candidate_id": "breakout_volatility_filter_013",
+    "lowest_cost_family": "breakout_volatility_filter",
+    "negative_validation_candidate_count": 16,
+    "overtrading_candidate_count": 3,
+    "overtrading_families": [
+      "mean_reversion_regime_filter",
+      "momentum_trend_filter",
+      "pullback_in_trend"
+    ],
+    "profit_factor_near_one_families": [],
+    "ranking_uses_blindtest": false,
+    "too_few_trades_candidate_count": 0,
+    "too_few_trades_families": [],
+    "why_not_profitable_enough": "best validation candidate is still negative before blindtest; no sufficient edge shown"
+  },
+  "candidate_leaderboard": [
+    {
+      "blindtest_metrics": {
+        "average_trade_usdc": -0.2393328732,
+        "blindtest_days": 365,
+        "fees_usdc": 9.9980313874,
+        "max_drawdown_usdc": 12.2184541211,
+        "net_profit_usdc": -11.9666436613,
+        "net_usdc_per_day": -0.0327853251,
+        "profit_factor": 0.5945557275,
+        "slippage_usdc": 46.9699945722,
+        "trade_count": 50,
+        "training_days": 730,
+        "winrate": 0.38
+      },
+      "candidate_id": "breakout_volatility_filter_013",
+      "family": "breakout_volatility_filter",
+      "params": {
+        "break_even_after_bps": 65,
+        "cooldown_minutes": 120,
+        "lookback": 120,
+        "max_hold_minutes": 180,
+        "max_vol_bps": 110,
+        "min_vol_bps": 12,
+        "stop_loss_bps": 90,
+        "take_profit_bps": 160,
+        "threshold_bps": 10,
+        "trailing_stop_bps": 70,
+        "volatility_lookback": 240
+      },
+      "rank_position": 1,
+      "rank_score": -0.8023226365,
+      "training_metrics": {
+        "average_trade_usdc": -0.4264235176,
+        "blindtest_days": 365,
+        "fees_usdc": 15.3825479369,
+        "max_drawdown_usdc": 33.378756671,
+        "net_profit_usdc": -32.8346108521,
+        "net_usdc_per_day": -0.0562236487,
+        "profit_factor": 0.409458739,
+        "slippage_usdc": 76.0932938444,
+        "trade_count": 77,
+        "training_days": 730,
+        "winrate": 0.2987012987
+      },
+      "validation_metrics": {
+        "average_trade_usdc": -0.4236723514,
+        "blindtest_days": 365,
+        "fees_usdc": 9.3894768763,
+        "max_drawdown_usdc": 22.7563034648,
+        "net_profit_usdc": -19.9126005172,
+        "net_usdc_per_day": -0.1363876748,
+        "profit_factor": 0.3332464631,
+        "slippage_usdc": 37.1044437895,
+        "trade_count": 47,
+        "training_days": 730,
+        "winrate": 0.2127659574
+      },
+      "weaknesses": [
+        "training_negative",
+        "validation_negative",
+        "profit_factor_below_one",
+        "cost_load_high"
+      ],
+      "why_ranked_here": "best conservative validation-only rank; blindtest not used"
+    },
+    {
+      "candidate_id": "breakout_volatility_filter_004",
+      "family": "breakout_volatility_filter",
+      "params": {
+        "cooldown_minutes": 90,
+        "lookback": 120,
+        "max_hold_minutes": 180,
+        "max_vol_bps": 120,
+        "min_vol_bps": 10,
+        "stop_loss_bps": 90,
+        "take_profit_bps": 140,
+        "threshold_bps": 10,
+        "volatility_lookback": 240
+      },
+      "rank_position": 2,
+      "rank_score": -1.6625647183,
+      "training_metrics": {
+        "average_trade_usdc": -0.3737360847,
+        "blindtest_days": 365,
+        "fees_usdc": 26.5768699711,
+        "max_drawdown_usdc": 50.9955841567,
+        "net_profit_usdc": -49.7068992649,
+        "net_usdc_per_day": -0.0851145535,
+        "profit_factor": 0.5053181624,
+        "slippage_usdc": 148.2241374005,
+        "trade_count": 133,
+        "training_days": 730,
+        "winrate": 0.3383458647
+      },
+      "validation_metrics": {
+        "average_trade_usdc": -0.4532895204,
+        "blindtest_days": 365,
+        "fees_usdc": 15.7799700975,
+        "max_drawdown_usdc": 40.8506027399,
+        "net_profit_usdc": -35.8098721151,
+        "net_usdc_per_day": -0.2452730967,
+        "profit_factor": 0.424519183,
+        "slippage_usdc": 85.581045819,
+        "trade_count": 79,
+        "training_days": 730,
+        "winrate": 0.2911392405
+      },
+      "weaknesses": [
+        "training_negative",
+        "validation_negative",
+        "profit_factor_below_one",
+        "cost_load_high"
+      ],
+      "why_ranked_here": "ranked 2 by validation-only score; net/day=-0.2452730967, pf=0.424519183, trades=79"
+    },
+    {
+      "candidate_id": "cooldown_fee_aware_015",
+      "family": "cooldown_fee_aware",
+      "params": {
+        "base_family": "breakout",
+        "break_even_after_bps": 80,
+        "cooldown_minutes": 300,
+        "lookback": 180,
+        "max_hold_minutes": 300,
+        "min_expected_move_bps": 70,
+        "stop_loss_bps": 95,
+        "take_profit_bps": 190,
+        "threshold_bps": 20,
+        "trailing_stop_bps": 90
+      },
+      "rank_position": 3,
+      "rank_score": -2.7475387863,
+      "training_metrics": {
+        "average_trade_usdc": -0.2360923998,
+        "blindtest_days": 365,
+        "fees_usdc": 80.3854763328,
+        "max_drawdown_usdc": 96.6005773185,
+        "net_profit_usdc": -94.909144704,
+        "net_usdc_per_day": -0.1625156587,
+        "profit_factor": 0.5938878455,
+        "slippage_usdc": 373.77459862,
+        "trade_count": 402,
+        "training_days": 730,
+        "winrate": 0.368159204
+      },
+      "validation_metrics": {
+        "average_trade_usdc": -0.3683248472,
+        "blindtest_days": 365,
+        "fees_usdc": 28.9755684657,
+        "max_drawdown_usdc": 54.8577912488,
+        "net_profit_usdc": -53.4071028502,
+        "net_usdc_per_day": -0.3658020743,
+        "profit_factor": 0.4958385704,
+        "slippage_usdc": 154.092762109,
+        "trade_count": 145,
+        "training_days": 730,
+        "winrate": 0.3103448276
+      },
+      "weaknesses": [
+        "training_negative",
+        "validation_negative",
+        "profit_factor_below_one",
+        "cost_load_high"
+      ],
+      "why_ranked_here": "ranked 3 by validation-only score; net/day=-0.3658020743, pf=0.4958385704, trades=145"
+    },
+    {
+      "candidate_id": "cooldown_fee_aware_014",
+      "family": "cooldown_fee_aware",
+      "params": {
+        "base_family": "breakout",
+        "break_even_after_bps": 70,
+        "cooldown_minutes": 240,
+        "lookback": 120,
+        "max_hold_minutes": 240,
+        "min_expected_move_bps": 45,
+        "stop_loss_bps": 90,
+        "take_profit_bps": 170,
+        "threshold_bps": 15,
+        "trailing_stop_bps": 80
+      },
+      "rank_position": 4,
+      "rank_score": -4.3375305231,
+      "training_metrics": {
+        "average_trade_usdc": -0.2860498117,
+        "blindtest_days": 365,
+        "fees_usdc": 138.3403939249,
+        "max_drawdown_usdc": 198.1377366847,
+        "net_profit_usdc": -197.9464697308,
+        "net_usdc_per_day": -0.3389494345,
+        "profit_factor": 0.5030338098,
+        "slippage_usdc": 585.6544079153,
+        "trade_count": 692,
+        "training_days": 730,
+        "winrate": 0.3208092486
+      },
+      "validation_metrics": {
+        "average_trade_usdc": -0.3912669818,
+        "blindtest_days": 365,
+        "fees_usdc": 47.5544328913,
+        "max_drawdown_usdc": 93.1215416726,
+        "net_profit_usdc": -93.1215416726,
+        "net_usdc_per_day": -0.6378187786,
+        "profit_factor": 0.4266179784,
+        "slippage_usdc": 222.8840922487,
+        "trade_count": 238,
+        "training_days": 730,
+        "winrate": 0.2983193277
+      },
+      "weaknesses": [
+        "training_negative",
+        "validation_negative",
+        "profit_factor_below_one",
+        "cost_load_high"
+      ],
+      "why_ranked_here": "ranked 4 by validation-only score; net/day=-0.6378187786, pf=0.4266179784, trades=238"
+    },
+    {
+      "candidate_id": "session_filter_010",
+      "family": "session_filter",
+      "params": {
+        "base_family": "breakout",
+        "cooldown_minutes": 90,
+        "lookback": 60,
+        "max_hold_minutes": 120,
+        "session_end_hour": 22,
+        "session_start_hour": 12,
+        "stop_loss_bps": 80,
+        "take_profit_bps": 120,
+        "threshold_bps": 8
+      },
+      "rank_position": 5,
+      "rank_score": -4.5784948501,
+      "training_metrics": {
+        "average_trade_usdc": -0.3180628393,
+        "blindtest_days": 365,
+        "fees_usdc": 197.4832371518,
+        "max_drawdown_usdc": 314.2460851894,
+        "net_profit_usdc": -314.2460851894,
+        "net_usdc_per_day": -0.5380926116,
+        "profit_factor": 0.4035173469,
+        "slippage_usdc": 719.0999939392,
+        "trade_count": 988,
+        "training_days": 730,
+        "winrate": 0.3107287449
+      },
+      "validation_metrics": {
+        "average_trade_usdc": -0.3392193658,
+        "blindtest_days": 365,
+        "fees_usdc": 57.1601434045,
+        "max_drawdown_usdc": 97.9535106657,
+        "net_profit_usdc": -97.0167386246,
+        "net_usdc_per_day": -0.6644982098,
+        "profit_factor": 0.4275168134,
+        "slippage_usdc": 238.5160663152,
+        "trade_count": 286,
+        "training_days": 730,
+        "winrate": 0.3426573427
+      },
+      "weaknesses": [
+        "training_negative",
+        "validation_negative",
+        "profit_factor_below_one",
+        "cost_load_high"
+      ],
+      "why_ranked_here": "ranked 5 by validation-only score; net/day=-0.6644982098, pf=0.4275168134, trades=286"
+    },
+    {
+      "candidate_id": "cooldown_fee_aware_016",
+      "family": "cooldown_fee_aware",
+      "params": {
+        "base_family": "momentum",
+        "break_even_after_bps": 95,
+        "cooldown_minutes": 360,
+        "lookback": 180,
+        "max_hold_minutes": 360,
+        "min_expected_move_bps": 85,
+        "stop_loss_bps": 110,
+        "take_profit_bps": 220,
+        "threshold_bps": 55,
+        "trailing_stop_bps": 100
+      },
+      "rank_position": 6,
+      "rank_score": -5.112777207,
+      "training_metrics": {
+        "average_trade_usdc": -0.2900351488,
+        "blindtest_days": 365,
+        "fees_usdc": 173.7216811354,
+        "max_drawdown_usdc": 252.36905882,
+        "net_profit_usdc": -252.040544285,
+        "net_usdc_per_day": -0.4315762745,
+        "profit_factor": 0.526752041,
+        "slippage_usdc": 815.1838395642,
+        "trade_count": 869,
+        "training_days": 730,
+        "winrate": 0.3498273878
+      },
+      "validation_metrics": {
+        "average_trade_usdc": -0.3428824124,
+        "blindtest_days": 365,
+        "fees_usdc": 55.1605249785,
+        "max_drawdown_usdc": 100.9852920355,
+        "net_profit_usdc": -94.6355458225,
+        "net_usdc_per_day": -0.64818867,
+        "profit_factor": 0.5057736715,
+        "slippage_usdc": 289.5978903381,
+        "trade_count": 276,
+        "training_days": 730,
+        "winrate": 0.3586956522
+      },
+      "weaknesses": [
+        "training_negative",
+        "validation_negative",
+        "profit_factor_below_one",
+        "cost_load_high"
+      ],
+      "why_ranked_here": "ranked 6 by validation-only score; net/day=-0.64818867, pf=0.5057736715, trades=276"
+    },
+    {
+      "candidate_id": "cooldown_fee_aware_011",
+      "family": "cooldown_fee_aware",
+      "params": {
+        "base_family": "breakout",
+        "cooldown_minutes": 180,
+        "lookback": 90,
+        "max_hold_minutes": 180,
+        "min_expected_move_bps": 35,
+        "stop_loss_bps": 80,
+        "take_profit_bps": 140,
+        "threshold_bps": 12
+      },
+      "rank_position": 7,
+      "rank_score": -5.3977449362,
+      "training_metrics": {
+        "average_trade_usdc": -0.2582176786,
+        "blindtest_days": 365,
+        "fees_usdc": 194.9431809453,
+        "max_drawdown_usdc": 251.7622365966,
+        "net_profit_usdc": -251.7622365966,
+        "net_usdc_per_day": -0.4310997202,
+        "profit_factor": 0.5295225453,
+        "slippage_usdc": 808.8246432354,
+        "trade_count": 975,
+        "training_days": 730,
+        "winrate": 0.3415384615
+      },
+      "validation_metrics": {
+        "average_trade_usdc": -0.3422943003,
+        "blindtest_days": 365,
+        "fees_usdc": 64.1542778075,
+        "max_drawdown_usdc": 110.3276101791,
+        "net_profit_usdc": -109.876470389,
+        "net_usdc_per_day": -0.7525785643,
+        "profit_factor": 0.4495115772,
+        "slippage_usdc": 282.9510385402,
+        "trade_count": 321,
+        "training_days": 730,
+        "winrate": 0.3239875389
+      },
+      "weaknesses": [
+        "training_negative",
+        "validation_negative",
+        "profit_factor_below_one",
+        "cost_load_high"
+      ],
+      "why_ranked_here": "ranked 7 by validation-only score; net/day=-0.7525785643, pf=0.4495115772, trades=321"
+    },
+    {
+      "candidate_id": "pullback_in_trend_008",
+      "family": "pullback_in_trend",
+      "params": {
+        "cooldown_minutes": 90,
+        "lookback": 45,
+        "max_hold_minutes": 180,
+        "stop_loss_bps": 80,
+        "take_profit_bps": 110,
+        "threshold_bps": 35,
+        "trend_lookback": 480,
+        "trend_min_bps": 40
+      },
+      "rank_position": 8,
+      "rank_score": -5.6381963938,
+      "training_metrics": {
+        "average_trade_usdc": -0.3048845846,
+        "blindtest_days": 365,
+        "fees_usdc": 240.4736975425,
+        "max_drawdown_usdc": 366.7761552332,
+        "net_profit_usdc": -366.7761552332,
+        "net_usdc_per_day": -0.6280413617,
+        "profit_factor": 0.4227609693,
+        "slippage_usdc": 891.8547262694,
+        "trade_count": 1203,
+        "training_days": 730,
+        "winrate": 0.3316708229
+      },
+      "validation_metrics": {
+        "average_trade_usdc": -0.2406005337,
+        "blindtest_days": 365,
+        "fees_usdc": 78.584028019,
+        "max_drawdown_usdc": 95.1607678435,
+        "net_profit_usdc": -94.5560097258,
+        "net_usdc_per_day": -0.6476439022,
+        "profit_factor": 0.5573490765,
+        "slippage_usdc": 335.4773077993,
+        "trade_count": 393,
+        "training_days": 730,
+        "winrate": 0.3893129771
+      },
+      "weaknesses": [
+        "training_negative",
+        "validation_negative",
+        "profit_factor_below_one",
+        "cost_load_high"
+      ],
+      "why_ranked_here": "ranked 8 by validation-only score; net/day=-0.6476439022, pf=0.5573490765, trades=393"
+    },
+    {
+      "candidate_id": "mean_reversion_regime_filter_006",
+      "family": "mean_reversion_regime_filter",
+      "params": {
+        "cooldown_minutes": 60,
+        "lookback": 60,
+        "max_abs_trend_bps": 120,
+        "max_hold_minutes": 120,
+        "stop_loss_bps": 70,
+        "take_profit_bps": 80,
+        "threshold_bps": 70,
+        "trend_lookback": 360
+      },
+      "rank_position": 9,
+      "rank_score": -6.7011388195,
+      "training_metrics": {
+        "average_trade_usdc": -0.3111351501,
+        "blindtest_days": 365,
+        "fees_usdc": 278.4450337691,
+        "max_drawdown_usdc": 433.4112641484,
+        "net_profit_usdc": -433.4112641484,
+        "net_usdc_per_day": -0.7421425756,
+        "profit_factor": 0.3546211026,
+        "slippage_usdc": 923.3785639954,
+        "trade_count": 1393,
+        "training_days": 730,
+        "winrate": 0.3625269203
+      },
+      "validation_metrics": {
+        "average_trade_usdc": -0.3281242635,
+        "blindtest_days": 365,
+        "fees_usdc": 89.3426711251,
+        "max_drawdown_usdc": 147.1787646032,
+        "net_profit_usdc": -146.6715457706,
+        "net_usdc_per_day": -1.0045996286,
+        "profit_factor": 0.378363821,
+        "slippage_usdc": 327.5769071278,
+        "trade_count": 447,
+        "training_days": 730,
+        "winrate": 0.3803131991
+      },
+      "weaknesses": [
+        "training_negative",
+        "validation_negative",
+        "profit_factor_below_one",
+        "cost_load_high"
+      ],
+      "why_ranked_here": "ranked 9 by validation-only score; net/day=-1.0045996286, pf=0.378363821, trades=447"
+    },
+    {
+      "candidate_id": "breakout_volatility_filter_003",
+      "family": "breakout_volatility_filter",
+      "params": {
+        "cooldown_minutes": 30,
+        "lookback": 30,
+        "max_hold_minutes": 60,
+        "max_vol_bps": 80,
+        "min_vol_bps": 8,
+        "stop_loss_bps": 60,
+        "take_profit_bps": 90,
+        "threshold_bps": 5,
+        "volatility_lookback": 60
+      },
+      "rank_position": 10,
+      "rank_score": -7.0845652338,
+      "training_metrics": {
+        "average_trade_usdc": -0.2956516891,
+        "blindtest_days": 365,
+        "fees_usdc": 228.6904649313,
+        "max_drawdown_usdc": 339.5053524389,
+        "net_profit_usdc": -338.2255322943,
+        "net_usdc_per_day": -0.5791533087,
+        "profit_factor": 0.3984259956,
+        "slippage_usdc": 775.1807862955,
+        "trade_count": 1144,
+        "training_days": 730,
+        "winrate": 0.3347902098
+      },
+      "validation_metrics": {
+        "average_trade_usdc": -0.3006784781,
+        "blindtest_days": 365,
+        "fees_usdc": 97.3509205017,
+        "max_drawdown_usdc": 149.3390240423,
+        "net_profit_usdc": -146.4304188267,
+        "net_usdc_per_day": -1.0029480742,
+        "profit_factor": 0.4180522602,
+        "slippage_usdc": 348.643078345,
+        "trade_count": 487,
+        "training_days": 730,
+        "winrate": 0.3264887064
+      },
+      "weaknesses": [
+        "training_negative",
+        "validation_negative",
+        "profit_factor_below_one",
+        "cost_load_high"
+      ],
+      "why_ranked_here": "ranked 10 by validation-only score; net/day=-1.0029480742, pf=0.4180522602, trades=487"
+    },
+    {
+      "candidate_id": "cooldown_fee_aware_012",
+      "family": "cooldown_fee_aware",
+      "params": {
+        "base_family": "momentum",
+        "cooldown_minutes": 240,
+        "lookback": 120,
+        "max_hold_minutes": 240,
+        "min_expected_move_bps": 45,
+        "stop_loss_bps": 100,
+        "take_profit_bps": 160,
+        "threshold_bps": 40
+      },
+      "rank_position": 11,
+      "rank_score": -7.6639188692,
+      "training_metrics": {
+        "average_trade_usdc": -0.2799377081,
+        "blindtest_days": 365,
+        "fees_usdc": 299.480133446,
+        "max_drawdown_usdc": 419.3466867398,
+        "net_profit_usdc": -419.3466867398,
+        "net_usdc_per_day": -0.7180593951,
+        "profit_factor": 0.5117997669,
+        "slippage_usdc": 1298.6944980815,
+        "trade_count": 1498,
+        "training_days": 730,
+        "winrate": 0.3531375167
+      },
+      "validation_metrics": {
+        "average_trade_usdc": -0.2920867063,
+        "blindtest_days": 365,
+        "fees_usdc": 87.1598100059,
+        "max_drawdown_usdc": 136.4075185331,
+        "net_profit_usdc": -127.3498039648,
+        "net_usdc_per_day": -0.8722589313,
+        "profit_factor": 0.5651269724,
+        "slippage_usdc": 459.1912278848,
+        "trade_count": 436,
+        "training_days": 730,
+        "winrate": 0.373853211
+      },
+      "weaknesses": [
+        "training_negative",
+        "validation_negative",
+        "profit_factor_below_one",
+        "cost_load_high"
+      ],
+      "why_ranked_here": "ranked 11 by validation-only score; net/day=-0.8722589313, pf=0.5651269724, trades=436"
+    },
+    {
+      "candidate_id": "session_filter_009",
+      "family": "session_filter",
+      "params": {
+        "base_family": "momentum",
+        "cooldown_minutes": 60,
+        "lookback": 30,
+        "max_hold_minutes": 90,
+        "session_end_hour": 20,
+        "session_start_hour": 7,
+        "stop_loss_bps": 70,
+        "take_profit_bps": 90,
+        "threshold_bps": 20
+      },
+      "rank_position": 12,
+      "rank_score": -11.8032715889,
+      "training_metrics": {
+        "average_trade_usdc": -0.3252681541,
+        "blindtest_days": 365,
+        "fees_usdc": 588.4308413951,
+        "max_drawdown_usdc": 957.5894457905,
+        "net_profit_usdc": -957.5894457905,
+        "net_usdc_per_day": -1.6397079551,
+        "profit_factor": 0.2819824859,
+        "slippage_usdc": 1627.247617461,
+        "trade_count": 2944,
+        "training_days": 730,
+        "winrate": 0.2666440217
+      },
+      "validation_metrics": {
+        "average_trade_usdc": -0.3123080255,
+        "blindtest_days": 365,
+        "fees_usdc": 169.904442621,
+        "max_drawdown_usdc": 266.8708351429,
+        "net_profit_usdc": -265.461821643,
+        "net_usdc_per_day": -1.8182316551,
+        "profit_factor": 0.3634172254,
+        "slippage_usdc": 560.0708751283,
+        "trade_count": 850,
+        "training_days": 730,
+        "winrate": 0.3223529412
+      },
+      "weaknesses": [
+        "training_negative",
+        "validation_negative",
+        "profit_factor_below_one",
+        "cost_load_high"
+      ],
+      "why_ranked_here": "ranked 12 by validation-only score; net/day=-1.8182316551, pf=0.3634172254, trades=850"
+    },
+    {
+      "candidate_id": "momentum_trend_filter_002",
+      "family": "momentum_trend_filter",
+      "params": {
+        "cooldown_minutes": 45,
+        "lookback": 60,
+        "max_hold_minutes": 120,
+        "stop_loss_bps": 75,
+        "take_profit_bps": 120,
+        "threshold_bps": 25,
+        "trend_lookback": 240,
+        "trend_min_bps": 20
+      },
+      "rank_position": 13,
+      "rank_score": -12.251429451,
+      "training_metrics": {
+        "average_trade_usdc": -0.2805320132,
+        "blindtest_days": 365,
+        "fees_usdc": 599.7581621227,
+        "max_drawdown_usdc": 841.5960396604,
+        "net_profit_usdc": -841.5960396604,
+        "net_usdc_per_day": -1.441089109,
+        "profit_factor": 0.399945108,
+        "slippage_usdc": 1899.0618969865,
+        "trade_count": 3000,
+        "training_days": 730,
+        "winrate": 0.2946666667
+      },
+      "validation_metrics": {
+        "average_trade_usdc": -0.2659681925,
+        "blindtest_days": 365,
+        "fees_usdc": 174.5423521186,
+        "max_drawdown_usdc": 234.3962667612,
+        "net_profit_usdc": -232.1902320696,
+        "net_usdc_per_day": -1.5903440553,
+        "profit_factor": 0.4810214894,
+        "slippage_usdc": 659.3276031615,
+        "trade_count": 873,
+        "training_days": 730,
+        "winrate": 0.3459335624
+      },
+      "weaknesses": [
+        "training_negative",
+        "validation_negative",
+        "profit_factor_below_one",
+        "cost_load_high"
+      ],
+      "why_ranked_here": "ranked 13 by validation-only score; net/day=-1.5903440553, pf=0.4810214894, trades=873"
+    },
+    {
+      "candidate_id": "pullback_in_trend_007",
+      "family": "pullback_in_trend",
+      "params": {
+        "cooldown_minutes": 30,
+        "lookback": 15,
+        "max_hold_minutes": 60,
+        "stop_loss_bps": 55,
+        "take_profit_bps": 75,
+        "threshold_bps": 18,
+        "trend_lookback": 240,
+        "trend_min_bps": 25
+      },
+      "rank_position": 14,
+      "rank_score": -13.5036635649,
+      "training_metrics": {
+        "average_trade_usdc": -0.299451767,
+        "blindtest_days": 365,
+        "fees_usdc": 667.8673990478,
+        "max_drawdown_usdc": 1000.4683535658,
+        "net_profit_usdc": -1000.4683535658,
+        "net_usdc_per_day": -1.7131307424,
+        "profit_factor": 0.2474669531,
+        "slippage_usdc": 1560.2928759605,
+        "trade_count": 3341,
+        "training_days": 730,
+        "winrate": 0.2535169111
+      },
+      "validation_metrics": {
+        "average_trade_usdc": -0.2529160718,
+        "blindtest_days": 365,
+        "fees_usdc": 216.3426874984,
+        "max_drawdown_usdc": 275.2662964324,
+        "net_profit_usdc": -273.6551896369,
+        "net_usdc_per_day": -1.874350614,
+        "profit_factor": 0.3666462391,
+        "slippage_usdc": 588.5942423595,
+        "trade_count": 1082,
+        "training_days": 730,
+        "winrate": 0.320702403
+      },
+      "weaknesses": [
+        "training_negative",
+        "validation_negative",
+        "profit_factor_below_one",
+        "overtrading",
+        "cost_load_high"
+      ],
+      "why_ranked_here": "ranked 14 by validation-only score; net/day=-1.874350614, pf=0.3666462391, trades=1082"
+    },
+    {
+      "candidate_id": "mean_reversion_regime_filter_005",
+      "family": "mean_reversion_regime_filter",
+      "params": {
+        "cooldown_minutes": 20,
+        "lookback": 20,
+        "max_abs_trend_bps": 80,
+        "max_hold_minutes": 45,
+        "stop_loss_bps": 45,
+        "take_profit_bps": 50,
+        "threshold_bps": 35,
+        "trend_lookback": 180
+      },
+      "rank_position": 15,
+      "rank_score": -20.0307935091,
+      "training_metrics": {
+        "average_trade_usdc": -0.3107256441,
+        "blindtest_days": 365,
+        "fees_usdc": 821.7443512256,
+        "max_drawdown_usdc": 1277.4211897704,
+        "net_profit_usdc": -1277.3931229273,
+        "net_usdc_per_day": -2.1873169913,
+        "profit_factor": 0.1787179823,
+        "slippage_usdc": 1744.6151540102,
+        "trade_count": 4111,
+        "training_days": 730,
+        "winrate": 0.2729262953
+      },
+      "validation_metrics": {
+        "average_trade_usdc": -0.3099974753,
+        "blindtest_days": 365,
+        "fees_usdc": 271.8502536883,
+        "max_drawdown_usdc": 422.2294847078,
+        "net_profit_usdc": -421.596566461,
+        "net_usdc_per_day": -2.8876477155,
+        "profit_factor": 0.2098319299,
+        "slippage_usdc": 629.414943351,
+        "trade_count": 1360,
+        "training_days": 730,
+        "winrate": 0.3044117647
+      },
+      "weaknesses": [
+        "training_negative",
+        "validation_negative",
+        "profit_factor_below_one",
+        "overtrading",
+        "cost_load_high"
+      ],
+      "why_ranked_here": "ranked 15 by validation-only score; net/day=-2.8876477155, pf=0.2098319299, trades=1360"
+    },
+    {
+      "candidate_id": "momentum_trend_filter_001",
+      "family": "momentum_trend_filter",
+      "params": {
+        "cooldown_minutes": 20,
+        "lookback": 15,
+        "max_hold_minutes": 45,
+        "stop_loss_bps": 55,
+        "take_profit_bps": 80,
+        "threshold_bps": 12,
+        "trend_lookback": 120,
+        "trend_min_bps": 8
+      },
+      "rank_position": 16,
+      "rank_score": -36.2797626876,
+      "training_metrics": {
+        "average_trade_usdc": -0.2964157811,
+        "blindtest_days": 365,
+        "fees_usdc": 1474.8879322971,
+        "max_drawdown_usdc": 2186.9556327389,
+        "net_profit_usdc": -2186.9556327389,
+        "net_usdc_per_day": -3.7447870424,
+        "profit_factor": 0.2139964396,
+        "slippage_usdc": 2995.1204352667,
+        "trade_count": 7378,
+        "training_days": 730,
+        "winrate": 0.2045269721
+      },
+      "validation_metrics": {
+        "average_trade_usdc": -0.293356137,
+        "blindtest_days": 365,
+        "fees_usdc": 423.4020737765,
+        "max_drawdown_usdc": 621.4902475915,
+        "net_profit_usdc": -621.3282981248,
+        "net_usdc_per_day": -4.2556732748,
+        "profit_factor": 0.2760425718,
+        "slippage_usdc": 1019.4931597281,
+        "trade_count": 2118,
+        "training_days": 730,
+        "winrate": 0.2497639282
+      },
+      "weaknesses": [
+        "training_negative",
+        "validation_negative",
+        "profit_factor_below_one",
+        "overtrading",
+        "cost_load_high"
+      ],
+      "why_ranked_here": "ranked 16 by validation-only score; net/day=-4.2556732748, pf=0.2760425718, trades=2118"
+    }
+  ],
+  "comparison_to_previous_report": {
+    "previous_blindtest_net_usdc_per_day": -1.3459078771,
+    "previous_run_id": "bt_20260709T151036Z"
+  },
+  "data_window": {
+    "data_end": "2026-07-07",
+    "data_start": "2023-07-09"
+  },
+  "event_log": [
+    "data_gate_check_started",
+    "data_gate_ready",
+    "ethusdc_loaded",
+    "split_built",
+    "features_prepared",
+    "candidates_evaluated_on_subtrain_validation",
+    "candidate_selected",
+    "blindtest_evaluated"
+  ],
+  "family_aggregates": [
+    {
+      "average_cost_load": 197.949645143,
+      "average_fees_usdc": 40.8401224918,
+      "average_profit_factor": 0.3919393021,
+      "average_slippage_usdc": 157.1095226512,
+      "average_trade_count": 204.3333,
+      "average_training_net_usdc_per_day": -0.240163837,
+      "average_validation_net_usdc_per_day": -0.4615362819,
+      "best_drawdown": 22.7563034648,
+      "best_profit_factor": 0.424519183,
+      "best_training_net_usdc_per_day": -0.0562236487,
+      "best_validation_candidate_id": "breakout_volatility_filter_013",
+      "best_validation_net_usdc_per_day": -0.1363876748,
+      "candidate_count": 3,
+      "family": "breakout_volatility_filter",
+      "high_cost_count": 3,
+      "max_trade_count": 487,
+      "min_trade_count": 47,
+      "negative_validation_count": 3,
+      "overtrading_count": 0,
+      "too_few_trades_count": 0,
+      "worst_drawdown": 149.3390240423
+    },
+    {
+      "average_cost_load": 338.3443250539,
+      "average_fees_usdc": 56.6009228298,
+      "average_profit_factor": 0.488573754,
+      "average_slippage_usdc": 281.7434022242,
+      "average_trade_count": 283.2,
+      "average_training_net_usdc_per_day": -0.4164400966,
+      "average_validation_net_usdc_per_day": -0.6553294037,
+      "best_drawdown": 54.8577912488,
+      "best_profit_factor": 0.5651269724,
+      "best_training_net_usdc_per_day": -0.1625156587,
+      "best_validation_candidate_id": "cooldown_fee_aware_015",
+      "best_validation_net_usdc_per_day": -0.3658020743,
+      "candidate_count": 5,
+      "family": "cooldown_fee_aware",
+      "high_cost_count": 5,
+      "max_trade_count": 436,
+      "min_trade_count": 145,
+      "negative_validation_count": 5,
+      "overtrading_count": 0,
+      "too_few_trades_count": 0,
+      "worst_drawdown": 136.4075185331
+    },
+    {
+      "average_cost_load": 659.0923876461,
+      "average_fees_usdc": 180.5964624067,
+      "average_profit_factor": 0.2940978754,
+      "average_slippage_usdc": 478.4959252394,
+      "average_trade_count": 903.5,
+      "average_training_net_usdc_per_day": -1.4647297834,
+      "average_validation_net_usdc_per_day": -1.9461236721,
+      "best_drawdown": 147.1787646032,
+      "best_profit_factor": 0.378363821,
+      "best_training_net_usdc_per_day": -0.7421425756,
+      "best_validation_candidate_id": "mean_reversion_regime_filter_006",
+      "best_validation_net_usdc_per_day": -1.0045996286,
+      "candidate_count": 2,
+      "family": "mean_reversion_regime_filter",
+      "high_cost_count": 2,
+      "max_trade_count": 1360,
+      "min_trade_count": 447,
+      "negative_validation_count": 2,
+      "overtrading_count": 1,
+      "too_few_trades_count": 0,
+      "worst_drawdown": 422.2294847078
+    },
+    {
+      "average_cost_load": 1138.3825943923,
+      "average_fees_usdc": 298.9722129476,
+      "average_profit_factor": 0.3785320306,
+      "average_slippage_usdc": 839.4103814448,
+      "average_trade_count": 1495.5,
+      "average_training_net_usdc_per_day": -2.5929380757,
+      "average_validation_net_usdc_per_day": -2.9230086651,
+      "best_drawdown": 234.3962667612,
+      "best_profit_factor": 0.4810214894,
+      "best_training_net_usdc_per_day": -1.441089109,
+      "best_validation_candidate_id": "momentum_trend_filter_002",
+      "best_validation_net_usdc_per_day": -1.5903440553,
+      "candidate_count": 2,
+      "family": "momentum_trend_filter",
+      "high_cost_count": 2,
+      "max_trade_count": 2118,
+      "min_trade_count": 873,
+      "negative_validation_count": 2,
+      "overtrading_count": 1,
+      "too_few_trades_count": 0,
+      "worst_drawdown": 621.4902475915
+    },
+    {
+      "average_cost_load": 609.4991328381,
+      "average_fees_usdc": 147.4633577587,
+      "average_profit_factor": 0.4619976578,
+      "average_slippage_usdc": 462.0357750794,
+      "average_trade_count": 737.5,
+      "average_training_net_usdc_per_day": -1.170586052,
+      "average_validation_net_usdc_per_day": -1.2609972581,
+      "best_drawdown": 95.1607678435,
+      "best_profit_factor": 0.5573490765,
+      "best_training_net_usdc_per_day": -0.6280413617,
+      "best_validation_candidate_id": "pullback_in_trend_008",
+      "best_validation_net_usdc_per_day": -0.6476439022,
+      "candidate_count": 2,
+      "family": "pullback_in_trend",
+      "high_cost_count": 2,
+      "max_trade_count": 1082,
+      "min_trade_count": 393,
+      "negative_validation_count": 2,
+      "overtrading_count": 1,
+      "too_few_trades_count": 0,
+      "worst_drawdown": 275.2662964324
+    },
+    {
+      "average_cost_load": 512.8257637345,
+      "average_fees_usdc": 113.5322930127,
+      "average_profit_factor": 0.3954670194,
+      "average_slippage_usdc": 399.2934707217,
+      "average_trade_count": 568.0,
+      "average_training_net_usdc_per_day": -1.0889002834,
+      "average_validation_net_usdc_per_day": -1.2413649325,
+      "best_drawdown": 97.9535106657,
+      "best_profit_factor": 0.4275168134,
+      "best_training_net_usdc_per_day": -0.5380926116,
+      "best_validation_candidate_id": "session_filter_010",
+      "best_validation_net_usdc_per_day": -0.6644982098,
+      "candidate_count": 2,
+      "family": "session_filter",
+      "high_cost_count": 2,
+      "max_trade_count": 850,
+      "min_trade_count": 286,
+      "negative_validation_count": 2,
+      "overtrading_count": 0,
+      "too_few_trades_count": 0,
+      "worst_drawdown": 266.8708351429
+    }
+  ],
+  "family_diagnosis": {
+    "best_training_family": "breakout_volatility_filter",
+    "best_validation_family": "breakout_volatility_filter",
+    "high_cost_families": [
+      "breakout_volatility_filter",
+      "cooldown_fee_aware",
+      "mean_reversion_regime_filter",
+      "momentum_trend_filter",
+      "pullback_in_trend",
+      "session_filter"
+    ],
+    "lowest_cost_family": "breakout_volatility_filter",
+    "overtrading_families": [
+      "mean_reversion_regime_filter",
+      "momentum_trend_filter",
+      "pullback_in_trend"
+    ],
+    "problem_assessment": "costs_and_insufficient_edge",
+    "profit_factor_nearest_one_family": "cooldown_fee_aware",
+    "ranking_uses_blindtest": false,
+    "too_few_trades_families": []
+  },
+  "feature_sample_count": 5000,
+  "git_commit": "2a3475a-dirty",
+  "parameter_counts": {
+    "families": 6,
+    "total_candidates": 16
+  },
+  "parameter_space": {
+    "by_family": {
+      "breakout_volatility_filter": 3,
+      "cooldown_fee_aware": 5,
+      "mean_reversion_regime_filter": 2,
+      "momentum_trend_filter": 2,
+      "pullback_in_trend": 2,
+      "session_filter": 2
+    },
+    "candidate_count": 16,
+    "candidates": [
+      {
+        "family": "momentum_trend_filter",
+        "params": {
+          "cooldown_minutes": 20,
+          "lookback": 15,
+          "max_hold_minutes": 45,
+          "stop_loss_bps": 55,
+          "take_profit_bps": 80,
+          "threshold_bps": 12,
+          "trend_lookback": 120,
+          "trend_min_bps": 8
+        }
+      },
+      {
+        "family": "momentum_trend_filter",
+        "params": {
+          "cooldown_minutes": 45,
+          "lookback": 60,
+          "max_hold_minutes": 120,
+          "stop_loss_bps": 75,
+          "take_profit_bps": 120,
+          "threshold_bps": 25,
+          "trend_lookback": 240,
+          "trend_min_bps": 20
+        }
+      },
+      {
+        "family": "breakout_volatility_filter",
+        "params": {
+          "cooldown_minutes": 30,
+          "lookback": 30,
+          "max_hold_minutes": 60,
+          "max_vol_bps": 80,
+          "min_vol_bps": 8,
+          "stop_loss_bps": 60,
+          "take_profit_bps": 90,
+          "threshold_bps": 5,
+          "volatility_lookback": 60
+        }
+      },
+      {
+        "family": "breakout_volatility_filter",
+        "params": {
+          "cooldown_minutes": 90,
+          "lookback": 120,
+          "max_hold_minutes": 180,
+          "max_vol_bps": 120,
+          "min_vol_bps": 10,
+          "stop_loss_bps": 90,
+          "take_profit_bps": 140,
+          "threshold_bps": 10,
+          "volatility_lookback": 240
+        }
+      },
+      {
+        "family": "mean_reversion_regime_filter",
+        "params": {
+          "cooldown_minutes": 20,
+          "lookback": 20,
+          "max_abs_trend_bps": 80,
+          "max_hold_minutes": 45,
+          "stop_loss_bps": 45,
+          "take_profit_bps": 50,
+          "threshold_bps": 35,
+          "trend_lookback": 180
+        }
+      },
+      {
+        "family": "mean_reversion_regime_filter",
+        "params": {
+          "cooldown_minutes": 60,
+          "lookback": 60,
+          "max_abs_trend_bps": 120,
+          "max_hold_minutes": 120,
+          "stop_loss_bps": 70,
+          "take_profit_bps": 80,
+          "threshold_bps": 70,
+          "trend_lookback": 360
+        }
+      },
+      {
+        "family": "pullback_in_trend",
+        "params": {
+          "cooldown_minutes": 30,
+          "lookback": 15,
+          "max_hold_minutes": 60,
+          "stop_loss_bps": 55,
+          "take_profit_bps": 75,
+          "threshold_bps": 18,
+          "trend_lookback": 240,
+          "trend_min_bps": 25
+        }
+      },
+      {
+        "family": "pullback_in_trend",
+        "params": {
+          "cooldown_minutes": 90,
+          "lookback": 45,
+          "max_hold_minutes": 180,
+          "stop_loss_bps": 80,
+          "take_profit_bps": 110,
+          "threshold_bps": 35,
+          "trend_lookback": 480,
+          "trend_min_bps": 40
+        }
+      },
+      {
+        "family": "session_filter",
+        "params": {
+          "base_family": "momentum",
+          "cooldown_minutes": 60,
+          "lookback": 30,
+          "max_hold_minutes": 90,
+          "session_end_hour": 20,
+          "session_start_hour": 7,
+          "stop_loss_bps": 70,
+          "take_profit_bps": 90,
+          "threshold_bps": 20
+        }
+      },
+      {
+        "family": "session_filter",
+        "params": {
+          "base_family": "breakout",
+          "cooldown_minutes": 90,
+          "lookback": 60,
+          "max_hold_minutes": 120,
+          "session_end_hour": 22,
+          "session_start_hour": 12,
+          "stop_loss_bps": 80,
+          "take_profit_bps": 120,
+          "threshold_bps": 8
+        }
+      },
+      {
+        "family": "cooldown_fee_aware",
+        "params": {
+          "base_family": "breakout",
+          "cooldown_minutes": 180,
+          "lookback": 90,
+          "max_hold_minutes": 180,
+          "min_expected_move_bps": 35,
+          "stop_loss_bps": 80,
+          "take_profit_bps": 140,
+          "threshold_bps": 12
+        }
+      },
+      {
+        "family": "cooldown_fee_aware",
+        "params": {
+          "base_family": "momentum",
+          "cooldown_minutes": 240,
+          "lookback": 120,
+          "max_hold_minutes": 240,
+          "min_expected_move_bps": 45,
+          "stop_loss_bps": 100,
+          "take_profit_bps": 160,
+          "threshold_bps": 40
+        }
+      },
+      {
+        "family": "breakout_volatility_filter",
+        "params": {
+          "break_even_after_bps": 65,
+          "cooldown_minutes": 120,
+          "lookback": 120,
+          "max_hold_minutes": 180,
+          "max_vol_bps": 110,
+          "min_vol_bps": 12,
+          "stop_loss_bps": 90,
+          "take_profit_bps": 160,
+          "threshold_bps": 10,
+          "trailing_stop_bps": 70,
+          "volatility_lookback": 240
+        }
+      },
+      {
+        "family": "cooldown_fee_aware",
+        "params": {
+          "base_family": "breakout",
+          "break_even_after_bps": 70,
+          "cooldown_minutes": 240,
+          "lookback": 120,
+          "max_hold_minutes": 240,
+          "min_expected_move_bps": 45,
+          "stop_loss_bps": 90,
+          "take_profit_bps": 170,
+          "threshold_bps": 15,
+          "trailing_stop_bps": 80
+        }
+      },
+      {
+        "family": "cooldown_fee_aware",
+        "params": {
+          "base_family": "breakout",
+          "break_even_after_bps": 80,
+          "cooldown_minutes": 300,
+          "lookback": 180,
+          "max_hold_minutes": 300,
+          "min_expected_move_bps": 70,
+          "stop_loss_bps": 95,
+          "take_profit_bps": 190,
+          "threshold_bps": 20,
+          "trailing_stop_bps": 90
+        }
+      },
+      {
+        "family": "cooldown_fee_aware",
+        "params": {
+          "base_family": "momentum",
+          "break_even_after_bps": 95,
+          "cooldown_minutes": 360,
+          "lookback": 180,
+          "max_hold_minutes": 360,
+          "min_expected_move_bps": 85,
+          "stop_loss_bps": 110,
+          "take_profit_bps": 220,
+          "threshold_bps": 55,
+          "trailing_stop_bps": 100
+        }
+      }
+    ]
+  },
+  "raw_root": "C:\\TradingBot\\data\\ETHUSDC_BotV3_Hermes",
+  "report_links": {
+    "json": "reports\\research\\research_20260709T193221Z.json",
+    "txt": "reports\\research\\research_20260709T193221Z.txt"
+  },
+  "research_protocol": {
+    "blindtest_usage": "final_evaluation_only",
+    "created_at": "2026-07-09T19:32:21.411180Z",
+    "data_window": {
+      "data_end": "2026-07-07",
+      "data_start": "2023-07-09"
+    },
+    "git_commit": "2a3475a-dirty",
+    "parameter_space": {
+      "by_family": {
+        "breakout_volatility_filter": 3,
+        "cooldown_fee_aware": 5,
+        "mean_reversion_regime_filter": 2,
+        "momentum_trend_filter": 2,
+        "pullback_in_trend": 2,
+        "session_filter": 2
+      },
+      "candidate_count": 16,
+      "candidates": [
+        {
+          "family": "momentum_trend_filter",
+          "params": {
+            "cooldown_minutes": 20,
+            "lookback": 15,
+            "max_hold_minutes": 45,
+            "stop_loss_bps": 55,
+            "take_profit_bps": 80,
+            "threshold_bps": 12,
+            "trend_lookback": 120,
+            "trend_min_bps": 8
+          }
+        },
+        {
+          "family": "momentum_trend_filter",
+          "params": {
+            "cooldown_minutes": 45,
+            "lookback": 60,
+            "max_hold_minutes": 120,
+            "stop_loss_bps": 75,
+            "take_profit_bps": 120,
+            "threshold_bps": 25,
+            "trend_lookback": 240,
+            "trend_min_bps": 20
+          }
+        },
+        {
+          "family": "breakout_volatility_filter",
+          "params": {
+            "cooldown_minutes": 30,
+            "lookback": 30,
+            "max_hold_minutes": 60,
+            "max_vol_bps": 80,
+            "min_vol_bps": 8,
+            "stop_loss_bps": 60,
+            "take_profit_bps": 90,
+            "threshold_bps": 5,
+            "volatility_lookback": 60
+          }
+        },
+        {
+          "family": "breakout_volatility_filter",
+          "params": {
+            "cooldown_minutes": 90,
+            "lookback": 120,
+            "max_hold_minutes": 180,
+            "max_vol_bps": 120,
+            "min_vol_bps": 10,
+            "stop_loss_bps": 90,
+            "take_profit_bps": 140,
+            "threshold_bps": 10,
+            "volatility_lookback": 240
+          }
+        },
+        {
+          "family": "mean_reversion_regime_filter",
+          "params": {
+            "cooldown_minutes": 20,
+            "lookback": 20,
+            "max_abs_trend_bps": 80,
+            "max_hold_minutes": 45,
+            "stop_loss_bps": 45,
+            "take_profit_bps": 50,
+            "threshold_bps": 35,
+            "trend_lookback": 180
+          }
+        },
+        {
+          "family": "mean_reversion_regime_filter",
+          "params": {
+            "cooldown_minutes": 60,
+            "lookback": 60,
+            "max_abs_trend_bps": 120,
+            "max_hold_minutes": 120,
+            "stop_loss_bps": 70,
+            "take_profit_bps": 80,
+            "threshold_bps": 70,
+            "trend_lookback": 360
+          }
+        },
+        {
+          "family": "pullback_in_trend",
+          "params": {
+            "cooldown_minutes": 30,
+            "lookback": 15,
+            "max_hold_minutes": 60,
+            "stop_loss_bps": 55,
+            "take_profit_bps": 75,
+            "threshold_bps": 18,
+            "trend_lookback": 240,
+            "trend_min_bps": 25
+          }
+        },
+        {
+          "family": "pullback_in_trend",
+          "params": {
+            "cooldown_minutes": 90,
+            "lookback": 45,
+            "max_hold_minutes": 180,
+            "stop_loss_bps": 80,
+            "take_profit_bps": 110,
+            "threshold_bps": 35,
+            "trend_lookback": 480,
+            "trend_min_bps": 40
+          }
+        },
+        {
+          "family": "session_filter",
+          "params": {
+            "base_family": "momentum",
+            "cooldown_minutes": 60,
+            "lookback": 30,
+            "max_hold_minutes": 90,
+            "session_end_hour": 20,
+            "session_start_hour": 7,
+            "stop_loss_bps": 70,
+            "take_profit_bps": 90,
+            "threshold_bps": 20
+          }
+        },
+        {
+          "family": "session_filter",
+          "params": {
+            "base_family": "breakout",
+            "cooldown_minutes": 90,
+            "lookback": 60,
+            "max_hold_minutes": 120,
+            "session_end_hour": 22,
+            "session_start_hour": 12,
+            "stop_loss_bps": 80,
+            "take_profit_bps": 120,
+            "threshold_bps": 8
+          }
+        },
+        {
+          "family": "cooldown_fee_aware",
+          "params": {
+            "base_family": "breakout",
+            "cooldown_minutes": 180,
+            "lookback": 90,
+            "max_hold_minutes": 180,
+            "min_expected_move_bps": 35,
+            "stop_loss_bps": 80,
+            "take_profit_bps": 140,
+            "threshold_bps": 12
+          }
+        },
+        {
+          "family": "cooldown_fee_aware",
+          "params": {
+            "base_family": "momentum",
+            "cooldown_minutes": 240,
+            "lookback": 120,
+            "max_hold_minutes": 240,
+            "min_expected_move_bps": 45,
+            "stop_loss_bps": 100,
+            "take_profit_bps": 160,
+            "threshold_bps": 40
+          }
+        },
+        {
+          "family": "breakout_volatility_filter",
+          "params": {
+            "break_even_after_bps": 65,
+            "cooldown_minutes": 120,
+            "lookback": 120,
+            "max_hold_minutes": 180,
+            "max_vol_bps": 110,
+            "min_vol_bps": 12,
+            "stop_loss_bps": 90,
+            "take_profit_bps": 160,
+            "threshold_bps": 10,
+            "trailing_stop_bps": 70,
+            "volatility_lookback": 240
+          }
+        },
+        {
+          "family": "cooldown_fee_aware",
+          "params": {
+            "base_family": "breakout",
+            "break_even_after_bps": 70,
+            "cooldown_minutes": 240,
+            "lookback": 120,
+            "max_hold_minutes": 240,
+            "min_expected_move_bps": 45,
+            "stop_loss_bps": 90,
+            "take_profit_bps": 170,
+            "threshold_bps": 15,
+            "trailing_stop_bps": 80
+          }
+        },
+        {
+          "family": "cooldown_fee_aware",
+          "params": {
+            "base_family": "breakout",
+            "break_even_after_bps": 80,
+            "cooldown_minutes": 300,
+            "lookback": 180,
+            "max_hold_minutes": 300,
+            "min_expected_move_bps": 70,
+            "stop_loss_bps": 95,
+            "take_profit_bps": 190,
+            "threshold_bps": 20,
+            "trailing_stop_bps": 90
+          }
+        },
+        {
+          "family": "cooldown_fee_aware",
+          "params": {
+            "base_family": "momentum",
+            "break_even_after_bps": 95,
+            "cooldown_minutes": 360,
+            "lookback": 180,
+            "max_hold_minutes": 360,
+            "min_expected_move_bps": 85,
+            "stop_loss_bps": 110,
+            "take_profit_bps": 220,
+            "threshold_bps": 55,
+            "trailing_stop_bps": 100
+          }
+        }
+      ]
+    },
+    "ranking_rules": [
+      "validation_net_usdc_per_day_desc",
+      "validation_profit_factor_desc",
+      "validation_max_drawdown_asc",
+      "trade_count_sufficient_not_overtrading",
+      "fees_slippage_load_penalty",
+      "training_validation_stability"
+    ],
+    "raw_root": "C:\\TradingBot\\data\\ETHUSDC_BotV3_Hermes",
+    "required_outputs": [
+      "run_id",
+      "git_commit",
+      "raw_root",
+      "windows",
+      "parameters",
+      "training_results",
+      "validation_results",
+      "blindtest_result_after_selection",
+      "safety_status"
+    ],
+    "run_id": "research_20260709T193221Z",
+    "safety": {
+      "api_keys": "not_used",
+      "binance_trading_api": "not_used",
+      "candidate_adoptable": false,
+      "live": "locked",
+      "orders": "not_created",
+      "paper": "locked",
+      "short_margin_futures_leverage": "forbidden",
+      "testtrade": "locked"
+    },
+    "schema_version": 1,
+    "selection_data": [
+      "subtrain",
+      "validation"
+    ],
+    "strategy_families": [
+      "momentum_trend_filter",
+      "breakout_volatility_filter",
+      "mean_reversion_regime_filter",
+      "pullback_in_trend",
+      "session_filter",
+      "cooldown_fee_aware"
+    ]
+  },
+  "run_id": "research_20260709T193221Z",
+  "safety": {
+    "api_keys": "not_used",
+    "binance_trading_api": "not_used",
+    "candidate_adoptable": false,
+    "live": "locked",
+    "orders": "not_created",
+    "paper": "locked",
+    "short_margin_futures_leverage": "forbidden",
+    "testtrade": "locked"
+  },
+  "schema_version": 1,
+  "selected_candidate": {
+    "candidate_id": "breakout_volatility_filter_013",
+    "family": "breakout_volatility_filter",
+    "params": {
+      "break_even_after_bps": 65,
+      "cooldown_minutes": 120,
+      "lookback": 120,
+      "max_hold_minutes": 180,
+      "max_vol_bps": 110,
+      "min_vol_bps": 12,
+      "stop_loss_bps": 90,
+      "take_profit_bps": 160,
+      "threshold_bps": 10,
+      "trailing_stop_bps": 70,
+      "volatility_lookback": 240
+    }
+  },
+  "selection_source": "subtrain_validation_only",
+  "strategy_families": [
+    "breakout_volatility_filter",
+    "cooldown_fee_aware",
+    "mean_reversion_regime_filter",
+    "momentum_trend_filter",
+    "pullback_in_trend",
+    "session_filter"
+  ],
+  "target_reached": false,
+  "target_usdc_per_day": 3.0,
+  "timestamp": "2026-07-09T19:32:21.412711Z",
+  "training_metrics": {
+    "average_trade_usdc": -0.4253807368,
+    "blindtest_days": 365,
+    "fees_usdc": 24.7720248132,
+    "max_drawdown_usdc": 54.6904978415,
+    "net_profit_usdc": -52.7472113693,
+    "net_usdc_per_day": -0.0722564539,
+    "profit_factor": 0.3828272902,
+    "slippage_usdc": 113.1977376339,
+    "trade_count": 124,
+    "training_days": 730,
+    "winrate": 0.2661290323
+  },
+  "training_window": {
+    "training_days": 730,
+    "training_end": "2025-07-07",
+    "training_start": "2023-07-09"
+  },
+  "validation_metrics": {
+    "average_trade_usdc": -0.4236723514,
+    "blindtest_days": 365,
+    "fees_usdc": 9.3894768763,
+    "max_drawdown_usdc": 22.7563034648,
+    "net_profit_usdc": -19.9126005172,
+    "net_usdc_per_day": -0.1363876748,
+    "profit_factor": 0.3332464631,
+    "slippage_usdc": 37.1044437895,
+    "trade_count": 47,
+    "training_days": 730,
+    "winrate": 0.2127659574
+  },
+  "validation_window": {
+    "selection_only": true,
+    "source": "last_20_percent_of_training"
+  },
+  "why_selected": "highest conservative validation rank using validation net/day, profit factor, drawdown, stability, trade frequency and cost load; blindtest not used"
+}

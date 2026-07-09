@@ -54,7 +54,16 @@ Research-run protocol:
    - weaknesses/rejection reasons.
 10. Include `blindtest_metrics` inside the leaderboard only for the final selected candidate.
 11. Include a `candidate_diagnosis` summary showing best training family, best validation family, lowest-cost family, overtrading/too-few-trades families, near-one profit-factor families, and why the result still is not profitable enough.
-12. Report whether +3 USDC/day was reached. Never fake or force success.
+12. Include `family_aggregates` using training/validation only:
+   - candidate counts,
+   - best/average validation net/day,
+   - best/average training net/day,
+   - validation trade-count ranges,
+   - validation fees/slippage/cost load,
+   - validation profit-factor and drawdown ranges,
+   - weakness counts per family.
+13. Include `family_diagnosis` answering best training family, best validation family, lowest-cost family, overtrading families, too-few-trades families, nearest-to-one profit-factor family, and problem assessment.
+14. Report whether +3 USDC/day was reached. Never fake or force success.
 
 Current implemented families:
 - momentum_trend_filter

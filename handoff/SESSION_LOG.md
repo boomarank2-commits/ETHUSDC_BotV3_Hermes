@@ -268,3 +268,66 @@ Safety:
 - No API keys.
 - No Binance Trading API.
 - No raw data in repo.
+
+## 2026-07-09 - Family aggregates and controlled cost-filter improvement
+
+Timebox: max 240 minutes.
+
+Goal:
+- Add family-level aggregates and family diagnosis to research reports.
+- Use the all-families high-cost diagnosis for exactly one controlled improvement.
+
+Initial guard:
+- `git status --short` was clean before work.
+- Handoff was read.
+- Existing research report `research_20260709T181800Z` was read.
+- Current research code was read before edits.
+
+TDD:
+- Tests were added first for:
+  - report contains `family_aggregates`,
+  - aggregates cover all families,
+  - aggregates contain no blindtest metrics,
+  - family diagnosis detects best validation family, lowest-cost family, overtrading families, and nearest-to-one profit factor family,
+  - controlled cost-filter improvement is deterministic and does not use target as a parameter.
+- Targeted tests initially failed because `build_family_aggregates` / `build_family_diagnosis` did not exist.
+
+Implementation:
+- `research_runner.py` now writes `family_aggregates` using training/validation metrics only.
+- `family_diagnosis` summarizes best training family, best validation family, lowest-cost family, overtrading families, too-few-trades families, profit-factor-nearest-one family, high-cost families, and problem assessment.
+- Added two stronger minimum expected move / cost-filter candidates under cooldown_fee_aware:
+  - min_expected_move_bps 70,
+  - min_expected_move_bps 85.
+- Candidate count increased from 14 to 16.
+- `experiment_registry.py` text reports now include family diagnosis summary.
+
+Real research run:
+- Command: `PYTHONPATH=src python -m ethusdc_bot.backtest.research_runner --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes`
+- Run-ID: `research_20260709T193221Z`.
+- Reports:
+  - `reports/research/research_20260709T193221Z.json`
+  - `reports/research/research_20260709T193221Z.txt`
+  - `reports/research/index.jsonl`
+- Candidates: 16.
+- Selected candidate remained `breakout_volatility_filter_013`.
+- Training: -0.0722564539 USDC/day.
+- Validation: -0.1363876748 USDC/day.
+- Blindtest: -0.0327853251 USDC/day.
+- Target +3 USDC/day: not reached.
+
+Family diagnosis:
+- Best training family: breakout_volatility_filter.
+- Best validation family: breakout_volatility_filter.
+- Lowest-cost family: breakout_volatility_filter.
+- Profit-factor-nearest-one family: cooldown_fee_aware.
+- High-cost families: all six families.
+- Overtrading families: mean_reversion_regime_filter, momentum_trend_filter, pullback_in_trend.
+- Too-few-trades families: none.
+- Problem assessment: costs_and_insufficient_edge.
+
+Safety:
+- No live, paper, or testtrade.
+- No orders.
+- No API keys.
+- No Binance Trading API.
+- No raw data in repo.

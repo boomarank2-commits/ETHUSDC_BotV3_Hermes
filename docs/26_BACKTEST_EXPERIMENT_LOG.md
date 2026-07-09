@@ -148,3 +148,61 @@ Safety:
 - No orders.
 - No Binance Trading API.
 - No API keys.
+
+## Research run: research_20260709T193221Z
+
+Report files:
+- `reports/research/research_20260709T193221Z.json`
+- `reports/research/research_20260709T193221Z.txt`
+- `reports/research/index.jsonl`
+
+Purpose:
+- Add family-level aggregates and diagnosis to the research report.
+- Use the high-cost diagnosis for exactly one controlled improvement: stronger minimum expected move / cost filters in two additional cooldown_fee_aware candidates.
+- Keep ranking training/validation-only; blindtest remains final-only.
+
+Candidate generation:
+- 6 families.
+- 16 total candidates.
+- Added candidates:
+  - `cooldown_fee_aware_015` with `min_expected_move_bps=70`.
+  - `cooldown_fee_aware_016` with `min_expected_move_bps=85`.
+
+Family aggregates / diagnosis:
+- Best training family: breakout_volatility_filter.
+- Best validation family: breakout_volatility_filter.
+- Lowest-cost family: breakout_volatility_filter.
+- Profit-factor-nearest-one family: cooldown_fee_aware.
+- High-cost families: all six families.
+- Overtrading families: mean_reversion_regime_filter, momentum_trend_filter, pullback_in_trend.
+- Too-few-trades families: none.
+- Problem assessment: costs_and_insufficient_edge.
+
+Family aggregate highlights:
+- breakout_volatility_filter: best validation -0.1363876748 USDC/day; average validation -0.4615362819; average cost load 197.949645143; best PF 0.424519183.
+- cooldown_fee_aware: best validation -0.3658020743 USDC/day; average validation -0.6553294037; average cost load 338.3443250539; best PF 0.5651269724.
+- pullback_in_trend: best validation -0.6476439022 USDC/day; average validation -1.2609972581; average cost load 609.4991328381; best PF 0.5573490765.
+
+Selected candidate:
+- candidate_id: `breakout_volatility_filter_013`
+- family: breakout_volatility_filter
+- same candidate as previous run; stronger cost-filter candidates did not outrank it on validation.
+
+Results:
+- Training net_usdc_per_day: -0.0722564539
+- Validation net_usdc_per_day: -0.1363876748
+- Blindtest net_usdc_per_day: -0.0327853251
+- Target +3 USDC/day: not reached.
+
+Comparison:
+- Previous research blindtest: -0.0327853251 USDC/day.
+- New research blindtest: -0.0327853251 USDC/day.
+- The selected candidate and blindtest result did not change; the new value is in family-level diagnosis and safer cost-filter candidates for future analysis.
+
+Safety:
+- No live.
+- No paper.
+- No testtrade.
+- No orders.
+- No Binance Trading API.
+- No API keys.

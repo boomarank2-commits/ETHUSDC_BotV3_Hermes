@@ -55,6 +55,8 @@ def generate_research_candidates() -> list[StrategyCandidate]:
         StrategyCandidate("cooldown_fee_aware", {"base_family": "momentum", "lookback": 120, "threshold_bps": 40, "min_expected_move_bps": 45, "take_profit_bps": 160, "stop_loss_bps": 100, "max_hold_minutes": 240, "cooldown_minutes": 240}),
         StrategyCandidate("breakout_volatility_filter", {"lookback": 120, "threshold_bps": 10, "volatility_lookback": 240, "min_vol_bps": 12, "max_vol_bps": 110, "take_profit_bps": 160, "stop_loss_bps": 90, "trailing_stop_bps": 70, "break_even_after_bps": 65, "max_hold_minutes": 180, "cooldown_minutes": 120}),
         StrategyCandidate("cooldown_fee_aware", {"base_family": "breakout", "lookback": 120, "threshold_bps": 15, "min_expected_move_bps": 45, "take_profit_bps": 170, "stop_loss_bps": 90, "trailing_stop_bps": 80, "break_even_after_bps": 70, "max_hold_minutes": 240, "cooldown_minutes": 240}),
+        StrategyCandidate("cooldown_fee_aware", {"base_family": "breakout", "lookback": 180, "threshold_bps": 20, "min_expected_move_bps": 70, "take_profit_bps": 190, "stop_loss_bps": 95, "trailing_stop_bps": 90, "break_even_after_bps": 80, "max_hold_minutes": 300, "cooldown_minutes": 300}),
+        StrategyCandidate("cooldown_fee_aware", {"base_family": "momentum", "lookback": 180, "threshold_bps": 55, "min_expected_move_bps": 85, "take_profit_bps": 220, "stop_loss_bps": 110, "trailing_stop_bps": 100, "break_even_after_bps": 95, "max_hold_minutes": 360, "cooldown_minutes": 360}),
     ]
 
 
@@ -123,6 +125,89 @@ def build_candidate_diagnosis(leaderboard: list[dict[str, Any]]) -> dict[str, An
         "too_few_trades_candidate_count": len(too_few),
         "why_not_profitable_enough": _why_not_profitable_enough(best_validation),
     }
+
+
+def build_family_aggregates(leaderboard: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Aggregate candidate leaderboard by family using training/validation only."""
+
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in leaderboard:
+        grouped.setdefault(str(row["family"]), []).append(row)
+    aggregates: list[dict[str, Any]] = []
+    for family in sorted(grouped):
+        rows = grouped[family]
+        best_validation = max(rows, key=lambda row: row["validation_metrics"]["net_usdc_per_day"])
+        training_values = [row["training_metrics"]["net_usdc_per_day"] for row in rows]
+        validation_values = [row["validation_metrics"]["net_usdc_per_day"] for row in rows]
+        trade_counts = [row["validation_metrics"]["trade_count"] for row in rows]
+        fees = [row["validation_metrics"].get("fees_usdc", 0.0) for row in rows]
+        slippage = [row["validation_metrics"].get("slippage_usdc", 0.0) for row in rows]
+        cost_loads = [fee + slip for fee, slip in zip(fees, slippage)]
+        profit_factors = [row["validation_metrics"].get("profit_factor", 0.0) for row in rows]
+        drawdowns = [row["validation_metrics"].get("max_drawdown_usdc", 0.0) for row in rows]
+        aggregates.append(
+            {
+                "family": family,
+                "candidate_count": len(rows),
+                "best_validation_candidate_id": best_validation["candidate_id"],
+                "best_validation_net_usdc_per_day": round(best_validation["validation_metrics"]["net_usdc_per_day"], 10),
+                "average_validation_net_usdc_per_day": round(_average(validation_values), 10),
+                "best_training_net_usdc_per_day": round(max(training_values), 10),
+                "average_training_net_usdc_per_day": round(_average(training_values), 10),
+                "average_trade_count": round(_average(trade_counts), 4),
+                "min_trade_count": min(trade_counts),
+                "max_trade_count": max(trade_counts),
+                "average_fees_usdc": round(_average(fees), 10),
+                "average_slippage_usdc": round(_average(slippage), 10),
+                "average_cost_load": round(_average(cost_loads), 10),
+                "best_profit_factor": round(max(profit_factors), 10),
+                "average_profit_factor": round(_average(profit_factors), 10),
+                "best_drawdown": round(min(drawdowns), 10),
+                "worst_drawdown": round(max(drawdowns), 10),
+                "overtrading_count": sum(1 for row in rows if "overtrading" in row.get("weaknesses", [])),
+                "too_few_trades_count": sum(1 for row in rows if "too_few_trades" in row.get("weaknesses", [])),
+                "negative_validation_count": sum(1 for row in rows if "validation_negative" in row.get("weaknesses", [])),
+                "high_cost_count": sum(1 for row in rows if "cost_load_high" in row.get("weaknesses", [])),
+            }
+        )
+    return aggregates
+
+
+def build_family_diagnosis(family_aggregates: list[dict[str, Any]]) -> dict[str, Any]:
+    """Diagnose family-level behavior without blindtest metrics."""
+
+    best_training = max(family_aggregates, key=lambda row: row["best_training_net_usdc_per_day"])
+    best_validation = max(family_aggregates, key=lambda row: row["best_validation_net_usdc_per_day"])
+    lowest_cost = min(family_aggregates, key=lambda row: row["average_cost_load"])
+    nearest_one = min(family_aggregates, key=lambda row: abs(row["best_profit_factor"] - 1.0))
+    overtrading = [row["family"] for row in family_aggregates if row["overtrading_count"] > 0]
+    too_few = [row["family"] for row in family_aggregates if row["too_few_trades_count"] > 0]
+    high_cost = [row["family"] for row in family_aggregates if row["high_cost_count"] >= row["candidate_count"]]
+    return {
+        "ranking_uses_blindtest": False,
+        "best_training_family": best_training["family"],
+        "best_validation_family": best_validation["family"],
+        "lowest_cost_family": lowest_cost["family"],
+        "overtrading_families": sorted(overtrading),
+        "too_few_trades_families": sorted(too_few),
+        "profit_factor_nearest_one_family": nearest_one["family"],
+        "high_cost_families": sorted(high_cost),
+        "problem_assessment": _family_problem_assessment(family_aggregates),
+    }
+
+
+def _average(values: list[float | int]) -> float:
+    return sum(values) / len(values) if values else 0.0
+
+
+def _family_problem_assessment(family_aggregates: list[dict[str, Any]]) -> str:
+    if all(row["high_cost_count"] == row["candidate_count"] for row in family_aggregates):
+        return "costs_and_insufficient_edge"
+    if any(row["overtrading_count"] for row in family_aggregates):
+        return "trade_frequency_and_costs"
+    if all(row["best_validation_net_usdc_per_day"] < 0 for row in family_aggregates):
+        return "missing_edge"
+    return "entry_exit_refinement_needed"
 
 
 def _rank_tuple(record: dict[str, Any]) -> tuple[float, float, float, float, float]:
@@ -252,6 +337,8 @@ def run_research(
         raise RuntimeError(f"Invalid research protocol: {validation_protocol['errors']}")
     candidate_leaderboard = build_candidate_leaderboard(records, selected_candidate_id=selected_candidate_id, blindtest_metrics=blindtest_result.metrics)
     candidate_diagnosis = build_candidate_diagnosis(candidate_leaderboard)
+    family_aggregates = build_family_aggregates(candidate_leaderboard)
+    family_diagnosis = build_family_diagnosis(family_aggregates)
     experiment = _experiment_record(
         run_id=run_id,
         git_commit=git_commit,
@@ -269,6 +356,8 @@ def run_research(
         protocol=protocol,
         candidate_leaderboard=candidate_leaderboard,
         candidate_diagnosis=candidate_diagnosis,
+        family_aggregates=family_aggregates,
+        family_diagnosis=family_diagnosis,
         selected_candidate_id=selected_candidate_id,
     )
     paths = record_experiment(experiment, reports_root)
@@ -309,6 +398,8 @@ def _experiment_record(**kwargs: Any) -> dict[str, Any]:
         "why_selected": kwargs["why_selected"],
         "candidate_leaderboard": kwargs["candidate_leaderboard"],
         "candidate_diagnosis": kwargs["candidate_diagnosis"],
+        "family_aggregates": kwargs["family_aggregates"],
+        "family_diagnosis": kwargs["family_diagnosis"],
         "training_metrics": kwargs["full_training_result"].metrics.to_dict(),
         "validation_metrics": kwargs["selected_validation_result"].metrics.to_dict(),
         "blindtest_metrics": kwargs["blindtest_result"].metrics.to_dict(),
