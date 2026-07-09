@@ -1,75 +1,63 @@
 # Current Status
 
-Status: Research reports now include family-level aggregates/diagnosis, plus one controlled cost-filter improvement.
+Status: Multi-cycle offline ETHUSDC research loop runner is implemented, tested, and executed.
 
 Latest completed changes:
-- Extended `src/ethusdc_bot/backtest/research_runner.py`:
-  - `family_aggregates` derived from candidate leaderboard using training/validation only.
-  - `family_diagnosis` answering best training family, best validation family, lowest-cost family, overtrading families, too-few-trades families, nearest-to-one profit-factor family, high-cost families, and problem assessment.
-  - two controlled stronger minimum expected move / cost-filter candidates.
-- Extended `src/ethusdc_bot/backtest/experiment_registry.py` text output with family aggregate/diagnosis summary.
-- Updated tests in `tests/unit/test_research_runner.py`.
-- Updated docs:
-  - `docs/25_BACKTEST_RESEARCH_PROTOCOL.md`
-  - `docs/26_BACKTEST_EXPERIMENT_LOG.md`
+- Added `src/ethusdc_bot/backtest/research_loop_runner.py`:
+  - CLI: `PYTHONPATH=src python -m ethusdc_bot.backtest.research_loop_runner --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes --max-cycles 8 --max-candidates-per-cycle 40`.
+  - Executes multiple deterministic research cycles instead of one isolated experiment.
+  - Writes JSON/TXT/index reports under `reports/research_loop/`.
+  - Stops on target reached, max cycles, validation stagnation, or safety violation.
+- Added `src/ethusdc_bot/backtest/search_space.py`:
+  - Deterministic bounded candidate generation.
+  - Uses validation/diagnosis state only, not blindtest feedback.
+  - Keeps `target_usdc_per_day` out of strategy parameters.
+- Added `src/ethusdc_bot/backtest/walk_forward.py`:
+  - Chronological walk-forward validation folds inside training.
+  - Ranking helper marks blindtest as unused.
+- Added `src/ethusdc_bot/backtest/exit_reason_analysis.py`:
+  - Exit reason counts, net, fees, slippage, average trade, shares, cost load, loss-per-losing-trade.
+- Extended `src/ethusdc_bot/backtest/simulator.py`:
+  - Distinguishes `time_exit`, `take_profit`, `stop_loss`, `break_even`, `trailing_stop`, and `end_of_data` where applicable.
+  - Supports `context_filter` only as an ETHUSDC base-strategy filter; context symbols cannot trigger trades.
+- Added docs:
+  - `docs/27_BACKTEST_RESEARCH_LOOP.md`
+  - `docs/28_RESEARCH_LOOP_RESULTS.md`
+- Added unit tests:
+  - `tests/unit/test_research_loop_runner.py`
+  - `tests/unit/test_search_space.py`
+  - `tests/unit/test_exit_reason_analysis.py`
+  - `tests/unit/test_walk_forward.py`
 
-Previous research run:
-- `research_20260709T181800Z`
-- Candidates: 14.
-- Selected: `breakout_volatility_filter_013`.
-- Training: -0.0722564539 USDC/day.
-- Validation: -0.1363876748 USDC/day.
-- Blindtest: -0.0327853251 USDC/day.
-- Target +3 USDC/day: not reached.
-- Candidate diagnosis: 14/14 negative validation, 14/14 high cost, no near-one profit factor.
-
-New real research run:
-- Command: `PYTHONPATH=src python -m ethusdc_bot.backtest.research_runner --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes`
-- Run-ID: `research_20260709T193221Z`.
+Real loop run:
+- Command: `PYTHONPATH=src python -m ethusdc_bot.backtest.research_loop_runner --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes --max-cycles 8 --max-candidates-per-cycle 40`
+- Loop run ID: `research_loop_20260709T213134Z`
 - Reports:
-  - `reports/research/research_20260709T193221Z.json`
-  - `reports/research/research_20260709T193221Z.txt`
-  - `reports/research/index.jsonl`
-- Git commit recorded by report: `2a3475a-dirty` because the run was executed before final commit.
-- Candidates: 16.
-- Families: 6.
-- Selected candidate remained:
-  - candidate_id: `breakout_volatility_filter_013`
-  - family: breakout_volatility_filter
-- Training: -0.0722564539 USDC/day.
-- Validation: -0.1363876748 USDC/day.
-- Blindtest: -0.0327853251 USDC/day.
-- Target +3 USDC/day: not reached.
-
-Family diagnosis:
-- Best training family: breakout_volatility_filter.
-- Best validation family: breakout_volatility_filter.
-- Lowest-cost family: breakout_volatility_filter.
-- Profit-factor-nearest-one family: cooldown_fee_aware.
-- High-cost families: all six families.
-- Overtrading families: mean_reversion_regime_filter, momentum_trend_filter, pullback_in_trend.
-- Too-few-trades families: none.
-- Problem assessment: costs_and_insufficient_edge.
-
-Family aggregate highlights:
-- breakout_volatility_filter: best validation -0.1363876748 USDC/day, average validation -0.4615362819, average cost load 197.949645143, best PF 0.424519183.
-- cooldown_fee_aware: best validation -0.3658020743 USDC/day, average validation -0.6553294037, average cost load 338.3443250539, best PF 0.5651269724.
-- pullback_in_trend: best validation -0.6476439022 USDC/day, average validation -1.2609972581, average cost load 609.4991328381, best PF 0.5573490765.
-
-Comparison:
-- Previous research blindtest: -0.0327853251 USDC/day.
-- New research blindtest: -0.0327853251 USDC/day.
-- Selected candidate and result did not change; stronger cost-filter candidates did not outrank breakout_volatility_filter_013 on validation.
+  - `reports/research_loop/research_loop_20260709T213134Z.json`
+  - `reports/research_loop/research_loop_20260709T213134Z.txt`
+  - `reports/research_loop/index.jsonl`
+- Cycles executed: 7 of 8.
+- Generated candidate proposals: 77.
+- Tested candidate frontier rows: 28.
+- Stop reason: `validation_stagnation_3_cycles`.
+- Target reached: false.
+- Best validation candidate: `breakout_volatility_filter_04_001`.
+- Best validation: `-0.0004208934 USDC/day`, PF `0.9184698895`, 8 validation trades.
+- Best blindtest audit: `0.0096502748 USDC/day`, PF `1.7538949399`, 11 blindtest trades.
+- Target `+3 USDC/day` not reached.
 
 Verification:
-- Targeted family aggregate tests passed.
-- Full `pytest tests/ -q` passed before real research run.
-- Final full test rerun after handoff/docs is still required before commit.
+- Targeted new tests passed.
+- `pytest tests/ -q` passed before the real loop.
+- Final `pytest tests/ -q` still required after handoff/docs before commit.
 
 Safety unchanged:
+- ETHUSDC only for trades.
+- USDC quote.
+- Binance Spot LONG-only simulation.
+- 100 USDC simulated trade notional.
 - No Binance Trading API.
 - No API keys.
-- No exchange client.
 - No orders.
-- No live/paper/testtrade folders or activation.
+- No live/paper/testtrade unlock.
 - BTCUSDC and ETHBTC remain context-only and cannot trigger trades.

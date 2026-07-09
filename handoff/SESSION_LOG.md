@@ -331,3 +331,55 @@ Safety:
 - No API keys.
 - No Binance Trading API.
 - No raw data in repo.
+## 2026-07-09 - Add multi-cycle offline research loop runner
+
+Timebox: max 360 minutes.
+
+Goal:
+- Replace one-patch/one-research-run stopping behavior with a reproducible multi-cycle offline research loop.
+- Keep ETHUSDC/USDC Binance Spot LONG-only safety rules locked.
+- Use training/validation/walk-forward evidence for loop changes and mark blindtest checks as repeated audit-only.
+
+Initial guard:
+- `git status --short` was clean before work.
+- Required handoff files, latest research report, and current research/backtest code were read before implementation.
+- Work stayed inside the allowed file/report/doc/handoff lists.
+
+TDD:
+- Tests were added first for search-space determinism/no blindtest leakage, walk-forward chronology/no blindtest ranking, exit-reason cost summaries, multi-cycle loop stops/reports/safety locks, and context-symbol non-trading safety.
+- RED was observed as missing new modules.
+- Implementation followed the failing tests.
+
+Implementation:
+- Added `research_loop_runner.py` CLI for multi-cycle offline loops and reports under `reports/research_loop/`.
+- Added `search_space.py` deterministic candidate proposals from validation-only diagnosis.
+- Added `walk_forward.py` chronological WFV folds inside training.
+- Added `exit_reason_analysis.py` exit-reason/trade-cause summaries.
+- Extended simulator exit reasons beyond generic `rule`.
+- Added context-filter support as ETHUSDC base-strategy filter only; BTCUSDC/ETHBTC cannot trigger trades.
+- Added docs `docs/27_BACKTEST_RESEARCH_LOOP.md` and `docs/28_RESEARCH_LOOP_RESULTS.md`.
+
+Real loop:
+- Command: `PYTHONPATH=src python -m ethusdc_bot.backtest.research_loop_runner --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes --max-cycles 8 --max-candidates-per-cycle 40`
+- Run-ID: `research_loop_20260709T213134Z`.
+- Reports: `reports/research_loop/research_loop_20260709T213134Z.json` and `.txt`.
+- Cycles executed: 7 of 8.
+- Generated candidate proposals: 77.
+- Tested candidate frontier rows: 28.
+- Stop reason: `validation_stagnation_3_cycles`.
+- Best validation: `breakout_volatility_filter_04_001`, `-0.0004208934 USDC/day`, PF `0.9184698895`, 8 trades.
+- Best blindtest audit: `0.0096502748 USDC/day`, PF `1.7538949399`, 11 trades, repeated-audit-only.
+- Target +3 USDC/day: not reached.
+
+Safety:
+- No Binance Trading API.
+- No API keys.
+- No orders.
+- No live/paper/testtrade unlock.
+- No candidate adoption.
+- No raw data copied into repo.
+
+Verification:
+- Targeted new tests passed.
+- `pytest tests/ -q` passed before the real loop.
+- Final full suite rerun required after docs/handoff before commit.

@@ -1,21 +1,25 @@
 # Next Action
 
-Recommended next mini-ticket:
-- Use `reports/research/research_20260709T193221Z.json` family aggregates to investigate why all families remain high-cost and negative in validation.
+Recommended next research ticket:
+- Investigate why stricter breakout/cost controls approach breakeven validation but collapse to too few trades before producing sufficient edge.
+
+Evidence from loop `research_loop_20260709T213134Z`:
+- Best validation candidate: `breakout_volatility_filter_04_001`.
+- Best validation: `-0.0004208934 USDC/day`, PF `0.9184698895`, only 8 validation trades.
+- Best blindtest audit: `0.0096502748 USDC/day`, far below `+3 USDC/day` and audit-only.
+- Later cycles reduced trades to 5, 3, then 2 validation trades.
+- Cycle 7 exit analysis indicated stop-loss domination.
 
 Suggested safe next step:
-1. Add a per-family/candidate exit-reason summary if trade logs are stored or derivable without bloating reports.
-2. Diagnose whether losses come mainly from:
-   - stop losses,
-   - time exits,
-   - trailing/break-even exits,
-   - immediate cost/slippage drag.
-3. If adding one next improvement, prefer a training/validation-only idea based on exit-reason evidence, not blindtest:
-   - reduce bad entries if most exits are stops,
-   - refine time/session regime if many time exits leak losses,
-   - consider context filter only as ETHUSDC-signal filter, never trade trigger.
-4. Keep candidate space small and explainable.
-5. Keep blindtest final-only. Do not tune from blindtest.
+1. Do not tune from blindtest audit results.
+2. Use training/validation/WFV evidence only.
+3. Add a new controlled ETHUSDC-only entry class or filter that increases valid trade count without returning to high-cost overtrading.
+4. Specifically compare:
+   - stricter breakout thresholds with enough validation trades,
+   - session/regime windows where breakout validation PF is closest to 1,
+   - optional context filters using BTCUSDC/ETHBTC only as veto filters, never signal sources.
+5. Keep all reports explicit about repeated blindtest audits.
+6. Keep candidate adoption locked until a clean reproducible result exists.
 
 Safety reminder:
 - Live/Paper/Testtrade remain locked.

@@ -1,0 +1,20 @@
+ETHUSDC Offline Research Loop
+Loop-Run-ID: research_loop_20260709T213134Z
+Git commit: 6911ff9-dirty
+Raw root: C:/TradingBot/data/ETHUSDC_BotV3_Hermes
+Cycles executed: 7/8
+Stop reason: validation_stagnation_3_cycles
+Target reached: False
+Best candidate: {'candidate_id': 'breakout_volatility_filter_04_001', 'family': 'breakout_volatility_filter', 'params': {'lookback': 90, 'threshold_bps': 24, 'volatility_lookback': 240, 'min_vol_bps': 18, 'max_vol_bps': 110, 'take_profit_bps': 210, 'stop_loss_bps': 97, 'trailing_stop_bps': 70, 'break_even_after_bps': 65, 'max_hold_minutes': 180, 'cooldown_minutes': 210, 'symbol': 'ETHUSDC'}}
+Best validation: {'candidate_id': 'breakout_volatility_filter_04_001', 'family': 'breakout_volatility_filter', 'net_usdc_per_day': -0.0004208934, 'trade_count': 8, 'profit_factor': 0.9184698895}
+Best blindtest audit: {'net_profit_usdc': 3.5223502955, 'net_usdc_per_day': 0.0096502748, 'trade_count': 11, 'winrate': 0.5454545455, 'max_drawdown_usdc': 4.2918259937, 'profit_factor': 1.7538949399, 'average_trade_usdc': 0.3202136632, 'fees_usdc': 2.2057280783, 'slippage_usdc': 13.5220448389, 'training_days': 730, 'blindtest_days': 365, 'repeated_blindtest_audit': True, 'audit_only_not_selection': True}
+Ziel nicht erreicht.
+Live/Paper/Testtrade locked. No orders, no Trading API, no API keys.
+Blindtest audits are repeated audits only and not used for search-space adjustment.
+Cycle 1: tested=4 best_validation={'candidate_id': 'breakout_volatility_filter_01_001', 'family': 'breakout_volatility_filter', 'net_usdc_per_day': -0.0086568356, 'trade_count': 17, 'profit_factor': 0.4915795763} blindtest_audit=-0.0012839958 adjustment=costs_high: increase expected move thresholds and cooldown, reduce slippage-sensitive setups
+Cycle 2: tested=4 best_validation={'candidate_id': 'breakout_volatility_filter_02_001', 'family': 'breakout_volatility_filter', 'net_usdc_per_day': -0.0070945587, 'trade_count': 13, 'profit_factor': 0.5151278006} blindtest_audit=0.0096502748 adjustment=best validation candidate is still negative before blindtest; no sufficient edge shown
+Cycle 3: tested=4 best_validation={'candidate_id': 'breakout_volatility_filter_03_001', 'family': 'breakout_volatility_filter', 'net_usdc_per_day': -0.0049659017, 'trade_count': 9, 'profit_factor': 0.5042800344} blindtest_audit=0.0049085533 adjustment=best validation candidate is still negative before blindtest; no sufficient edge shown
+Cycle 4: tested=4 best_validation={'candidate_id': 'breakout_volatility_filter_04_001', 'family': 'breakout_volatility_filter', 'net_usdc_per_day': -0.0004208934, 'trade_count': 8, 'profit_factor': 0.9184698895} blindtest_audit=-0.0067358372 adjustment=best validation candidate is still negative before blindtest; no sufficient edge shown
+Cycle 5: tested=4 best_validation={'candidate_id': 'breakout_volatility_filter_05_001', 'family': 'breakout_volatility_filter', 'net_usdc_per_day': -0.0034848477, 'trade_count': 5, 'profit_factor': 0.2186547149} blindtest_audit=-0.0076226041 adjustment=best validation candidate is still negative before blindtest; no sufficient edge shown
+Cycle 6: tested=4 best_validation={'candidate_id': 'breakout_volatility_filter_06_001', 'family': 'breakout_volatility_filter', 'net_usdc_per_day': -0.0015801624, 'trade_count': 3, 'profit_factor': 0.3321180361} blindtest_audit=-0.0116253967 adjustment=best validation candidate is still negative before blindtest; no sufficient edge shown
+Cycle 7: tested=4 best_validation={'candidate_id': 'breakout_volatility_filter_07_001', 'family': 'breakout_volatility_filter', 'net_usdc_per_day': -0.0030471361, 'trade_count': 2, 'profit_factor': 0.0} blindtest_audit=-0.0036968249 adjustment=stop_loss_dominates: tighten entry trend/volatility filters

@@ -88,8 +88,12 @@ def simulate_strategy(
             quantity = trade_usdc / entry_price
             position = {"entry_price": entry_price, "quantity": quantity, "entry_time": candle.open_time, "entry_index": index}
             pending_entry = False
-        if position is not None and _should_exit(candles, index, position, strategy):
-            trade = _exit_trade(candle, position, fee_rate, slippage_bps, trade_usdc)
+        if position is not None:
+            exit_reason = _exit_reason(candles, index, position, strategy)
+        else:
+            exit_reason = None
+        if position is not None and exit_reason is not None:
+            trade = _exit_trade(candle, position, fee_rate, slippage_bps, trade_usdc, exit_reason=exit_reason)
             trades.append(trade)
             position = None
             cooldown_until_index = index + int(strategy.params.get("cooldown_minutes", 0) or 0)
@@ -142,6 +146,12 @@ def _signal(candles: list[Candle], index: int, strategy: StrategyCandidate) -> b
         if abs(change) * 10_000 < float(strategy.params.get("min_expected_move_bps", 0) or 0):
             return False
         return _signal(candles, index, StrategyCandidate(str(strategy.params.get("base_family", "momentum")), dict(strategy.params)))
+    if strategy.family == "context_filter":
+        # Context symbols are filters only. ETHUSDC remains the only tradeable
+        # symbol, and the base ETHUSDC strategy must still generate the signal.
+        if str(strategy.params.get("symbol", SYMBOL)) != SYMBOL:
+            return False
+        return _signal(candles, index, StrategyCandidate(str(strategy.params.get("base_family", "momentum")), dict(strategy.params)))
     return False
 
 
@@ -171,29 +181,35 @@ def _in_session(open_time: int, start_hour: int, end_hour: int) -> bool:
     return hour >= start_hour or hour < end_hour
 
 
-def _should_exit(candles: list[Candle], index: int, position: dict[str, float | int], strategy: StrategyCandidate) -> bool:
+def _exit_reason(candles: list[Candle], index: int, position: dict[str, float | int], strategy: StrategyCandidate) -> str | None:
     entry_index = int(position["entry_index"])
     if index <= entry_index:
-        return False
+        return None
     max_hold = int(strategy.params.get("max_hold_minutes", 30) or 30)
     if index - entry_index >= max_hold:
-        return True
+        return "time_exit"
     entry_price = float(position["entry_price"])
     previous_close = candles[index - 1].close
     change_bps = (previous_close / entry_price - 1) * 10_000
     take_profit = float(strategy.params.get("take_profit_bps", 80) or 80)
     stop_loss = float(strategy.params.get("stop_loss_bps", 60) or 60)
-    if change_bps >= take_profit or change_bps <= -stop_loss:
-        return True
+    if change_bps >= take_profit:
+        return "take_profit"
+    if change_bps <= -stop_loss:
+        return "stop_loss"
     best_close = max(c.close for c in candles[entry_index:index])
     best_change_bps = (best_close / entry_price - 1) * 10_000
     break_even_after = float(strategy.params.get("break_even_after_bps", 0) or 0)
     if break_even_after > 0 and best_change_bps >= break_even_after and change_bps <= 0:
-        return True
+        return "break_even"
     trailing_stop = float(strategy.params.get("trailing_stop_bps", 0) or 0)
     if trailing_stop > 0 and best_change_bps > trailing_stop and (best_close / previous_close - 1) * 10_000 >= trailing_stop:
-        return True
-    return False
+        return "trailing_stop"
+    return None
+
+
+def _should_exit(candles: list[Candle], index: int, position: dict[str, float | int], strategy: StrategyCandidate) -> bool:
+    return _exit_reason(candles, index, position, strategy) is not None
 
 
 def _exit_trade(
