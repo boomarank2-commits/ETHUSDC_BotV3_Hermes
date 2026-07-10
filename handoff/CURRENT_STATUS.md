@@ -1,63 +1,44 @@
 # Current Status
 
-Status: Multi-cycle offline ETHUSDC research loop runner is implemented, tested, and executed.
+Status: The backtest execution-cost defect is fixed and independently verified. A post-fix control research loop was completed, but the strategic target remains unmet.
 
-Latest completed changes:
-- Added `src/ethusdc_bot/backtest/research_loop_runner.py`:
-  - CLI: `PYTHONPATH=src python -m ethusdc_bot.backtest.research_loop_runner --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes --max-cycles 8 --max-candidates-per-cycle 40`.
-  - Executes multiple deterministic research cycles instead of one isolated experiment.
-  - Writes JSON/TXT/index reports under `reports/research_loop/`.
-  - Stops on target reached, max cycles, validation stagnation, or safety violation.
-- Added `src/ethusdc_bot/backtest/search_space.py`:
-  - Deterministic bounded candidate generation.
-  - Uses validation/diagnosis state only, not blindtest feedback.
-  - Keeps `target_usdc_per_day` out of strategy parameters.
-- Added `src/ethusdc_bot/backtest/walk_forward.py`:
-  - Chronological walk-forward validation folds inside training.
-  - Ranking helper marks blindtest as unused.
-- Added `src/ethusdc_bot/backtest/exit_reason_analysis.py`:
-  - Exit reason counts, net, fees, slippage, average trade, shares, cost load, loss-per-losing-trade.
-- Extended `src/ethusdc_bot/backtest/simulator.py`:
-  - Distinguishes `time_exit`, `take_profit`, `stop_loss`, `break_even`, `trailing_stop`, and `end_of_data` where applicable.
-  - Supports `context_filter` only as an ETHUSDC base-strategy filter; context symbols cannot trigger trades.
-- Added docs:
-  - `docs/27_BACKTEST_RESEARCH_LOOP.md`
-  - `docs/28_RESEARCH_LOOP_RESULTS.md`
-- Added unit tests:
-  - `tests/unit/test_research_loop_runner.py`
-  - `tests/unit/test_search_space.py`
-  - `tests/unit/test_exit_reason_analysis.py`
-  - `tests/unit/test_walk_forward.py`
+Latest completed code change:
 
-Real loop run:
-- Command: `PYTHONPATH=src python -m ethusdc_bot.backtest.research_loop_runner --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes --max-cycles 8 --max-candidates-per-cycle 40`
-- Loop run ID: `research_loop_20260709T213134Z`
-- Reports:
-  - `reports/research_loop/research_loop_20260709T213134Z.json`
-  - `reports/research_loop/research_loop_20260709T213134Z.txt`
-  - `reports/research_loop/index.jsonl`
-- Cycles executed: 7 of 8.
-- Generated candidate proposals: 77.
-- Tested candidate frontier rows: 28.
+- Commit `03e9db0 Fix backtest execution cost accounting` corrects diagnostic slippage accounting in `src/ethusdc_bot/backtest/simulator.py`.
+- Entry and exit mid-prices are retained separately from execution prices.
+- Entry and exit fees and slippage are recorded separately.
+- Quantity remains based on the 100 USDC entry execution notional.
+- Net P&L remains execution-price gross P&L minus fees; diagnostic slippage is not subtracted twice.
+- End-of-data, take-profit, stop-loss, time-exit, break-even, and trailing-stop exits use the shared cost-accounting path.
+- `docs/29_BACKTEST_EXECUTION_COST_AUDIT.md` documents the defect, formulas, impact, and hand-checkable examples.
+
+Post-fix control run:
+
+- Run ID: `research_loop_20260710T054549Z`.
+- Git commit recorded by the report: `03e9db0`.
+- Command: `PYTHONPATH=src python -m ethusdc_bot.backtest.research_loop_runner --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes --max-cycles 8 --max-candidates-per-cycle 40`.
+- Cycles executed: 4 of 8.
 - Stop reason: `validation_stagnation_3_cycles`.
-- Target reached: false.
-- Best validation candidate: `breakout_volatility_filter_04_001`.
-- Best validation: `-0.0004208934 USDC/day`, PF `0.9184698895`, 8 validation trades.
-- Best blindtest audit: `0.0096502748 USDC/day`, PF `1.7538949399`, 11 blindtest trades.
-- Target `+3 USDC/day` not reached.
+- Each cycle generated 11 candidates but evaluated only the first 4.
+- Only one validation leader per cycle received walk-forward validation.
+- Best validation: `-0.0086568356 USDC/day`, profit factor `0.4915795763`, 17 trades.
+- Best consumed audit-window result: `-0.0012839958 USDC/day`, profit factor `0.9423532464`, 14 trades.
+- Target `+3 USDC/day`: not reached.
+- No candidate is adoptable.
 
-Verification:
-- Targeted new tests passed.
-- `pytest tests/ -q` passed before the real loop.
-- Final `pytest tests/ -q` still required after handoff/docs before commit.
+Methodological status:
 
-Safety unchanged:
-- ETHUSDC only for trades.
-- USDC quote.
-- Binance Spot LONG-only simulation.
-- 100 USDC simulated trade notional.
-- No Binance Trading API.
-- No API keys.
-- No orders.
-- No live/paper/testtrade unlock.
-- BTCUSDC and ETHBTC remain context-only and cannot trigger trades.
+- All previously viewed 365-day blindtest results are now formally classified as `consumed_audit_window = true`.
+- They may be retained for history, comparison, and defect analysis, but not for strategy selection, ranking, parameter changes, router decisions, or optimization.
+- Reports produced before `03e9db0` retain historical execution-price P&L evidence, but their slippage-derived rankings and cost diagnoses are obsolete.
+- The current loop's fixed first-four candidate frontier, single-candidate WFV, repeated audit evaluation, and non-functional context filter require a Research Protocol v2 repair before any strategy work.
+
+Safety status:
+
+- Trade symbol: ETHUSDC only.
+- Quote/notional: fixed 100 USDC per trade, no compounding, at most one open position.
+- Cost baseline: 0.1% fee and 5 bps slippage per side, no BNB discount.
+- Spot LONG-only; no shorts, margin, futures, or leverage.
+- Live, paper-with-order-endpoints, and testtrade remain locked.
+- No Binance Trading API, API keys, account data, or orders.
+- BTCUSDC and ETHBTC remain context-only and cannot open trades.

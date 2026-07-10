@@ -383,3 +383,46 @@ Verification:
 - Targeted new tests passed.
 - `pytest tests/ -q` passed before the real loop.
 - Final full suite rerun required after docs/handoff before commit.
+
+## 2026-07-10 - Fix execution-cost accounting and run post-fix control
+
+Goal:
+- Correct the confirmed diagnostic Slippage defect without changing strategy parameters.
+- Verify every exit path, document the accounting model, and run an unchanged research-loop control.
+
+Initial guard:
+- Starting commit: `8ac7003`.
+- Worktree was clean before the Slippage fix.
+- Existing simulator, research-loop code, tests, handoff, and reference reports were inspected.
+
+TDD and implementation:
+- Added hand-checkable regression tests before implementation; 13 expected failures demonstrated the missing/corrupt accounting fields.
+- Stored entry and exit mid-prices separately from slipped execution prices.
+- Recorded entry/exit fees and entry/exit slippage separately.
+- Kept quantity based on the 100 USDC entry execution notional.
+- Kept net P&L as execution-price gross P&L minus fees, with no second Slippage deduction.
+- Verified end-of-data, take-profit, stop-loss, time-exit, break-even, and trailing-stop through the shared cost path.
+- Added `docs/29_BACKTEST_EXECUTION_COST_AUDIT.md`.
+- Created commit `03e9db0 Fix backtest execution cost accounting`.
+
+Verification:
+- Targeted simulator tests: 23 passed.
+- Full suite after the cost correction: 412 passed.
+
+Post-fix control run:
+- Run ID: `research_loop_20260710T054549Z`.
+- Cycles: 4 of 8.
+- Stop reason: `validation_stagnation_3_cycles`.
+- Generated/tested candidates per cycle: 11/4.
+- Best validation: `-0.0086568356 USDC/day`, PF `0.4915795763`, 17 trades.
+- Best recorded audit: `-0.0012839958 USDC/day`, PF `0.9423532464`, 14 trades.
+- Target not reached; no candidate adopted.
+
+Methodological decision:
+- The repeatedly viewed 365-day window is formally consumed and may not guide selection or optimization.
+- Pre-fix slippage-based rankings and cost diagnoses are obsolete.
+- The next approved work item is Research Protocol v2 on a separate branch: honest candidate counts, broader deterministic evaluation/WFV, no repeated holdout evaluation, dynamic windows, rolling-origin support, and fixed quality gates.
+
+Safety:
+- No strategy changes in this work block.
+- No live/paper/testtrade unlock, orders, API keys, account data, shorts, margin, futures, or leverage.

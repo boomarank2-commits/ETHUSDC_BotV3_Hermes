@@ -1,29 +1,38 @@
 # Blockers
 
-Current blockers:
-- Strategic target is still not reached.
-- Latest multi-cycle loop `research_loop_20260709T213134Z` stopped for `validation_stagnation_3_cycles`.
-- Best validation stayed negative at `-0.0004208934 USDC/day` with only 8 validation trades.
-- Best blindtest audit was only `0.0096502748 USDC/day`, far below `+3 USDC/day`, and is explicitly repeated-audit-only.
-- Candidate improvements increasingly reduced trade frequency; later cycles had only 5, 3, and 2 validation trades.
-- Exit analysis in the last cycle showed stop-loss domination, suggesting entry quality/regime filtering remains unresolved.
-- Exchange info remains unsupported by current public-data downloader path.
-- BookTicker and orderbook snapshot tasks remain live-collector tasks and are not implemented in this UI workflow.
-- Dashboard button is represented in state, but full background UI execution/progress wiring remains a next step.
+Current strategic blocker:
 
-Resolved in this session:
-- Multi-cycle offline research loop runner added.
-- Deterministic search-space generator added.
-- Walk-forward validation helper added.
-- Exit-reason/trade-cause analysis added.
-- Simulator now emits specific exit reasons instead of only generic `rule` exits.
-- Loop reports now include cycle summaries, stop reason, target status, safety locks, WFV summary, family summaries, exit summaries, and repeated blindtest audit marking.
+- The `+3 USDC/day` target is not reached.
+- Post-fix control validation is negative at `-0.0086568356 USDC/day` with profit factor `0.4915795763` and only 17 trades.
+- The consumed audit-window result is also negative at `-0.0012839958 USDC/day` and is not eligible for selection or optimization.
+
+Current methodological blockers:
+
+- `max_candidates_per_cycle=40` is misleading in practice: the generator currently emits 11 candidates and the runner hard-slices evaluation to the first 4.
+- Only one candidate per cycle receives walk-forward validation.
+- The repeatedly viewed 365-day window is consumed and cannot serve as an untouched final holdout.
+- The current loop evaluates that audit window every cycle even though it does not feed programmatic ranking.
+- Research reports do not yet separate generated, tested, WFV, and finalist counts.
+- Rolling-origin robustness across additional historical windows is not implemented.
+- The current `context_filter` does not consume BTCUSDC or ETHBTC data; it only re-runs an ETHUSDC base signal.
+- Fixed numerical quality gates and stress-test acceptance are not yet implemented.
+
+Other known product gaps:
+
+- Exchange info remains unsupported by the current public-data downloader path.
+- BookTicker and orderbook snapshots require future public live collection and must not be fabricated historically.
+- Full background UI execution/progress wiring remains incomplete.
+
+Resolved:
+
+- Diagnostic execution slippage no longer includes normal holding-period market movement.
+- Fees are recorded once per side and slippage is not double-subtracted from P&L.
+- Hand-checkable accounting and all exit paths have regression coverage.
 
 Safety locks remain:
+
 - Live locked.
-- Paper locked.
+- Paper with order endpoints locked.
 - Testtrade locked.
-- No trading API.
-- No keys.
-- No orders.
+- No trading API, keys, account data, or orders.
 - No candidate adoption.

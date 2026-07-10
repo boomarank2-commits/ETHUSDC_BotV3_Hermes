@@ -1,0 +1,2198 @@
+{
+  "all_report_paths": {
+    "index": "reports\\research_loop\\index.jsonl",
+    "json": "reports\\research_loop\\research_loop_20260710T054549Z.json",
+    "txt": "reports\\research_loop\\research_loop_20260710T054549Z.txt"
+  },
+  "best_blindtest_audit_result": {
+    "audit_only_not_selection": true,
+    "average_trade_usdc": -0.0334756038,
+    "blindtest_days": 365,
+    "fees_usdc": 2.8023336751,
+    "max_drawdown_usdc": 5.19814231,
+    "net_profit_usdc": -0.4686584526,
+    "net_usdc_per_day": -0.0012839958,
+    "profit_factor": 0.9423532464,
+    "repeated_blindtest_audit": true,
+    "slippage_usdc": 1.4011677713,
+    "trade_count": 14,
+    "training_days": 730,
+    "winrate": 0.5
+  },
+  "best_candidate": {
+    "candidate_id": "breakout_volatility_filter_01_001",
+    "family": "breakout_volatility_filter",
+    "params": {
+      "break_even_after_bps": 65,
+      "cooldown_minutes": 150,
+      "lookback": 90,
+      "max_hold_minutes": 180,
+      "max_vol_bps": 110,
+      "min_vol_bps": 15,
+      "stop_loss_bps": 91,
+      "symbol": "ETHUSDC",
+      "take_profit_bps": 180,
+      "threshold_bps": 18,
+      "trailing_stop_bps": 70,
+      "volatility_lookback": 240
+    }
+  },
+  "best_validation_result": {
+    "candidate_id": "breakout_volatility_filter_01_001",
+    "family": "breakout_volatility_filter",
+    "net_usdc_per_day": -0.0086568356,
+    "profit_factor": 0.4915795763,
+    "trade_count": 17
+  },
+  "blindtest_policy": "Top candidates are audit-only repeated blindtest audits; search-space adjustments use training/validation/WFV only.",
+  "cycles": [
+    {
+      "best_training_candidate": {
+        "candidate_id": "breakout_volatility_filter_01_002",
+        "family": "breakout_volatility_filter",
+        "net_usdc_per_day": 0.016083065
+      },
+      "best_validation_candidate": {
+        "candidate_id": "breakout_volatility_filter_01_001",
+        "family": "breakout_volatility_filter",
+        "net_usdc_per_day": -0.0086568356,
+        "profit_factor": 0.4915795763,
+        "trade_count": 17
+      },
+      "best_validation_metrics": {
+        "average_trade_usdc": -0.3106276292,
+        "blindtest_days": 365,
+        "fees_usdc": 3.3981174479,
+        "max_drawdown_usdc": 6.6535869543,
+        "net_profit_usdc": -5.2806696959,
+        "net_usdc_per_day": -0.0086568356,
+        "profit_factor": 0.4915795763,
+        "slippage_usdc": 1.6990586783,
+        "trade_count": 17,
+        "training_days": 730,
+        "winrate": 0.2941176471
+      },
+      "blindtest_audit": {
+        "audit_only_not_selection": true,
+        "average_trade_usdc": -0.0334756038,
+        "blindtest_days": 365,
+        "fees_usdc": 2.8023336751,
+        "max_drawdown_usdc": 5.19814231,
+        "net_profit_usdc": -0.4686584526,
+        "net_usdc_per_day": -0.0012839958,
+        "profit_factor": 0.9423532464,
+        "repeated_blindtest_audit": true,
+        "slippage_usdc": 1.4011677713,
+        "trade_count": 14,
+        "training_days": 730,
+        "winrate": 0.5
+      },
+      "candidate_diagnosis": {
+        "best_training_candidate_id": "breakout_volatility_filter_01_002",
+        "best_training_family": "breakout_volatility_filter",
+        "best_validation_candidate_id": "breakout_volatility_filter_01_001",
+        "best_validation_family": "breakout_volatility_filter",
+        "high_cost_candidate_count": 0,
+        "lowest_cost_candidate_id": "breakout_volatility_filter_01_002",
+        "lowest_cost_family": "breakout_volatility_filter",
+        "negative_validation_candidate_count": 4,
+        "overtrading_candidate_count": 0,
+        "overtrading_families": [],
+        "profit_factor_near_one_families": [],
+        "ranking_uses_blindtest": false,
+        "too_few_trades_candidate_count": 2,
+        "too_few_trades_families": [
+          "breakout_volatility_filter"
+        ],
+        "why_not_profitable_enough": "best validation candidate is still negative before blindtest; no sufficient edge shown"
+      },
+      "candidate_leaderboard_summary": [
+        {
+          "blindtest_metrics": {
+            "average_trade_usdc": -0.0334756038,
+            "blindtest_days": 365,
+            "fees_usdc": 2.8023336751,
+            "max_drawdown_usdc": 5.19814231,
+            "net_profit_usdc": -0.4686584526,
+            "net_usdc_per_day": -0.0012839958,
+            "profit_factor": 0.9423532464,
+            "slippage_usdc": 1.4011677713,
+            "trade_count": 14,
+            "training_days": 730,
+            "winrate": 0.5
+          },
+          "candidate_id": "breakout_volatility_filter_01_001",
+          "family": "breakout_volatility_filter",
+          "params": {
+            "break_even_after_bps": 65,
+            "cooldown_minutes": 150,
+            "lookback": 90,
+            "max_hold_minutes": 180,
+            "max_vol_bps": 110,
+            "min_vol_bps": 15,
+            "stop_loss_bps": 91,
+            "symbol": "ETHUSDC",
+            "take_profit_bps": 180,
+            "threshold_bps": 18,
+            "trailing_stop_bps": 70,
+            "volatility_lookback": 240
+          },
+          "rank_position": 1,
+          "rank_score": -0.1984222234,
+          "training_metrics": {
+            "average_trade_usdc": -0.4980418008,
+            "blindtest_days": 365,
+            "fees_usdc": 2.3964199181,
+            "max_drawdown_usdc": 6.3664339014,
+            "net_profit_usdc": -5.9765016092,
+            "net_usdc_per_day": -0.0498041801,
+            "profit_factor": 0.2711819566,
+            "slippage_usdc": 1.1982093637,
+            "trade_count": 12,
+            "training_days": 730,
+            "winrate": 0.25
+          },
+          "validation_metrics": {
+            "average_trade_usdc": -0.3106276292,
+            "blindtest_days": 365,
+            "fees_usdc": 3.3981174479,
+            "max_drawdown_usdc": 6.6535869543,
+            "net_profit_usdc": -5.2806696959,
+            "net_usdc_per_day": -0.0086568356,
+            "profit_factor": 0.4915795763,
+            "slippage_usdc": 1.6990586783,
+            "trade_count": 17,
+            "training_days": 730,
+            "winrate": 0.2941176471
+          },
+          "weaknesses": [
+            "training_negative",
+            "validation_negative",
+            "profit_factor_below_one",
+            "too_few_trades"
+          ],
+          "why_ranked_here": "best conservative validation-only rank; blindtest not used"
+        },
+        {
+          "candidate_id": "breakout_volatility_filter_01_002",
+          "family": "breakout_volatility_filter",
+          "params": {
+            "break_even_after_bps": 80,
+            "cooldown_minutes": 240,
+            "lookback": 180,
+            "max_hold_minutes": 240,
+            "max_vol_bps": 95,
+            "min_vol_bps": 17,
+            "stop_loss_bps": 95,
+            "symbol": "ETHUSDC",
+            "take_profit_bps": 220,
+            "threshold_bps": 22,
+            "trailing_stop_bps": 85,
+            "volatility_lookback": 360
+          },
+          "rank_position": 2,
+          "rank_score": -0.6016211708,
+          "training_metrics": {
+            "average_trade_usdc": 0.6433225992,
+            "blindtest_days": 365,
+            "fees_usdc": 0.6025325004,
+            "max_drawdown_usdc": 0.3795403159,
+            "net_profit_usdc": 1.9299677977,
+            "net_usdc_per_day": 0.016083065,
+            "profit_factor": 6.0850139415,
+            "slippage_usdc": 0.3012669586,
+            "trade_count": 3,
+            "training_days": 730,
+            "winrate": 0.6666666667
+          },
+          "validation_metrics": {
+            "average_trade_usdc": -0.2868770394,
+            "blindtest_days": 365,
+            "fees_usdc": 1.3993912521,
+            "max_drawdown_usdc": 4.1096796844,
+            "net_profit_usdc": -2.0081392756,
+            "net_usdc_per_day": -0.0032920316,
+            "profit_factor": 0.617230375,
+            "slippage_usdc": 0.6996956487,
+            "trade_count": 7,
+            "training_days": 730,
+            "winrate": 0.4285714286
+          },
+          "weaknesses": [
+            "validation_negative",
+            "profit_factor_below_one",
+            "too_few_trades"
+          ],
+          "why_ranked_here": "ranked 2 by validation-only score; net/day=-0.0032920316, pf=0.617230375, trades=7"
+        },
+        {
+          "candidate_id": "cooldown_fee_aware_01_003",
+          "family": "cooldown_fee_aware",
+          "params": {
+            "base_family": "breakout",
+            "break_even_after_bps": 75,
+            "cooldown_minutes": 330,
+            "lookback": 120,
+            "max_hold_minutes": 240,
+            "min_expected_move_bps": 74,
+            "stop_loss_bps": 95,
+            "symbol": "ETHUSDC",
+            "take_profit_bps": 210,
+            "threshold_bps": 24,
+            "trailing_stop_bps": 90
+          },
+          "rank_position": 3,
+          "rank_score": -0.9336213099,
+          "training_metrics": {
+            "average_trade_usdc": -0.2611252561,
+            "blindtest_days": 365,
+            "fees_usdc": 17.3946767797,
+            "max_drawdown_usdc": 22.7178972833,
+            "net_profit_usdc": -22.7178972833,
+            "net_usdc_per_day": -0.1893158107,
+            "profit_factor": 0.5387612535,
+            "slippage_usdc": 8.6973392331,
+            "trade_count": 87,
+            "training_days": 730,
+            "winrate": 0.3563218391
+          },
+          "validation_metrics": {
+            "average_trade_usdc": -0.3517931264,
+            "blindtest_days": 365,
+            "fees_usdc": 26.9794874153,
+            "max_drawdown_usdc": 49.3644892055,
+            "net_profit_usdc": -47.492072062,
+            "net_usdc_per_day": -0.0778558558,
+            "profit_factor": 0.4915085456,
+            "slippage_usdc": 13.489741952,
+            "trade_count": 135,
+            "training_days": 730,
+            "winrate": 0.3333333333
+          },
+          "weaknesses": [
+            "training_negative",
+            "validation_negative",
+            "profit_factor_below_one"
+          ],
+          "why_ranked_here": "ranked 3 by validation-only score; net/day=-0.0778558558, pf=0.4915085456, trades=135"
+        },
+        {
+          "candidate_id": "cooldown_fee_aware_01_004",
+          "family": "cooldown_fee_aware",
+          "params": {
+            "base_family": "momentum",
+            "break_even_after_bps": 95,
+            "cooldown_minutes": 390,
+            "lookback": 180,
+            "max_hold_minutes": 360,
+            "min_expected_move_bps": 94,
+            "stop_loss_bps": 110,
+            "symbol": "ETHUSDC",
+            "take_profit_bps": 250,
+            "threshold_bps": 54,
+            "trailing_stop_bps": 100
+          },
+          "rank_position": 4,
+          "rank_score": -1.4000937316,
+          "training_metrics": {
+            "average_trade_usdc": -0.2556439224,
+            "blindtest_days": 365,
+            "fees_usdc": 38.7891942732,
+            "max_drawdown_usdc": 49.5949209384,
+            "net_profit_usdc": -49.5949209384,
+            "net_usdc_per_day": -0.4132910078,
+            "profit_factor": 0.5940597294,
+            "slippage_usdc": 19.3945992834,
+            "trade_count": 194,
+            "training_days": 730,
+            "winrate": 0.381443299
+          },
+          "validation_metrics": {
+            "average_trade_usdc": -0.1961127581,
+            "blindtest_days": 365,
+            "fees_usdc": 49.4009611099,
+            "max_drawdown_usdc": 54.9582804921,
+            "net_profit_usdc": -48.4398512511,
+            "net_usdc_per_day": -0.0794095922,
+            "profit_factor": 0.6842692705,
+            "slippage_usdc": 24.7004869707,
+            "trade_count": 247,
+            "training_days": 730,
+            "winrate": 0.3967611336
+          },
+          "weaknesses": [
+            "training_negative",
+            "validation_negative",
+            "profit_factor_below_one"
+          ],
+          "why_ranked_here": "ranked 4 by validation-only score; net/day=-0.0794095922, pf=0.6842692705, trades=247"
+        }
+      ],
+      "cycle_id": 1,
+      "exit_reason_summary": {
+        "by_exit_reason": {
+          "break_even": {
+            "average_trade_usdc": -0.4676751068,
+            "count": 3,
+            "fees_usdc": 0.5991961709,
+            "net_usdc": -1.4030253205,
+            "slippage_usdc": 0.2995979594
+          },
+          "stop_loss": {
+            "average_trade_usdc": -1.2570277962,
+            "count": 7,
+            "fees_usdc": 1.3925933989,
+            "net_usdc": -8.7991945732,
+            "slippage_usdc": 0.696295022
+          },
+          "take_profit": {
+            "average_trade_usdc": 2.0465179765,
+            "count": 2,
+            "fees_usdc": 0.4044975335,
+            "net_usdc": 4.093035953,
+            "slippage_usdc": 0.2022499417
+          },
+          "time_exit": {
+            "average_trade_usdc": 0.0253697189,
+            "count": 1,
+            "fees_usdc": 0.2002255953,
+            "net_usdc": 0.0253697189,
+            "slippage_usdc": 0.1001128791
+          },
+          "trailing_stop": {
+            "average_trade_usdc": 0.2007861315,
+            "count": 4,
+            "fees_usdc": 0.8016047493,
+            "net_usdc": 0.8031445259,
+            "slippage_usdc": 0.4008028761
+          }
+        },
+        "cost_load_per_trade": 0.2998338898,
+        "loss_per_losing_trade": -0.8655352686,
+        "stop_loss_share": 0.4117647059,
+        "take_profit_share": 0.1176470588,
+        "time_exit_share": 0.0588235294,
+        "total_trades": 17,
+        "trailing_or_break_even_share": 0.4117647059
+      },
+      "family_aggregate_summary": [
+        {
+          "average_cost_load": 3.5981315135,
+          "average_fees_usdc": 2.39875435,
+          "average_profit_factor": 0.5544049757,
+          "average_slippage_usdc": 1.1993771635,
+          "average_trade_count": 12.0,
+          "average_training_net_usdc_per_day": -0.0168605575,
+          "average_validation_net_usdc_per_day": -0.0059744336,
+          "best_drawdown": 4.1096796844,
+          "best_profit_factor": 0.617230375,
+          "best_training_net_usdc_per_day": 0.016083065,
+          "best_validation_candidate_id": "breakout_volatility_filter_01_002",
+          "best_validation_net_usdc_per_day": -0.0032920316,
+          "candidate_count": 2,
+          "family": "breakout_volatility_filter",
+          "high_cost_count": 0,
+          "max_trade_count": 17,
+          "min_trade_count": 7,
+          "negative_validation_count": 2,
+          "overtrading_count": 0,
+          "too_few_trades_count": 2,
+          "worst_drawdown": 6.6535869543
+        },
+        {
+          "average_cost_load": 57.2853387239,
+          "average_fees_usdc": 38.1902242626,
+          "average_profit_factor": 0.5878889081,
+          "average_slippage_usdc": 19.0951144614,
+          "average_trade_count": 191.0,
+          "average_training_net_usdc_per_day": -0.3013034092,
+          "average_validation_net_usdc_per_day": -0.078632724,
+          "best_drawdown": 49.3644892055,
+          "best_profit_factor": 0.6842692705,
+          "best_training_net_usdc_per_day": -0.1893158107,
+          "best_validation_candidate_id": "cooldown_fee_aware_01_003",
+          "best_validation_net_usdc_per_day": -0.0778558558,
+          "candidate_count": 2,
+          "family": "cooldown_fee_aware",
+          "high_cost_count": 0,
+          "max_trade_count": 247,
+          "min_trade_count": 135,
+          "negative_validation_count": 2,
+          "overtrading_count": 0,
+          "too_few_trades_count": 0,
+          "worst_drawdown": 54.9582804921
+        }
+      ],
+      "family_diagnosis": {
+        "best_training_family": "breakout_volatility_filter",
+        "best_validation_family": "breakout_volatility_filter",
+        "high_cost_families": [],
+        "lowest_cost_family": "breakout_volatility_filter",
+        "overtrading_families": [],
+        "problem_assessment": "missing_edge",
+        "profit_factor_nearest_one_family": "cooldown_fee_aware",
+        "ranking_uses_blindtest": false,
+        "too_few_trades_families": [
+          "breakout_volatility_filter"
+        ]
+      },
+      "full_training_metrics": {
+        "average_trade_usdc": -0.4980418008,
+        "blindtest_days": 365,
+        "fees_usdc": 2.3964199181,
+        "max_drawdown_usdc": 6.3664339014,
+        "net_profit_usdc": -5.9765016092,
+        "net_usdc_per_day": -0.0498041801,
+        "profit_factor": 0.2711819566,
+        "slippage_usdc": 1.1982093637,
+        "trade_count": 12,
+        "training_days": 730,
+        "winrate": 0.25
+      },
+      "generated_candidates": 11,
+      "next_search_space_adjustment": "best validation candidate is still negative before blindtest; no sufficient edge shown",
+      "safety": {
+        "api_keys": "not_used",
+        "binance_trading_api": "not_used",
+        "candidate_adoptable": false,
+        "live": "locked",
+        "orders": "not_created",
+        "paper": "locked",
+        "short_margin_futures_leverage": "forbidden",
+        "testtrade": "locked"
+      },
+      "selected_candidate": {
+        "candidate_id": "breakout_volatility_filter_01_001",
+        "family": "breakout_volatility_filter",
+        "params": {
+          "break_even_after_bps": 65,
+          "cooldown_minutes": 150,
+          "lookback": 90,
+          "max_hold_minutes": 180,
+          "max_vol_bps": 110,
+          "min_vol_bps": 15,
+          "stop_loss_bps": 91,
+          "symbol": "ETHUSDC",
+          "take_profit_bps": 180,
+          "threshold_bps": 18,
+          "trailing_stop_bps": 70,
+          "volatility_lookback": 240
+        }
+      },
+      "selection_source": "training_validation_walk_forward_only",
+      "tested_candidates": 4,
+      "training_evaluation_note": "cycle subtrain uses a deterministic recent-training frontier for loop throughput; WFV remains chronological inside training and blindtest audit remains out-of-sample",
+      "wfv_summary": {
+        "average_validation_net_usdc_per_day": -0.0088686499,
+        "cost_load": 1.7953560928,
+        "fold_count": 4,
+        "folds": [
+          {
+            "fold_id": 1,
+            "metrics": {
+              "average_trade_usdc": 0.0,
+              "blindtest_days": 365,
+              "fees_usdc": 0,
+              "max_drawdown_usdc": 0.0,
+              "net_profit_usdc": 0,
+              "net_usdc_per_day": 0.0,
+              "profit_factor": 0.0,
+              "slippage_usdc": 0,
+              "trade_count": 0,
+              "training_days": 730,
+              "winrate": 0.0
+            },
+            "sampled_validation_candles": 20000,
+            "train_end": 1709884740000,
+            "train_start": 1688860800000,
+            "validation_end": 1720396740000,
+            "validation_start": 1719196800000
+          },
+          {
+            "fold_id": 2,
+            "metrics": {
+              "average_trade_usdc": 0.0,
+              "blindtest_days": 365,
+              "fees_usdc": 0,
+              "max_drawdown_usdc": 0.0,
+              "net_profit_usdc": 0,
+              "net_usdc_per_day": 0.0,
+              "profit_factor": 0.0,
+              "slippage_usdc": 0,
+              "trade_count": 0,
+              "training_days": 730,
+              "winrate": 0.0
+            },
+            "sampled_validation_candles": 20000,
+            "train_end": 1720396740000,
+            "train_start": 1688860800000,
+            "validation_end": 1730908740000,
+            "validation_start": 1729708800000
+          },
+          {
+            "fold_id": 3,
+            "metrics": {
+              "average_trade_usdc": -0.7154044256,
+              "blindtest_days": 365,
+              "fees_usdc": 1.196904478,
+              "max_drawdown_usdc": 5.2797744088,
+              "net_profit_usdc": -4.2924265534,
+              "net_usdc_per_day": -0.0354745996,
+              "profit_factor": 0.1870056898,
+              "slippage_usdc": 0.5984516148,
+              "trade_count": 6,
+              "training_days": 730,
+              "winrate": 0.3333333333
+            },
+            "sampled_validation_candles": 20000,
+            "train_end": 1730908740000,
+            "train_start": 1688860800000,
+            "validation_end": 1741420740000,
+            "validation_start": 1740220800000
+          },
+          {
+            "fold_id": 4,
+            "metrics": {
+              "average_trade_usdc": 0.0,
+              "blindtest_days": 365,
+              "fees_usdc": 0,
+              "max_drawdown_usdc": 0.0,
+              "net_profit_usdc": 0,
+              "net_usdc_per_day": 0.0,
+              "profit_factor": 0.0,
+              "slippage_usdc": 0,
+              "trade_count": 0,
+              "training_days": 730,
+              "winrate": 0.0
+            },
+            "sampled_validation_candles": 20000,
+            "train_end": 1741420740000,
+            "train_start": 1688860800000,
+            "validation_end": 1751932740000,
+            "validation_start": 1750732800000
+          }
+        ],
+        "max_drawdown_usdc": 5.2797744088,
+        "positive_fold_count": 0,
+        "ranking_uses_blindtest": false,
+        "trade_count": 6,
+        "worst_fold_net_usdc_per_day": -0.0354745996
+      }
+    },
+    {
+      "best_training_candidate": {
+        "candidate_id": "breakout_volatility_filter_02_002",
+        "family": "breakout_volatility_filter",
+        "net_usdc_per_day": -0.0060029568
+      },
+      "best_validation_candidate": {
+        "candidate_id": "breakout_volatility_filter_02_001",
+        "family": "breakout_volatility_filter",
+        "net_usdc_per_day": -0.0212667747,
+        "profit_factor": 0.4382481982,
+        "trade_count": 39
+      },
+      "best_validation_metrics": {
+        "average_trade_usdc": -0.3326341678,
+        "blindtest_days": 365,
+        "fees_usdc": 7.7948220895,
+        "max_drawdown_usdc": 15.0088080557,
+        "net_profit_usdc": -12.9727325431,
+        "net_usdc_per_day": -0.0212667747,
+        "profit_factor": 0.4382481982,
+        "slippage_usdc": 3.8974107247,
+        "trade_count": 39,
+        "training_days": 730,
+        "winrate": 0.2564102564
+      },
+      "blindtest_audit": {
+        "audit_only_not_selection": true,
+        "average_trade_usdc": -0.3073804384,
+        "blindtest_days": 365,
+        "fees_usdc": 7.5959154586,
+        "max_drawdown_usdc": 11.7548497798,
+        "net_profit_usdc": -11.6804566604,
+        "net_usdc_per_day": -0.0320012511,
+        "profit_factor": 0.5026753901,
+        "repeated_blindtest_audit": true,
+        "slippage_usdc": 3.7979576578,
+        "trade_count": 38,
+        "training_days": 730,
+        "winrate": 0.3421052632
+      },
+      "candidate_diagnosis": {
+        "best_training_candidate_id": "breakout_volatility_filter_02_002",
+        "best_training_family": "breakout_volatility_filter",
+        "best_validation_candidate_id": "breakout_volatility_filter_02_001",
+        "best_validation_family": "breakout_volatility_filter",
+        "high_cost_candidate_count": 0,
+        "lowest_cost_candidate_id": "breakout_volatility_filter_02_002",
+        "lowest_cost_family": "breakout_volatility_filter",
+        "negative_validation_candidate_count": 4,
+        "overtrading_candidate_count": 0,
+        "overtrading_families": [],
+        "profit_factor_near_one_families": [],
+        "ranking_uses_blindtest": false,
+        "too_few_trades_candidate_count": 1,
+        "too_few_trades_families": [
+          "breakout_volatility_filter"
+        ],
+        "why_not_profitable_enough": "best validation candidate is still negative before blindtest; no sufficient edge shown"
+      },
+      "candidate_leaderboard_summary": [
+        {
+          "blindtest_metrics": {
+            "average_trade_usdc": -0.3073804384,
+            "blindtest_days": 365,
+            "fees_usdc": 7.5959154586,
+            "max_drawdown_usdc": 11.7548497798,
+            "net_profit_usdc": -11.6804566604,
+            "net_usdc_per_day": -0.0320012511,
+            "profit_factor": 0.5026753901,
+            "slippage_usdc": 3.7979576578,
+            "trade_count": 38,
+            "training_days": 730,
+            "winrate": 0.3421052632
+          },
+          "candidate_id": "breakout_volatility_filter_02_001",
+          "family": "breakout_volatility_filter",
+          "params": {
+            "break_even_after_bps": 65,
+            "cooldown_minutes": 110,
+            "lookback": 90,
+            "max_hold_minutes": 180,
+            "max_vol_bps": 110,
+            "min_vol_bps": 13,
+            "stop_loss_bps": 87,
+            "symbol": "ETHUSDC",
+            "take_profit_bps": 160,
+            "threshold_bps": 14,
+            "trailing_stop_bps": 70,
+            "volatility_lookback": 240
+          },
+          "rank_position": 1,
+          "rank_score": -0.2318970152,
+          "training_metrics": {
+            "average_trade_usdc": -0.4788898148,
+            "blindtest_days": 365,
+            "fees_usdc": 4.1941374515,
+            "max_drawdown_usdc": 10.5965925021,
+            "net_profit_usdc": -10.05668611,
+            "net_usdc_per_day": -0.0838057176,
+            "profit_factor": 0.3312823366,
+            "slippage_usdc": 2.0970677843,
+            "trade_count": 21,
+            "training_days": 730,
+            "winrate": 0.1904761905
+          },
+          "validation_metrics": {
+            "average_trade_usdc": -0.3326341678,
+            "blindtest_days": 365,
+            "fees_usdc": 7.7948220895,
+            "max_drawdown_usdc": 15.0088080557,
+            "net_profit_usdc": -12.9727325431,
+            "net_usdc_per_day": -0.0212667747,
+            "profit_factor": 0.4382481982,
+            "slippage_usdc": 3.8974107247,
+            "trade_count": 39,
+            "training_days": 730,
+            "winrate": 0.2564102564
+          },
+          "weaknesses": [
+            "training_negative",
+            "validation_negative",
+            "profit_factor_below_one"
+          ],
+          "why_ranked_here": "best conservative validation-only rank; blindtest not used"
+        },
+        {
+          "candidate_id": "breakout_volatility_filter_02_002",
+          "family": "breakout_volatility_filter",
+          "params": {
+            "break_even_after_bps": 80,
+            "cooldown_minutes": 200,
+            "lookback": 180,
+            "max_hold_minutes": 240,
+            "max_vol_bps": 95,
+            "min_vol_bps": 15,
+            "stop_loss_bps": 95,
+            "symbol": "ETHUSDC",
+            "take_profit_bps": 200,
+            "threshold_bps": 18,
+            "trailing_stop_bps": 85,
+            "volatility_lookback": 360
+          },
+          "rank_position": 2,
+          "rank_score": -0.3475422016,
+          "training_metrics": {
+            "average_trade_usdc": -0.1200591369,
+            "blindtest_days": 365,
+            "fees_usdc": 1.2004801253,
+            "max_drawdown_usdc": 1.6762319519,
+            "net_profit_usdc": -0.7203548215,
+            "net_usdc_per_day": -0.0060029568,
+            "profit_factor": 0.7511926007,
+            "slippage_usdc": 0.6002403327,
+            "trade_count": 6,
+            "training_days": 730,
+            "winrate": 0.5
+          },
+          "validation_metrics": {
+            "average_trade_usdc": -0.2755301704,
+            "blindtest_days": 365,
+            "fees_usdc": 2.599017125,
+            "max_drawdown_usdc": 7.9169230187,
+            "net_profit_usdc": -3.5818922158,
+            "net_usdc_per_day": -0.0058719545,
+            "profit_factor": 0.6327487095,
+            "slippage_usdc": 1.2995086416,
+            "trade_count": 13,
+            "training_days": 730,
+            "winrate": 0.3076923077
+          },
+          "weaknesses": [
+            "training_negative",
+            "validation_negative",
+            "profit_factor_below_one",
+            "too_few_trades"
+          ],
+          "why_ranked_here": "ranked 2 by validation-only score; net/day=-0.0058719545, pf=0.6327487095, trades=13"
+        },
+        {
+          "candidate_id": "cooldown_fee_aware_02_003",
+          "family": "cooldown_fee_aware",
+          "params": {
+            "base_family": "breakout",
+            "break_even_after_bps": 75,
+            "cooldown_minutes": 270,
+            "lookback": 120,
+            "max_hold_minutes": 240,
+            "min_expected_move_bps": 58,
+            "stop_loss_bps": 95,
+            "symbol": "ETHUSDC",
+            "take_profit_bps": 190,
+            "threshold_bps": 20,
+            "trailing_stop_bps": 90
+          },
+          "rank_position": 3,
+          "rank_score": -1.3620768474,
+          "training_metrics": {
+            "average_trade_usdc": -0.3094243395,
+            "blindtest_days": 365,
+            "fees_usdc": 25.5859796651,
+            "max_drawdown_usdc": 41.2975580047,
+            "net_profit_usdc": -39.6063154563,
+            "net_usdc_per_day": -0.3300526288,
+            "profit_factor": 0.4760282537,
+            "slippage_usdc": 12.7929895253,
+            "trade_count": 128,
+            "training_days": 730,
+            "winrate": 0.3515625
+          },
+          "validation_metrics": {
+            "average_trade_usdc": -0.4025260762,
+            "blindtest_days": 365,
+            "fees_usdc": 34.9645224596,
+            "max_drawdown_usdc": 70.53098153,
+            "net_profit_usdc": -70.4420633307,
+            "net_usdc_per_day": -0.1154787923,
+            "profit_factor": 0.4523323519,
+            "slippage_usdc": 17.482256731,
+            "trade_count": 175,
+            "training_days": 730,
+            "winrate": 0.3028571429
+          },
+          "weaknesses": [
+            "training_negative",
+            "validation_negative",
+            "profit_factor_below_one"
+          ],
+          "why_ranked_here": "ranked 3 by validation-only score; net/day=-0.1154787923, pf=0.4523323519, trades=175"
+        },
+        {
+          "candidate_id": "cooldown_fee_aware_02_004",
+          "family": "cooldown_fee_aware",
+          "params": {
+            "base_family": "momentum",
+            "break_even_after_bps": 95,
+            "cooldown_minutes": 330,
+            "lookback": 180,
+            "max_hold_minutes": 360,
+            "min_expected_move_bps": 78,
+            "stop_loss_bps": 110,
+            "symbol": "ETHUSDC",
+            "take_profit_bps": 230,
+            "threshold_bps": 48,
+            "trailing_stop_bps": 100
+          },
+          "rank_position": 4,
+          "rank_score": -2.1477579667,
+          "training_metrics": {
+            "average_trade_usdc": -0.2636223732,
+            "blindtest_days": 365,
+            "fees_usdc": 47.1849700896,
+            "max_drawdown_usdc": 62.2148800698,
+            "net_profit_usdc": -62.2148800698,
+            "net_usdc_per_day": -0.5184573339,
+            "profit_factor": 0.5689837176,
+            "slippage_usdc": 23.5924871856,
+            "trade_count": 236,
+            "training_days": 730,
+            "winrate": 0.4025423729
+          },
+          "validation_metrics": {
+            "average_trade_usdc": -0.3343090701,
+            "blindtest_days": 365,
+            "fees_usdc": 59.1602047193,
+            "max_drawdown_usdc": 102.8054744335,
+            "net_profit_usdc": -98.9554847586,
+            "net_usdc_per_day": -0.1622221062,
+            "profit_factor": 0.5401977146,
+            "slippage_usdc": 29.5800998052,
+            "trade_count": 296,
+            "training_days": 730,
+            "winrate": 0.347972973
+          },
+          "weaknesses": [
+            "training_negative",
+            "validation_negative",
+            "profit_factor_below_one"
+          ],
+          "why_ranked_here": "ranked 4 by validation-only score; net/day=-0.1622221062, pf=0.5401977146, trades=296"
+        }
+      ],
+      "cycle_id": 2,
+      "exit_reason_summary": {
+        "by_exit_reason": {
+          "break_even": {
+            "average_trade_usdc": -0.3674988257,
+            "count": 6,
+            "fees_usdc": 1.198994001,
+            "net_usdc": -2.2049929539,
+            "slippage_usdc": 0.5994968989
+          },
+          "stop_loss": {
+            "average_trade_usdc": -1.2040805844,
+            "count": 17,
+            "fees_usdc": 3.3829135436,
+            "net_usdc": -20.4693699345,
+            "slippage_usdc": 1.6914529232
+          },
+          "take_profit": {
+            "average_trade_usdc": 1.5108102387,
+            "count": 6,
+            "fees_usdc": 1.2102751366,
+            "net_usdc": 9.0648614324,
+            "slippage_usdc": 0.6051402883
+          },
+          "trailing_stop": {
+            "average_trade_usdc": 0.0636768913,
+            "count": 10,
+            "fees_usdc": 2.0026394083,
+            "net_usdc": 0.6367689129,
+            "slippage_usdc": 1.0013206143
+          }
+        },
+        "cost_load_per_trade": 0.2998008414,
+        "loss_per_losing_trade": -0.7963225102,
+        "stop_loss_share": 0.4358974359,
+        "take_profit_share": 0.1538461538,
+        "time_exit_share": 0.0,
+        "total_trades": 39,
+        "trailing_or_break_even_share": 0.4102564103
+      },
+      "family_aggregate_summary": [
+        {
+          "average_cost_load": 7.7953792904,
+          "average_fees_usdc": 5.1969196072,
+          "average_profit_factor": 0.5354984538,
+          "average_slippage_usdc": 2.5984596831,
+          "average_trade_count": 26.0,
+          "average_training_net_usdc_per_day": -0.0449043372,
+          "average_validation_net_usdc_per_day": -0.0135693646,
+          "best_drawdown": 7.9169230187,
+          "best_profit_factor": 0.6327487095,
+          "best_training_net_usdc_per_day": -0.0060029568,
+          "best_validation_candidate_id": "breakout_volatility_filter_02_002",
+          "best_validation_net_usdc_per_day": -0.0058719545,
+          "candidate_count": 2,
+          "family": "breakout_volatility_filter",
+          "high_cost_count": 0,
+          "max_trade_count": 39,
+          "min_trade_count": 13,
+          "negative_validation_count": 2,
+          "overtrading_count": 0,
+          "too_few_trades_count": 1,
+          "worst_drawdown": 15.0088080557
+        },
+        {
+          "average_cost_load": 70.5935418576,
+          "average_fees_usdc": 47.0623635895,
+          "average_profit_factor": 0.4962650332,
+          "average_slippage_usdc": 23.5311782681,
+          "average_trade_count": 235.5,
+          "average_training_net_usdc_per_day": -0.4242549814,
+          "average_validation_net_usdc_per_day": -0.1388504493,
+          "best_drawdown": 70.53098153,
+          "best_profit_factor": 0.5401977146,
+          "best_training_net_usdc_per_day": -0.3300526288,
+          "best_validation_candidate_id": "cooldown_fee_aware_02_003",
+          "best_validation_net_usdc_per_day": -0.1154787923,
+          "candidate_count": 2,
+          "family": "cooldown_fee_aware",
+          "high_cost_count": 0,
+          "max_trade_count": 296,
+          "min_trade_count": 175,
+          "negative_validation_count": 2,
+          "overtrading_count": 0,
+          "too_few_trades_count": 0,
+          "worst_drawdown": 102.8054744335
+        }
+      ],
+      "family_diagnosis": {
+        "best_training_family": "breakout_volatility_filter",
+        "best_validation_family": "breakout_volatility_filter",
+        "high_cost_families": [],
+        "lowest_cost_family": "breakout_volatility_filter",
+        "overtrading_families": [],
+        "problem_assessment": "missing_edge",
+        "profit_factor_nearest_one_family": "breakout_volatility_filter",
+        "ranking_uses_blindtest": false,
+        "too_few_trades_families": [
+          "breakout_volatility_filter"
+        ]
+      },
+      "full_training_metrics": {
+        "average_trade_usdc": -0.4788898148,
+        "blindtest_days": 365,
+        "fees_usdc": 4.1941374515,
+        "max_drawdown_usdc": 10.5965925021,
+        "net_profit_usdc": -10.05668611,
+        "net_usdc_per_day": -0.0838057176,
+        "profit_factor": 0.3312823366,
+        "slippage_usdc": 2.0970677843,
+        "trade_count": 21,
+        "training_days": 730,
+        "winrate": 0.1904761905
+      },
+      "generated_candidates": 11,
+      "next_search_space_adjustment": "best validation candidate is still negative before blindtest; no sufficient edge shown",
+      "safety": {
+        "api_keys": "not_used",
+        "binance_trading_api": "not_used",
+        "candidate_adoptable": false,
+        "live": "locked",
+        "orders": "not_created",
+        "paper": "locked",
+        "short_margin_futures_leverage": "forbidden",
+        "testtrade": "locked"
+      },
+      "selected_candidate": {
+        "candidate_id": "breakout_volatility_filter_02_001",
+        "family": "breakout_volatility_filter",
+        "params": {
+          "break_even_after_bps": 65,
+          "cooldown_minutes": 110,
+          "lookback": 90,
+          "max_hold_minutes": 180,
+          "max_vol_bps": 110,
+          "min_vol_bps": 13,
+          "stop_loss_bps": 87,
+          "symbol": "ETHUSDC",
+          "take_profit_bps": 160,
+          "threshold_bps": 14,
+          "trailing_stop_bps": 70,
+          "volatility_lookback": 240
+        }
+      },
+      "selection_source": "training_validation_walk_forward_only",
+      "tested_candidates": 4,
+      "training_evaluation_note": "cycle subtrain uses a deterministic recent-training frontier for loop throughput; WFV remains chronological inside training and blindtest audit remains out-of-sample",
+      "wfv_summary": {
+        "average_validation_net_usdc_per_day": -0.0026341918,
+        "cost_load": 3.3013894724,
+        "fold_count": 4,
+        "folds": [
+          {
+            "fold_id": 1,
+            "metrics": {
+              "average_trade_usdc": 0.0,
+              "blindtest_days": 365,
+              "fees_usdc": 0,
+              "max_drawdown_usdc": 0.0,
+              "net_profit_usdc": 0,
+              "net_usdc_per_day": 0.0,
+              "profit_factor": 0.0,
+              "slippage_usdc": 0,
+              "trade_count": 0,
+              "training_days": 730,
+              "winrate": 0.0
+            },
+            "sampled_validation_candles": 20000,
+            "train_end": 1709884740000,
+            "train_start": 1688860800000,
+            "validation_end": 1720396740000,
+            "validation_start": 1719196800000
+          },
+          {
+            "fold_id": 2,
+            "metrics": {
+              "average_trade_usdc": 0.0,
+              "blindtest_days": 365,
+              "fees_usdc": 0,
+              "max_drawdown_usdc": 0.0,
+              "net_profit_usdc": 0,
+              "net_usdc_per_day": 0.0,
+              "profit_factor": 0.0,
+              "slippage_usdc": 0,
+              "trade_count": 0,
+              "training_days": 730,
+              "winrate": 0.0
+            },
+            "sampled_validation_candles": 20000,
+            "train_end": 1720396740000,
+            "train_start": 1688860800000,
+            "validation_end": 1730908740000,
+            "validation_start": 1729708800000
+          },
+          {
+            "fold_id": 3,
+            "metrics": {
+              "average_trade_usdc": -0.1159044368,
+              "blindtest_days": 365,
+              "fees_usdc": 2.2009259772,
+              "max_drawdown_usdc": 2.354320805,
+              "net_profit_usdc": -1.2749488044,
+              "net_usdc_per_day": -0.010536767,
+              "profit_factor": 0.7584686085,
+              "slippage_usdc": 1.1004634952,
+              "trade_count": 11,
+              "training_days": 730,
+              "winrate": 0.3636363636
+            },
+            "sampled_validation_candles": 20000,
+            "train_end": 1730908740000,
+            "train_start": 1688860800000,
+            "validation_end": 1741420740000,
+            "validation_start": 1740220800000
+          },
+          {
+            "fold_id": 4,
+            "metrics": {
+              "average_trade_usdc": 0.0,
+              "blindtest_days": 365,
+              "fees_usdc": 0,
+              "max_drawdown_usdc": 0.0,
+              "net_profit_usdc": 0,
+              "net_usdc_per_day": 0.0,
+              "profit_factor": 0.0,
+              "slippage_usdc": 0,
+              "trade_count": 0,
+              "training_days": 730,
+              "winrate": 0.0
+            },
+            "sampled_validation_candles": 20000,
+            "train_end": 1741420740000,
+            "train_start": 1688860800000,
+            "validation_end": 1751932740000,
+            "validation_start": 1750732800000
+          }
+        ],
+        "max_drawdown_usdc": 2.354320805,
+        "positive_fold_count": 0,
+        "ranking_uses_blindtest": false,
+        "trade_count": 11,
+        "worst_fold_net_usdc_per_day": -0.010536767
+      }
+    },
+    {
+      "best_training_candidate": {
+        "candidate_id": "breakout_volatility_filter_03_002",
+        "family": "breakout_volatility_filter",
+        "net_usdc_per_day": 0.016083065
+      },
+      "best_validation_candidate": {
+        "candidate_id": "breakout_volatility_filter_03_001",
+        "family": "breakout_volatility_filter",
+        "net_usdc_per_day": -0.0086568356,
+        "profit_factor": 0.4915795763,
+        "trade_count": 17
+      },
+      "best_validation_metrics": {
+        "average_trade_usdc": -0.3106276292,
+        "blindtest_days": 365,
+        "fees_usdc": 3.3981174479,
+        "max_drawdown_usdc": 6.6535869543,
+        "net_profit_usdc": -5.2806696959,
+        "net_usdc_per_day": -0.0086568356,
+        "profit_factor": 0.4915795763,
+        "slippage_usdc": 1.6990586783,
+        "trade_count": 17,
+        "training_days": 730,
+        "winrate": 0.2941176471
+      },
+      "blindtest_audit": {
+        "audit_only_not_selection": true,
+        "average_trade_usdc": -0.0334756038,
+        "blindtest_days": 365,
+        "fees_usdc": 2.8023336751,
+        "max_drawdown_usdc": 5.19814231,
+        "net_profit_usdc": -0.4686584526,
+        "net_usdc_per_day": -0.0012839958,
+        "profit_factor": 0.9423532464,
+        "repeated_blindtest_audit": true,
+        "slippage_usdc": 1.4011677713,
+        "trade_count": 14,
+        "training_days": 730,
+        "winrate": 0.5
+      },
+      "candidate_diagnosis": {
+        "best_training_candidate_id": "breakout_volatility_filter_03_002",
+        "best_training_family": "breakout_volatility_filter",
+        "best_validation_candidate_id": "breakout_volatility_filter_03_001",
+        "best_validation_family": "breakout_volatility_filter",
+        "high_cost_candidate_count": 0,
+        "lowest_cost_candidate_id": "breakout_volatility_filter_03_002",
+        "lowest_cost_family": "breakout_volatility_filter",
+        "negative_validation_candidate_count": 4,
+        "overtrading_candidate_count": 0,
+        "overtrading_families": [],
+        "profit_factor_near_one_families": [],
+        "ranking_uses_blindtest": false,
+        "too_few_trades_candidate_count": 2,
+        "too_few_trades_families": [
+          "breakout_volatility_filter"
+        ],
+        "why_not_profitable_enough": "best validation candidate is still negative before blindtest; no sufficient edge shown"
+      },
+      "candidate_leaderboard_summary": [
+        {
+          "blindtest_metrics": {
+            "average_trade_usdc": -0.0334756038,
+            "blindtest_days": 365,
+            "fees_usdc": 2.8023336751,
+            "max_drawdown_usdc": 5.19814231,
+            "net_profit_usdc": -0.4686584526,
+            "net_usdc_per_day": -0.0012839958,
+            "profit_factor": 0.9423532464,
+            "slippage_usdc": 1.4011677713,
+            "trade_count": 14,
+            "training_days": 730,
+            "winrate": 0.5
+          },
+          "candidate_id": "breakout_volatility_filter_03_001",
+          "family": "breakout_volatility_filter",
+          "params": {
+            "break_even_after_bps": 65,
+            "cooldown_minutes": 150,
+            "lookback": 90,
+            "max_hold_minutes": 180,
+            "max_vol_bps": 110,
+            "min_vol_bps": 15,
+            "stop_loss_bps": 91,
+            "symbol": "ETHUSDC",
+            "take_profit_bps": 180,
+            "threshold_bps": 18,
+            "trailing_stop_bps": 70,
+            "volatility_lookback": 240
+          },
+          "rank_position": 1,
+          "rank_score": -0.1984222234,
+          "training_metrics": {
+            "average_trade_usdc": -0.4980418008,
+            "blindtest_days": 365,
+            "fees_usdc": 2.3964199181,
+            "max_drawdown_usdc": 6.3664339014,
+            "net_profit_usdc": -5.9765016092,
+            "net_usdc_per_day": -0.0498041801,
+            "profit_factor": 0.2711819566,
+            "slippage_usdc": 1.1982093637,
+            "trade_count": 12,
+            "training_days": 730,
+            "winrate": 0.25
+          },
+          "validation_metrics": {
+            "average_trade_usdc": -0.3106276292,
+            "blindtest_days": 365,
+            "fees_usdc": 3.3981174479,
+            "max_drawdown_usdc": 6.6535869543,
+            "net_profit_usdc": -5.2806696959,
+            "net_usdc_per_day": -0.0086568356,
+            "profit_factor": 0.4915795763,
+            "slippage_usdc": 1.6990586783,
+            "trade_count": 17,
+            "training_days": 730,
+            "winrate": 0.2941176471
+          },
+          "weaknesses": [
+            "training_negative",
+            "validation_negative",
+            "profit_factor_below_one",
+            "too_few_trades"
+          ],
+          "why_ranked_here": "best conservative validation-only rank; blindtest not used"
+        },
+        {
+          "candidate_id": "breakout_volatility_filter_03_002",
+          "family": "breakout_volatility_filter",
+          "params": {
+            "break_even_after_bps": 80,
+            "cooldown_minutes": 240,
+            "lookback": 180,
+            "max_hold_minutes": 240,
+            "max_vol_bps": 95,
+            "min_vol_bps": 17,
+            "stop_loss_bps": 95,
+            "symbol": "ETHUSDC",
+            "take_profit_bps": 220,
+            "threshold_bps": 22,
+            "trailing_stop_bps": 85,
+            "volatility_lookback": 360
+          },
+          "rank_position": 2,
+          "rank_score": -0.6016211708,
+          "training_metrics": {
+            "average_trade_usdc": 0.6433225992,
+            "blindtest_days": 365,
+            "fees_usdc": 0.6025325004,
+            "max_drawdown_usdc": 0.3795403159,
+            "net_profit_usdc": 1.9299677977,
+            "net_usdc_per_day": 0.016083065,
+            "profit_factor": 6.0850139415,
+            "slippage_usdc": 0.3012669586,
+            "trade_count": 3,
+            "training_days": 730,
+            "winrate": 0.6666666667
+          },
+          "validation_metrics": {
+            "average_trade_usdc": -0.2868770394,
+            "blindtest_days": 365,
+            "fees_usdc": 1.3993912521,
+            "max_drawdown_usdc": 4.1096796844,
+            "net_profit_usdc": -2.0081392756,
+            "net_usdc_per_day": -0.0032920316,
+            "profit_factor": 0.617230375,
+            "slippage_usdc": 0.6996956487,
+            "trade_count": 7,
+            "training_days": 730,
+            "winrate": 0.4285714286
+          },
+          "weaknesses": [
+            "validation_negative",
+            "profit_factor_below_one",
+            "too_few_trades"
+          ],
+          "why_ranked_here": "ranked 2 by validation-only score; net/day=-0.0032920316, pf=0.617230375, trades=7"
+        },
+        {
+          "candidate_id": "cooldown_fee_aware_03_003",
+          "family": "cooldown_fee_aware",
+          "params": {
+            "base_family": "breakout",
+            "break_even_after_bps": 75,
+            "cooldown_minutes": 330,
+            "lookback": 120,
+            "max_hold_minutes": 240,
+            "min_expected_move_bps": 74,
+            "stop_loss_bps": 95,
+            "symbol": "ETHUSDC",
+            "take_profit_bps": 210,
+            "threshold_bps": 24,
+            "trailing_stop_bps": 90
+          },
+          "rank_position": 3,
+          "rank_score": -0.9336213099,
+          "training_metrics": {
+            "average_trade_usdc": -0.2611252561,
+            "blindtest_days": 365,
+            "fees_usdc": 17.3946767797,
+            "max_drawdown_usdc": 22.7178972833,
+            "net_profit_usdc": -22.7178972833,
+            "net_usdc_per_day": -0.1893158107,
+            "profit_factor": 0.5387612535,
+            "slippage_usdc": 8.6973392331,
+            "trade_count": 87,
+            "training_days": 730,
+            "winrate": 0.3563218391
+          },
+          "validation_metrics": {
+            "average_trade_usdc": -0.3517931264,
+            "blindtest_days": 365,
+            "fees_usdc": 26.9794874153,
+            "max_drawdown_usdc": 49.3644892055,
+            "net_profit_usdc": -47.492072062,
+            "net_usdc_per_day": -0.0778558558,
+            "profit_factor": 0.4915085456,
+            "slippage_usdc": 13.489741952,
+            "trade_count": 135,
+            "training_days": 730,
+            "winrate": 0.3333333333
+          },
+          "weaknesses": [
+            "training_negative",
+            "validation_negative",
+            "profit_factor_below_one"
+          ],
+          "why_ranked_here": "ranked 3 by validation-only score; net/day=-0.0778558558, pf=0.4915085456, trades=135"
+        },
+        {
+          "candidate_id": "cooldown_fee_aware_03_004",
+          "family": "cooldown_fee_aware",
+          "params": {
+            "base_family": "momentum",
+            "break_even_after_bps": 95,
+            "cooldown_minutes": 390,
+            "lookback": 180,
+            "max_hold_minutes": 360,
+            "min_expected_move_bps": 94,
+            "stop_loss_bps": 110,
+            "symbol": "ETHUSDC",
+            "take_profit_bps": 250,
+            "threshold_bps": 54,
+            "trailing_stop_bps": 100
+          },
+          "rank_position": 4,
+          "rank_score": -1.4000937316,
+          "training_metrics": {
+            "average_trade_usdc": -0.2556439224,
+            "blindtest_days": 365,
+            "fees_usdc": 38.7891942732,
+            "max_drawdown_usdc": 49.5949209384,
+            "net_profit_usdc": -49.5949209384,
+            "net_usdc_per_day": -0.4132910078,
+            "profit_factor": 0.5940597294,
+            "slippage_usdc": 19.3945992834,
+            "trade_count": 194,
+            "training_days": 730,
+            "winrate": 0.381443299
+          },
+          "validation_metrics": {
+            "average_trade_usdc": -0.1961127581,
+            "blindtest_days": 365,
+            "fees_usdc": 49.4009611099,
+            "max_drawdown_usdc": 54.9582804921,
+            "net_profit_usdc": -48.4398512511,
+            "net_usdc_per_day": -0.0794095922,
+            "profit_factor": 0.6842692705,
+            "slippage_usdc": 24.7004869707,
+            "trade_count": 247,
+            "training_days": 730,
+            "winrate": 0.3967611336
+          },
+          "weaknesses": [
+            "training_negative",
+            "validation_negative",
+            "profit_factor_below_one"
+          ],
+          "why_ranked_here": "ranked 4 by validation-only score; net/day=-0.0794095922, pf=0.6842692705, trades=247"
+        }
+      ],
+      "cycle_id": 3,
+      "exit_reason_summary": {
+        "by_exit_reason": {
+          "break_even": {
+            "average_trade_usdc": -0.4676751068,
+            "count": 3,
+            "fees_usdc": 0.5991961709,
+            "net_usdc": -1.4030253205,
+            "slippage_usdc": 0.2995979594
+          },
+          "stop_loss": {
+            "average_trade_usdc": -1.2570277962,
+            "count": 7,
+            "fees_usdc": 1.3925933989,
+            "net_usdc": -8.7991945732,
+            "slippage_usdc": 0.696295022
+          },
+          "take_profit": {
+            "average_trade_usdc": 2.0465179765,
+            "count": 2,
+            "fees_usdc": 0.4044975335,
+            "net_usdc": 4.093035953,
+            "slippage_usdc": 0.2022499417
+          },
+          "time_exit": {
+            "average_trade_usdc": 0.0253697189,
+            "count": 1,
+            "fees_usdc": 0.2002255953,
+            "net_usdc": 0.0253697189,
+            "slippage_usdc": 0.1001128791
+          },
+          "trailing_stop": {
+            "average_trade_usdc": 0.2007861315,
+            "count": 4,
+            "fees_usdc": 0.8016047493,
+            "net_usdc": 0.8031445259,
+            "slippage_usdc": 0.4008028761
+          }
+        },
+        "cost_load_per_trade": 0.2998338898,
+        "loss_per_losing_trade": -0.8655352686,
+        "stop_loss_share": 0.4117647059,
+        "take_profit_share": 0.1176470588,
+        "time_exit_share": 0.0588235294,
+        "total_trades": 17,
+        "trailing_or_break_even_share": 0.4117647059
+      },
+      "family_aggregate_summary": [
+        {
+          "average_cost_load": 3.5981315135,
+          "average_fees_usdc": 2.39875435,
+          "average_profit_factor": 0.5544049757,
+          "average_slippage_usdc": 1.1993771635,
+          "average_trade_count": 12.0,
+          "average_training_net_usdc_per_day": -0.0168605575,
+          "average_validation_net_usdc_per_day": -0.0059744336,
+          "best_drawdown": 4.1096796844,
+          "best_profit_factor": 0.617230375,
+          "best_training_net_usdc_per_day": 0.016083065,
+          "best_validation_candidate_id": "breakout_volatility_filter_03_002",
+          "best_validation_net_usdc_per_day": -0.0032920316,
+          "candidate_count": 2,
+          "family": "breakout_volatility_filter",
+          "high_cost_count": 0,
+          "max_trade_count": 17,
+          "min_trade_count": 7,
+          "negative_validation_count": 2,
+          "overtrading_count": 0,
+          "too_few_trades_count": 2,
+          "worst_drawdown": 6.6535869543
+        },
+        {
+          "average_cost_load": 57.2853387239,
+          "average_fees_usdc": 38.1902242626,
+          "average_profit_factor": 0.5878889081,
+          "average_slippage_usdc": 19.0951144614,
+          "average_trade_count": 191.0,
+          "average_training_net_usdc_per_day": -0.3013034092,
+          "average_validation_net_usdc_per_day": -0.078632724,
+          "best_drawdown": 49.3644892055,
+          "best_profit_factor": 0.6842692705,
+          "best_training_net_usdc_per_day": -0.1893158107,
+          "best_validation_candidate_id": "cooldown_fee_aware_03_003",
+          "best_validation_net_usdc_per_day": -0.0778558558,
+          "candidate_count": 2,
+          "family": "cooldown_fee_aware",
+          "high_cost_count": 0,
+          "max_trade_count": 247,
+          "min_trade_count": 135,
+          "negative_validation_count": 2,
+          "overtrading_count": 0,
+          "too_few_trades_count": 0,
+          "worst_drawdown": 54.9582804921
+        }
+      ],
+      "family_diagnosis": {
+        "best_training_family": "breakout_volatility_filter",
+        "best_validation_family": "breakout_volatility_filter",
+        "high_cost_families": [],
+        "lowest_cost_family": "breakout_volatility_filter",
+        "overtrading_families": [],
+        "problem_assessment": "missing_edge",
+        "profit_factor_nearest_one_family": "cooldown_fee_aware",
+        "ranking_uses_blindtest": false,
+        "too_few_trades_families": [
+          "breakout_volatility_filter"
+        ]
+      },
+      "full_training_metrics": {
+        "average_trade_usdc": -0.4980418008,
+        "blindtest_days": 365,
+        "fees_usdc": 2.3964199181,
+        "max_drawdown_usdc": 6.3664339014,
+        "net_profit_usdc": -5.9765016092,
+        "net_usdc_per_day": -0.0498041801,
+        "profit_factor": 0.2711819566,
+        "slippage_usdc": 1.1982093637,
+        "trade_count": 12,
+        "training_days": 730,
+        "winrate": 0.25
+      },
+      "generated_candidates": 11,
+      "next_search_space_adjustment": "best validation candidate is still negative before blindtest; no sufficient edge shown",
+      "safety": {
+        "api_keys": "not_used",
+        "binance_trading_api": "not_used",
+        "candidate_adoptable": false,
+        "live": "locked",
+        "orders": "not_created",
+        "paper": "locked",
+        "short_margin_futures_leverage": "forbidden",
+        "testtrade": "locked"
+      },
+      "selected_candidate": {
+        "candidate_id": "breakout_volatility_filter_03_001",
+        "family": "breakout_volatility_filter",
+        "params": {
+          "break_even_after_bps": 65,
+          "cooldown_minutes": 150,
+          "lookback": 90,
+          "max_hold_minutes": 180,
+          "max_vol_bps": 110,
+          "min_vol_bps": 15,
+          "stop_loss_bps": 91,
+          "symbol": "ETHUSDC",
+          "take_profit_bps": 180,
+          "threshold_bps": 18,
+          "trailing_stop_bps": 70,
+          "volatility_lookback": 240
+        }
+      },
+      "selection_source": "training_validation_walk_forward_only",
+      "tested_candidates": 4,
+      "training_evaluation_note": "cycle subtrain uses a deterministic recent-training frontier for loop throughput; WFV remains chronological inside training and blindtest audit remains out-of-sample",
+      "wfv_summary": {
+        "average_validation_net_usdc_per_day": -0.0088686499,
+        "cost_load": 1.7953560928,
+        "fold_count": 4,
+        "folds": [
+          {
+            "fold_id": 1,
+            "metrics": {
+              "average_trade_usdc": 0.0,
+              "blindtest_days": 365,
+              "fees_usdc": 0,
+              "max_drawdown_usdc": 0.0,
+              "net_profit_usdc": 0,
+              "net_usdc_per_day": 0.0,
+              "profit_factor": 0.0,
+              "slippage_usdc": 0,
+              "trade_count": 0,
+              "training_days": 730,
+              "winrate": 0.0
+            },
+            "sampled_validation_candles": 20000,
+            "train_end": 1709884740000,
+            "train_start": 1688860800000,
+            "validation_end": 1720396740000,
+            "validation_start": 1719196800000
+          },
+          {
+            "fold_id": 2,
+            "metrics": {
+              "average_trade_usdc": 0.0,
+              "blindtest_days": 365,
+              "fees_usdc": 0,
+              "max_drawdown_usdc": 0.0,
+              "net_profit_usdc": 0,
+              "net_usdc_per_day": 0.0,
+              "profit_factor": 0.0,
+              "slippage_usdc": 0,
+              "trade_count": 0,
+              "training_days": 730,
+              "winrate": 0.0
+            },
+            "sampled_validation_candles": 20000,
+            "train_end": 1720396740000,
+            "train_start": 1688860800000,
+            "validation_end": 1730908740000,
+            "validation_start": 1729708800000
+          },
+          {
+            "fold_id": 3,
+            "metrics": {
+              "average_trade_usdc": -0.7154044256,
+              "blindtest_days": 365,
+              "fees_usdc": 1.196904478,
+              "max_drawdown_usdc": 5.2797744088,
+              "net_profit_usdc": -4.2924265534,
+              "net_usdc_per_day": -0.0354745996,
+              "profit_factor": 0.1870056898,
+              "slippage_usdc": 0.5984516148,
+              "trade_count": 6,
+              "training_days": 730,
+              "winrate": 0.3333333333
+            },
+            "sampled_validation_candles": 20000,
+            "train_end": 1730908740000,
+            "train_start": 1688860800000,
+            "validation_end": 1741420740000,
+            "validation_start": 1740220800000
+          },
+          {
+            "fold_id": 4,
+            "metrics": {
+              "average_trade_usdc": 0.0,
+              "blindtest_days": 365,
+              "fees_usdc": 0,
+              "max_drawdown_usdc": 0.0,
+              "net_profit_usdc": 0,
+              "net_usdc_per_day": 0.0,
+              "profit_factor": 0.0,
+              "slippage_usdc": 0,
+              "trade_count": 0,
+              "training_days": 730,
+              "winrate": 0.0
+            },
+            "sampled_validation_candles": 20000,
+            "train_end": 1741420740000,
+            "train_start": 1688860800000,
+            "validation_end": 1751932740000,
+            "validation_start": 1750732800000
+          }
+        ],
+        "max_drawdown_usdc": 5.2797744088,
+        "positive_fold_count": 0,
+        "ranking_uses_blindtest": false,
+        "trade_count": 6,
+        "worst_fold_net_usdc_per_day": -0.0354745996
+      }
+    },
+    {
+      "best_training_candidate": {
+        "candidate_id": "breakout_volatility_filter_04_002",
+        "family": "breakout_volatility_filter",
+        "net_usdc_per_day": 0.016083065
+      },
+      "best_validation_candidate": {
+        "candidate_id": "breakout_volatility_filter_04_001",
+        "family": "breakout_volatility_filter",
+        "net_usdc_per_day": -0.0086568356,
+        "profit_factor": 0.4915795763,
+        "trade_count": 17
+      },
+      "best_validation_metrics": {
+        "average_trade_usdc": -0.3106276292,
+        "blindtest_days": 365,
+        "fees_usdc": 3.3981174479,
+        "max_drawdown_usdc": 6.6535869543,
+        "net_profit_usdc": -5.2806696959,
+        "net_usdc_per_day": -0.0086568356,
+        "profit_factor": 0.4915795763,
+        "slippage_usdc": 1.6990586783,
+        "trade_count": 17,
+        "training_days": 730,
+        "winrate": 0.2941176471
+      },
+      "blindtest_audit": {
+        "audit_only_not_selection": true,
+        "average_trade_usdc": -0.0334756038,
+        "blindtest_days": 365,
+        "fees_usdc": 2.8023336751,
+        "max_drawdown_usdc": 5.19814231,
+        "net_profit_usdc": -0.4686584526,
+        "net_usdc_per_day": -0.0012839958,
+        "profit_factor": 0.9423532464,
+        "repeated_blindtest_audit": true,
+        "slippage_usdc": 1.4011677713,
+        "trade_count": 14,
+        "training_days": 730,
+        "winrate": 0.5
+      },
+      "candidate_diagnosis": {
+        "best_training_candidate_id": "breakout_volatility_filter_04_002",
+        "best_training_family": "breakout_volatility_filter",
+        "best_validation_candidate_id": "breakout_volatility_filter_04_001",
+        "best_validation_family": "breakout_volatility_filter",
+        "high_cost_candidate_count": 0,
+        "lowest_cost_candidate_id": "breakout_volatility_filter_04_002",
+        "lowest_cost_family": "breakout_volatility_filter",
+        "negative_validation_candidate_count": 4,
+        "overtrading_candidate_count": 0,
+        "overtrading_families": [],
+        "profit_factor_near_one_families": [],
+        "ranking_uses_blindtest": false,
+        "too_few_trades_candidate_count": 2,
+        "too_few_trades_families": [
+          "breakout_volatility_filter"
+        ],
+        "why_not_profitable_enough": "best validation candidate is still negative before blindtest; no sufficient edge shown"
+      },
+      "candidate_leaderboard_summary": [
+        {
+          "blindtest_metrics": {
+            "average_trade_usdc": -0.0334756038,
+            "blindtest_days": 365,
+            "fees_usdc": 2.8023336751,
+            "max_drawdown_usdc": 5.19814231,
+            "net_profit_usdc": -0.4686584526,
+            "net_usdc_per_day": -0.0012839958,
+            "profit_factor": 0.9423532464,
+            "slippage_usdc": 1.4011677713,
+            "trade_count": 14,
+            "training_days": 730,
+            "winrate": 0.5
+          },
+          "candidate_id": "breakout_volatility_filter_04_001",
+          "family": "breakout_volatility_filter",
+          "params": {
+            "break_even_after_bps": 65,
+            "cooldown_minutes": 150,
+            "lookback": 90,
+            "max_hold_minutes": 180,
+            "max_vol_bps": 110,
+            "min_vol_bps": 15,
+            "stop_loss_bps": 91,
+            "symbol": "ETHUSDC",
+            "take_profit_bps": 180,
+            "threshold_bps": 18,
+            "trailing_stop_bps": 70,
+            "volatility_lookback": 240
+          },
+          "rank_position": 1,
+          "rank_score": -0.1984222234,
+          "training_metrics": {
+            "average_trade_usdc": -0.4980418008,
+            "blindtest_days": 365,
+            "fees_usdc": 2.3964199181,
+            "max_drawdown_usdc": 6.3664339014,
+            "net_profit_usdc": -5.9765016092,
+            "net_usdc_per_day": -0.0498041801,
+            "profit_factor": 0.2711819566,
+            "slippage_usdc": 1.1982093637,
+            "trade_count": 12,
+            "training_days": 730,
+            "winrate": 0.25
+          },
+          "validation_metrics": {
+            "average_trade_usdc": -0.3106276292,
+            "blindtest_days": 365,
+            "fees_usdc": 3.3981174479,
+            "max_drawdown_usdc": 6.6535869543,
+            "net_profit_usdc": -5.2806696959,
+            "net_usdc_per_day": -0.0086568356,
+            "profit_factor": 0.4915795763,
+            "slippage_usdc": 1.6990586783,
+            "trade_count": 17,
+            "training_days": 730,
+            "winrate": 0.2941176471
+          },
+          "weaknesses": [
+            "training_negative",
+            "validation_negative",
+            "profit_factor_below_one",
+            "too_few_trades"
+          ],
+          "why_ranked_here": "best conservative validation-only rank; blindtest not used"
+        },
+        {
+          "candidate_id": "breakout_volatility_filter_04_002",
+          "family": "breakout_volatility_filter",
+          "params": {
+            "break_even_after_bps": 80,
+            "cooldown_minutes": 240,
+            "lookback": 180,
+            "max_hold_minutes": 240,
+            "max_vol_bps": 95,
+            "min_vol_bps": 17,
+            "stop_loss_bps": 95,
+            "symbol": "ETHUSDC",
+            "take_profit_bps": 220,
+            "threshold_bps": 22,
+            "trailing_stop_bps": 85,
+            "volatility_lookback": 360
+          },
+          "rank_position": 2,
+          "rank_score": -0.6016211708,
+          "training_metrics": {
+            "average_trade_usdc": 0.6433225992,
+            "blindtest_days": 365,
+            "fees_usdc": 0.6025325004,
+            "max_drawdown_usdc": 0.3795403159,
+            "net_profit_usdc": 1.9299677977,
+            "net_usdc_per_day": 0.016083065,
+            "profit_factor": 6.0850139415,
+            "slippage_usdc": 0.3012669586,
+            "trade_count": 3,
+            "training_days": 730,
+            "winrate": 0.6666666667
+          },
+          "validation_metrics": {
+            "average_trade_usdc": -0.2868770394,
+            "blindtest_days": 365,
+            "fees_usdc": 1.3993912521,
+            "max_drawdown_usdc": 4.1096796844,
+            "net_profit_usdc": -2.0081392756,
+            "net_usdc_per_day": -0.0032920316,
+            "profit_factor": 0.617230375,
+            "slippage_usdc": 0.6996956487,
+            "trade_count": 7,
+            "training_days": 730,
+            "winrate": 0.4285714286
+          },
+          "weaknesses": [
+            "validation_negative",
+            "profit_factor_below_one",
+            "too_few_trades"
+          ],
+          "why_ranked_here": "ranked 2 by validation-only score; net/day=-0.0032920316, pf=0.617230375, trades=7"
+        },
+        {
+          "candidate_id": "cooldown_fee_aware_04_003",
+          "family": "cooldown_fee_aware",
+          "params": {
+            "base_family": "breakout",
+            "break_even_after_bps": 75,
+            "cooldown_minutes": 330,
+            "lookback": 120,
+            "max_hold_minutes": 240,
+            "min_expected_move_bps": 74,
+            "stop_loss_bps": 95,
+            "symbol": "ETHUSDC",
+            "take_profit_bps": 210,
+            "threshold_bps": 24,
+            "trailing_stop_bps": 90
+          },
+          "rank_position": 3,
+          "rank_score": -0.9336213099,
+          "training_metrics": {
+            "average_trade_usdc": -0.2611252561,
+            "blindtest_days": 365,
+            "fees_usdc": 17.3946767797,
+            "max_drawdown_usdc": 22.7178972833,
+            "net_profit_usdc": -22.7178972833,
+            "net_usdc_per_day": -0.1893158107,
+            "profit_factor": 0.5387612535,
+            "slippage_usdc": 8.6973392331,
+            "trade_count": 87,
+            "training_days": 730,
+            "winrate": 0.3563218391
+          },
+          "validation_metrics": {
+            "average_trade_usdc": -0.3517931264,
+            "blindtest_days": 365,
+            "fees_usdc": 26.9794874153,
+            "max_drawdown_usdc": 49.3644892055,
+            "net_profit_usdc": -47.492072062,
+            "net_usdc_per_day": -0.0778558558,
+            "profit_factor": 0.4915085456,
+            "slippage_usdc": 13.489741952,
+            "trade_count": 135,
+            "training_days": 730,
+            "winrate": 0.3333333333
+          },
+          "weaknesses": [
+            "training_negative",
+            "validation_negative",
+            "profit_factor_below_one"
+          ],
+          "why_ranked_here": "ranked 3 by validation-only score; net/day=-0.0778558558, pf=0.4915085456, trades=135"
+        },
+        {
+          "candidate_id": "cooldown_fee_aware_04_004",
+          "family": "cooldown_fee_aware",
+          "params": {
+            "base_family": "momentum",
+            "break_even_after_bps": 95,
+            "cooldown_minutes": 390,
+            "lookback": 180,
+            "max_hold_minutes": 360,
+            "min_expected_move_bps": 94,
+            "stop_loss_bps": 110,
+            "symbol": "ETHUSDC",
+            "take_profit_bps": 250,
+            "threshold_bps": 54,
+            "trailing_stop_bps": 100
+          },
+          "rank_position": 4,
+          "rank_score": -1.4000937316,
+          "training_metrics": {
+            "average_trade_usdc": -0.2556439224,
+            "blindtest_days": 365,
+            "fees_usdc": 38.7891942732,
+            "max_drawdown_usdc": 49.5949209384,
+            "net_profit_usdc": -49.5949209384,
+            "net_usdc_per_day": -0.4132910078,
+            "profit_factor": 0.5940597294,
+            "slippage_usdc": 19.3945992834,
+            "trade_count": 194,
+            "training_days": 730,
+            "winrate": 0.381443299
+          },
+          "validation_metrics": {
+            "average_trade_usdc": -0.1961127581,
+            "blindtest_days": 365,
+            "fees_usdc": 49.4009611099,
+            "max_drawdown_usdc": 54.9582804921,
+            "net_profit_usdc": -48.4398512511,
+            "net_usdc_per_day": -0.0794095922,
+            "profit_factor": 0.6842692705,
+            "slippage_usdc": 24.7004869707,
+            "trade_count": 247,
+            "training_days": 730,
+            "winrate": 0.3967611336
+          },
+          "weaknesses": [
+            "training_negative",
+            "validation_negative",
+            "profit_factor_below_one"
+          ],
+          "why_ranked_here": "ranked 4 by validation-only score; net/day=-0.0794095922, pf=0.6842692705, trades=247"
+        }
+      ],
+      "cycle_id": 4,
+      "exit_reason_summary": {
+        "by_exit_reason": {
+          "break_even": {
+            "average_trade_usdc": -0.4676751068,
+            "count": 3,
+            "fees_usdc": 0.5991961709,
+            "net_usdc": -1.4030253205,
+            "slippage_usdc": 0.2995979594
+          },
+          "stop_loss": {
+            "average_trade_usdc": -1.2570277962,
+            "count": 7,
+            "fees_usdc": 1.3925933989,
+            "net_usdc": -8.7991945732,
+            "slippage_usdc": 0.696295022
+          },
+          "take_profit": {
+            "average_trade_usdc": 2.0465179765,
+            "count": 2,
+            "fees_usdc": 0.4044975335,
+            "net_usdc": 4.093035953,
+            "slippage_usdc": 0.2022499417
+          },
+          "time_exit": {
+            "average_trade_usdc": 0.0253697189,
+            "count": 1,
+            "fees_usdc": 0.2002255953,
+            "net_usdc": 0.0253697189,
+            "slippage_usdc": 0.1001128791
+          },
+          "trailing_stop": {
+            "average_trade_usdc": 0.2007861315,
+            "count": 4,
+            "fees_usdc": 0.8016047493,
+            "net_usdc": 0.8031445259,
+            "slippage_usdc": 0.4008028761
+          }
+        },
+        "cost_load_per_trade": 0.2998338898,
+        "loss_per_losing_trade": -0.8655352686,
+        "stop_loss_share": 0.4117647059,
+        "take_profit_share": 0.1176470588,
+        "time_exit_share": 0.0588235294,
+        "total_trades": 17,
+        "trailing_or_break_even_share": 0.4117647059
+      },
+      "family_aggregate_summary": [
+        {
+          "average_cost_load": 3.5981315135,
+          "average_fees_usdc": 2.39875435,
+          "average_profit_factor": 0.5544049757,
+          "average_slippage_usdc": 1.1993771635,
+          "average_trade_count": 12.0,
+          "average_training_net_usdc_per_day": -0.0168605575,
+          "average_validation_net_usdc_per_day": -0.0059744336,
+          "best_drawdown": 4.1096796844,
+          "best_profit_factor": 0.617230375,
+          "best_training_net_usdc_per_day": 0.016083065,
+          "best_validation_candidate_id": "breakout_volatility_filter_04_002",
+          "best_validation_net_usdc_per_day": -0.0032920316,
+          "candidate_count": 2,
+          "family": "breakout_volatility_filter",
+          "high_cost_count": 0,
+          "max_trade_count": 17,
+          "min_trade_count": 7,
+          "negative_validation_count": 2,
+          "overtrading_count": 0,
+          "too_few_trades_count": 2,
+          "worst_drawdown": 6.6535869543
+        },
+        {
+          "average_cost_load": 57.2853387239,
+          "average_fees_usdc": 38.1902242626,
+          "average_profit_factor": 0.5878889081,
+          "average_slippage_usdc": 19.0951144614,
+          "average_trade_count": 191.0,
+          "average_training_net_usdc_per_day": -0.3013034092,
+          "average_validation_net_usdc_per_day": -0.078632724,
+          "best_drawdown": 49.3644892055,
+          "best_profit_factor": 0.6842692705,
+          "best_training_net_usdc_per_day": -0.1893158107,
+          "best_validation_candidate_id": "cooldown_fee_aware_04_003",
+          "best_validation_net_usdc_per_day": -0.0778558558,
+          "candidate_count": 2,
+          "family": "cooldown_fee_aware",
+          "high_cost_count": 0,
+          "max_trade_count": 247,
+          "min_trade_count": 135,
+          "negative_validation_count": 2,
+          "overtrading_count": 0,
+          "too_few_trades_count": 0,
+          "worst_drawdown": 54.9582804921
+        }
+      ],
+      "family_diagnosis": {
+        "best_training_family": "breakout_volatility_filter",
+        "best_validation_family": "breakout_volatility_filter",
+        "high_cost_families": [],
+        "lowest_cost_family": "breakout_volatility_filter",
+        "overtrading_families": [],
+        "problem_assessment": "missing_edge",
+        "profit_factor_nearest_one_family": "cooldown_fee_aware",
+        "ranking_uses_blindtest": false,
+        "too_few_trades_families": [
+          "breakout_volatility_filter"
+        ]
+      },
+      "full_training_metrics": {
+        "average_trade_usdc": -0.4980418008,
+        "blindtest_days": 365,
+        "fees_usdc": 2.3964199181,
+        "max_drawdown_usdc": 6.3664339014,
+        "net_profit_usdc": -5.9765016092,
+        "net_usdc_per_day": -0.0498041801,
+        "profit_factor": 0.2711819566,
+        "slippage_usdc": 1.1982093637,
+        "trade_count": 12,
+        "training_days": 730,
+        "winrate": 0.25
+      },
+      "generated_candidates": 11,
+      "next_search_space_adjustment": "best validation candidate is still negative before blindtest; no sufficient edge shown",
+      "safety": {
+        "api_keys": "not_used",
+        "binance_trading_api": "not_used",
+        "candidate_adoptable": false,
+        "live": "locked",
+        "orders": "not_created",
+        "paper": "locked",
+        "short_margin_futures_leverage": "forbidden",
+        "testtrade": "locked"
+      },
+      "selected_candidate": {
+        "candidate_id": "breakout_volatility_filter_04_001",
+        "family": "breakout_volatility_filter",
+        "params": {
+          "break_even_after_bps": 65,
+          "cooldown_minutes": 150,
+          "lookback": 90,
+          "max_hold_minutes": 180,
+          "max_vol_bps": 110,
+          "min_vol_bps": 15,
+          "stop_loss_bps": 91,
+          "symbol": "ETHUSDC",
+          "take_profit_bps": 180,
+          "threshold_bps": 18,
+          "trailing_stop_bps": 70,
+          "volatility_lookback": 240
+        }
+      },
+      "selection_source": "training_validation_walk_forward_only",
+      "tested_candidates": 4,
+      "training_evaluation_note": "cycle subtrain uses a deterministic recent-training frontier for loop throughput; WFV remains chronological inside training and blindtest audit remains out-of-sample",
+      "wfv_summary": {
+        "average_validation_net_usdc_per_day": -0.0088686499,
+        "cost_load": 1.7953560928,
+        "fold_count": 4,
+        "folds": [
+          {
+            "fold_id": 1,
+            "metrics": {
+              "average_trade_usdc": 0.0,
+              "blindtest_days": 365,
+              "fees_usdc": 0,
+              "max_drawdown_usdc": 0.0,
+              "net_profit_usdc": 0,
+              "net_usdc_per_day": 0.0,
+              "profit_factor": 0.0,
+              "slippage_usdc": 0,
+              "trade_count": 0,
+              "training_days": 730,
+              "winrate": 0.0
+            },
+            "sampled_validation_candles": 20000,
+            "train_end": 1709884740000,
+            "train_start": 1688860800000,
+            "validation_end": 1720396740000,
+            "validation_start": 1719196800000
+          },
+          {
+            "fold_id": 2,
+            "metrics": {
+              "average_trade_usdc": 0.0,
+              "blindtest_days": 365,
+              "fees_usdc": 0,
+              "max_drawdown_usdc": 0.0,
+              "net_profit_usdc": 0,
+              "net_usdc_per_day": 0.0,
+              "profit_factor": 0.0,
+              "slippage_usdc": 0,
+              "trade_count": 0,
+              "training_days": 730,
+              "winrate": 0.0
+            },
+            "sampled_validation_candles": 20000,
+            "train_end": 1720396740000,
+            "train_start": 1688860800000,
+            "validation_end": 1730908740000,
+            "validation_start": 1729708800000
+          },
+          {
+            "fold_id": 3,
+            "metrics": {
+              "average_trade_usdc": -0.7154044256,
+              "blindtest_days": 365,
+              "fees_usdc": 1.196904478,
+              "max_drawdown_usdc": 5.2797744088,
+              "net_profit_usdc": -4.2924265534,
+              "net_usdc_per_day": -0.0354745996,
+              "profit_factor": 0.1870056898,
+              "slippage_usdc": 0.5984516148,
+              "trade_count": 6,
+              "training_days": 730,
+              "winrate": 0.3333333333
+            },
+            "sampled_validation_candles": 20000,
+            "train_end": 1730908740000,
+            "train_start": 1688860800000,
+            "validation_end": 1741420740000,
+            "validation_start": 1740220800000
+          },
+          {
+            "fold_id": 4,
+            "metrics": {
+              "average_trade_usdc": 0.0,
+              "blindtest_days": 365,
+              "fees_usdc": 0,
+              "max_drawdown_usdc": 0.0,
+              "net_profit_usdc": 0,
+              "net_usdc_per_day": 0.0,
+              "profit_factor": 0.0,
+              "slippage_usdc": 0,
+              "trade_count": 0,
+              "training_days": 730,
+              "winrate": 0.0
+            },
+            "sampled_validation_candles": 20000,
+            "train_end": 1741420740000,
+            "train_start": 1688860800000,
+            "validation_end": 1751932740000,
+            "validation_start": 1750732800000
+          }
+        ],
+        "max_drawdown_usdc": 5.2797744088,
+        "positive_fold_count": 0,
+        "ranking_uses_blindtest": false,
+        "trade_count": 6,
+        "worst_fold_net_usdc_per_day": -0.0354745996
+      }
+    }
+  ],
+  "cycles_executed": 4,
+  "git_commit": "03e9db0",
+  "loop_run_id": "research_loop_20260710T054549Z",
+  "max_candidates_per_cycle": 40,
+  "max_cycles": 8,
+  "raw_root": "C:/TradingBot/data/ETHUSDC_BotV3_Hermes",
+  "result_text": "Ziel nicht erreicht.",
+  "safety": {
+    "api_keys": "not_used",
+    "binance_trading_api": "not_used",
+    "candidate_adoptable": false,
+    "live": "locked",
+    "orders": "not_created",
+    "paper": "locked",
+    "short_margin_futures_leverage": "forbidden",
+    "testtrade": "locked"
+  },
+  "safety_status": "ok",
+  "schema_version": 1,
+  "stop_reason": "validation_stagnation_3_cycles",
+  "target_reached": false,
+  "target_usdc_per_day": 3.0,
+  "timestamp": "2026-07-10T05:50:40.363976Z"
+}

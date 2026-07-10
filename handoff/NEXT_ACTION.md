@@ -1,27 +1,27 @@
 # Next Action
 
-Recommended next research ticket:
-- Investigate why stricter breakout/cost controls approach breakeven validation but collapse to too few trades before producing sufficient edge.
+Next approved ticket: implement Research Protocol v2 on a separate branch after the Slippage work block is synchronized to `origin/main`.
 
-Evidence from loop `research_loop_20260709T213134Z`:
-- Best validation candidate: `breakout_volatility_filter_04_001`.
-- Best validation: `-0.0004208934 USDC/day`, PF `0.9184698895`, only 8 validation trades.
-- Best blindtest audit: `0.0096502748 USDC/day`, far below `+3 USDC/day` and audit-only.
-- Later cycles reduced trades to 5, 3, then 2 validation trades.
-- Cycle 7 exit analysis indicated stop-loss domination.
+Required scope:
 
-Suggested safe next step:
-1. Do not tune from blindtest audit results.
-2. Use training/validation/WFV evidence only.
-3. Add a new controlled ETHUSDC-only entry class or filter that increases valid trade count without returning to high-cost overtrading.
-4. Specifically compare:
-   - stricter breakout thresholds with enough validation trades,
-   - session/regime windows where breakout validation PF is closest to 1,
-   - optional context filters using BTCUSDC/ETHBTC only as veto filters, never signal sources.
-5. Keep all reports explicit about repeated blindtest audits.
-6. Keep candidate adoption locked until a clean reproducible result exists.
+1. Report honest counts for `generated_candidates`, `tested_candidates`, `walk_forward_candidates`, and `finalists`.
+2. Replace the hidden fixed first-four slice with deterministic, reproducible, resource-controlled candidate selection.
+3. Apply walk-forward validation to multiple validation leaders.
+4. Stop evaluating the consumed 365-day audit window inside research cycles.
+5. Treat the current repeatedly viewed window as `consumed_audit_window = true`.
+6. Derive the latest 730-day training plus 365-day audit/holdout window from complete UTC data rather than fixed years.
+7. Add historical rolling-origin evaluation when more than the minimum 1,095 complete days are available.
+8. Add fixed, documented quality gates for activity, drawdown, profit factor, profit concentration, WFV stability, parameter stability, stress costs, temporal robustness, and regime dependence.
+9. Keep the current 0.1% fee plus 5 bps slippage per side as the binding baseline.
+10. Do not change strategy parameters or add real BTCUSDC/ETHBTC context until the protocol is verified.
 
-Safety reminder:
-- Live/Paper/Testtrade remain locked.
-- Do not start trading/API/order functionality.
-- No API keys.
+Acceptance requirements:
+
+- Tests are written before implementation and demonstrate the old protocol defects.
+- No ranking or adjustment consumes audit/holdout metrics.
+- Reports state exactly which candidates and folds were evaluated.
+- All safety locks remain unchanged.
+- Full tests pass.
+- Work is published on a separate branch through a reviewed pull request.
+
+Large historical rolling-origin, UI end-to-end, and later shadow/replay runs remain future Hermes tasks after a clean synchronized handoff.
