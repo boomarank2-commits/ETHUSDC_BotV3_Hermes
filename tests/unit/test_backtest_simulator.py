@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from ethusdc_bot.backtest.data_loader import Candle
-from ethusdc_bot.backtest.simulator import StrategyCandidate, simulate_strategy
+from ethusdc_bot.backtest.simulator import StrategyCandidate, _exit_trade, simulate_strategy
 
 
 def _candles(closes: list[float]) -> list[Candle]:
@@ -77,3 +77,98 @@ def test_entry_uses_next_candle_after_signal_no_lookahead():
 
     assert result.trades[0].entry_time == candles[2].open_time
     assert result.trades[0].entry_price == candles[2].open
+
+
+def _flat_roundtrips(count: int, *, fee_rate: float = 0.0, slippage_bps: float = 5.0):
+    strategy = StrategyCandidate(family="always_long", params={"max_hold_minutes": 1})
+    return simulate_strategy(
+        _candles([100.0] * (count * 2 + 1)), strategy, days=1, fee_rate=fee_rate, slippage_bps=slippage_bps
+    )
+
+
+def _single_exit(entry_mid: float, exit_mid: float, *, fee_rate: float = 0.0, slippage_bps: float = 5.0, reason: str = "time_exit"):
+    execution = entry_mid * (1 + slippage_bps / 10_000)
+    quantity = 100.0 / execution
+    candle = Candle(open_time=120_000, open=exit_mid, high=exit_mid, low=exit_mid, close=exit_mid, volume=1)
+    return _exit_trade(
+        candle,
+        {"entry_mid_price": entry_mid, "entry_price": execution, "quantity": quantity, "entry_time": 60_000, "entry_index": 1},
+        fee_rate,
+        slippage_bps,
+        100.0,
+        exit_reason=reason,
+    )
+
+
+def test_flat_roundtrip_reports_execution_slippage_once():
+    trade = _single_exit(100.0, 100.0)
+    assert trade.entry_slippage_usdc == pytest.approx(0.0499750125, abs=1e-10)
+    assert trade.exit_slippage_usdc == pytest.approx(0.0499750125, abs=1e-10)
+    assert trade.slippage_usdc == pytest.approx(0.099950025, abs=1e-10)
+    assert trade.net_profit_usdc == pytest.approx(-0.099950025, abs=1e-10)
+
+
+def test_flat_roundtrip_fees_and_slippage_are_not_double_counted():
+    trade = _single_exit(100.0, 100.0, fee_rate=0.001)
+    assert trade.slippage_usdc == pytest.approx(0.099950025, abs=1e-10)
+    assert trade.fees_usdc == pytest.approx(0.19990005, abs=1e-10)
+    assert trade.net_profit_usdc == pytest.approx(-0.299850075, abs=1e-10)
+
+
+@pytest.mark.parametrize("exit_mid", [99.0, 101.0, 120.0])
+def test_market_movement_is_not_reported_as_slippage(exit_mid: float):
+    trade = _single_exit(100.0, exit_mid)
+    expected = (100.0 * 0.0005 + exit_mid * 0.0005) * trade.quantity
+    assert trade.slippage_usdc == pytest.approx(expected, abs=1e-10)
+
+
+def test_identical_flat_roundtrips_scale_costs_linearly():
+    one = _flat_roundtrips(1)
+    ten = _flat_roundtrips(10)
+    many = _flat_roundtrips(1623)
+    assert ten.trade_count == 10
+    assert ten.slippage_usdc == pytest.approx(one.slippage_usdc * 10, abs=1e-8)
+    assert many.trade_count == 1623
+    assert many.slippage_usdc == pytest.approx(162.2188906, abs=1e-6)
+    assert many.slippage_usdc < 200
+
+
+def test_holding_duration_does_not_change_flat_trade_slippage():
+    short = simulate_strategy(_candles([100.0] * 3), StrategyCandidate("always_long", {"max_hold_minutes": 1}), days=1, fee_rate=0, slippage_bps=5)
+    long = simulate_strategy(_candles([100.0] * 8), StrategyCandidate("always_long", {"max_hold_minutes": 6}), days=1, fee_rate=0, slippage_bps=5)
+    assert short.trades[0].slippage_usdc == long.trades[0].slippage_usdc
+
+
+def test_entry_and_exit_fees_are_each_charged_exactly_once():
+    trade = _single_exit(100.0, 101.0, fee_rate=0.001)
+    assert trade.entry_fee_usdc == pytest.approx(0.1)
+    assert trade.exit_fee_usdc == pytest.approx(trade.exit_price * trade.quantity * 0.001)
+    assert trade.fees_usdc == pytest.approx(trade.entry_fee_usdc + trade.exit_fee_usdc)
+
+
+def test_net_profit_identity_uses_execution_gross_minus_fees():
+    trade = _single_exit(100.0, 120.0, fee_rate=0.001)
+    assert trade.net_profit_usdc == pytest.approx(trade.gross_profit_usdc - trade.fees_usdc, abs=1e-10)
+
+
+def test_quantity_uses_actual_entry_execution_price():
+    trade = _single_exit(100.0, 100.0)
+    assert trade.quantity == pytest.approx(100.0 / trade.entry_price)
+    assert trade.entry_price * trade.quantity == pytest.approx(100.0)
+
+
+def test_forced_end_of_data_exit_uses_same_cost_logic():
+    result = simulate_strategy(_candles([100.0, 100.0]), StrategyCandidate("always_long", {"max_hold_minutes": 99}), days=1, fee_rate=0.001, slippage_bps=5)
+    trade = result.trades[0]
+    assert trade.exit_reason == "end_of_data"
+    assert trade.slippage_usdc == pytest.approx(trade.entry_slippage_usdc + trade.exit_slippage_usdc)
+    assert trade.net_profit_usdc == pytest.approx(trade.gross_profit_usdc - trade.fees_usdc)
+
+
+@pytest.mark.parametrize("reason", ["take_profit", "stop_loss", "time_exit", "break_even", "trailing_stop"])
+def test_all_rule_exit_reasons_share_one_execution_cost_formula(reason: str):
+    trade = _single_exit(100.0, 101.0, fee_rate=0.001, reason=reason)
+    assert trade.exit_reason == reason
+    assert trade.slippage_usdc == pytest.approx(trade.entry_slippage_usdc + trade.exit_slippage_usdc)
+    assert trade.fees_usdc == pytest.approx(trade.entry_fee_usdc + trade.exit_fee_usdc)
+    assert trade.net_profit_usdc == pytest.approx(trade.gross_profit_usdc - trade.fees_usdc)

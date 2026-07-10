@@ -30,6 +30,12 @@ class Trade:
     slippage_usdc: float
     net_profit_usdc: float
     exit_reason: str
+    entry_mid_price: float = 0.0
+    exit_mid_price: float = 0.0
+    entry_slippage_usdc: float = 0.0
+    exit_slippage_usdc: float = 0.0
+    entry_fee_usdc: float = 0.0
+    exit_fee_usdc: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -84,9 +90,16 @@ def simulate_strategy(
     cooldown_until_index = -1
     for index, candle in enumerate(candles):
         if pending_entry and position is None:
-            entry_price = candle.open * (1 + slippage_bps / 10_000)
+            entry_mid_price = candle.open
+            entry_price = entry_mid_price * (1 + slippage_bps / 10_000)
             quantity = trade_usdc / entry_price
-            position = {"entry_price": entry_price, "quantity": quantity, "entry_time": candle.open_time, "entry_index": index}
+            position = {
+                "entry_mid_price": entry_mid_price,
+                "entry_price": entry_price,
+                "quantity": quantity,
+                "entry_time": candle.open_time,
+                "entry_index": index,
+            }
             pending_entry = False
         if position is not None:
             exit_reason = _exit_reason(candles, index, position, strategy)
@@ -221,14 +234,19 @@ def _exit_trade(
     *,
     exit_reason: str = "rule",
 ) -> Trade:
+    entry_mid_price = float(position.get("entry_mid_price", position["entry_price"]))
     entry_price = float(position["entry_price"])
     quantity = float(position["quantity"])
-    exit_price = candle.open * (1 - slippage_bps / 10_000)
+    exit_mid_price = candle.open
+    exit_price = exit_mid_price * (1 - slippage_bps / 10_000)
     gross = (exit_price - entry_price) * quantity
     exit_notional = exit_price * quantity
-    fees = trade_usdc * fee_rate + exit_notional * fee_rate
-    ideal_qty = trade_usdc / max(candle.open, 1e-12)
-    slippage = abs((entry_price - candle.open) * ideal_qty) + abs((candle.open - exit_price) * quantity)
+    entry_fee = entry_price * quantity * fee_rate
+    exit_fee = exit_notional * fee_rate
+    fees = entry_fee + exit_fee
+    entry_slippage = (entry_price - entry_mid_price) * quantity
+    exit_slippage = (exit_mid_price - exit_price) * quantity
+    slippage = entry_slippage + exit_slippage
     net = gross - fees
     return Trade(
         symbol=SYMBOL,
@@ -243,4 +261,10 @@ def _exit_trade(
         slippage_usdc=round(slippage, 10),
         net_profit_usdc=round(net, 10),
         exit_reason=exit_reason,
+        entry_mid_price=entry_mid_price,
+        exit_mid_price=exit_mid_price,
+        entry_slippage_usdc=round(entry_slippage, 10),
+        exit_slippage_usdc=round(exit_slippage, 10),
+        entry_fee_usdc=round(entry_fee, 10),
+        exit_fee_usdc=round(exit_fee, 10),
     )
