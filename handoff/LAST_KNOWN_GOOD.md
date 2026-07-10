@@ -53,4 +53,4 @@ Safety:
 
 - ETHUSDC/USDC Spot LONG-only simulation.
 - BTCUSDC/ETHBTC context may never trigger trades.
-- No live/paper/testtrade unlock, Trading API, API keys, account data, or orders.
+- No Live, Paper, or Testtrade unlock, Trading API, API keys, account data, or orders. Public-data-only hypothetical Shadow mode remains a separate future scope.

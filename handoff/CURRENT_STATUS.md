@@ -39,6 +39,6 @@ Safety status:
 - Quote/notional: fixed 100 USDC per trade, no compounding, at most one open position.
 - Cost baseline: 0.1% fee and 5 bps slippage per side, no BNB discount.
 - Spot LONG-only; no shorts, margin, futures, or leverage.
-- Live, paper-with-order-endpoints, and testtrade remain locked.
+- Live, Paper, and Testtrade remain locked. A separate future Shadow mode may use only public data and hypothetical trades, with no order endpoints.
 - No Binance Trading API, API keys, account data, or orders.
 - BTCUSDC and ETHBTC remain context-only and cannot open trades.

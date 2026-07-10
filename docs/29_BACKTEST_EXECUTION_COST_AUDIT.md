@@ -130,6 +130,19 @@ Other affected derived diagnostics include:
 - exit-reason cost summaries;
 - validation-driven search-space adjustment.
 
+### Post-fix control evidence
+
+The first cycle of the pre-fix run `research_loop_20260709T213134Z` and the post-fix control run `research_loop_20260710T054549Z` selected the same candidate, `breakout_volatility_filter_01_001`, with identical parameters and 14 audit trades. This provides a like-for-like accounting comparison:
+
+| Metric | Pre-fix | Post-fix |
+|---|---:|---:|
+| Net profit | -0.4686584526 USDC | -0.4686584526 USDC |
+| Net per day | -0.0012839958 USDC | -0.0012839958 USDC |
+| Fees | 2.8023336751 USDC | 2.8023336751 USDC |
+| Diagnostic slippage | 16.4060172167 USDC | 1.4011677713 USDC |
+
+Net P&L, fees, and trade count are unchanged, while diagnostic slippage falls by approximately 91.46%. This confirms that the defect was diagnostic/cost-ranking corruption rather than a direct P&L subtraction error.
+
 ### Obsolete historical report use
 
 All reports produced before this correction remain historical evidence of the execution-price net P&L that was calculated at the time, but their slippage totals, cost penalties, cost-based ranking, cost diagnoses, and any search-space decisions derived from those values must not be used as a valid current ranking basis.

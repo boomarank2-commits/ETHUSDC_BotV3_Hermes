@@ -32,7 +32,7 @@ Resolved:
 Safety locks remain:
 
 - Live locked.
-- Paper with order endpoints locked.
+- Paper locked. Only a separate public-data-only hypothetical Shadow mode may be considered later.
 - Testtrade locked.
 - No trading API, keys, account data, or orders.
 - No candidate adoption.

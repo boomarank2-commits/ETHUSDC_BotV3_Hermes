@@ -57,6 +57,6 @@ This includes:
 
 ## Safety status
 
-- Live, paper with order endpoints, and testtrade remain locked.
+- Live, Paper, and Testtrade remain locked. Public-data-only hypothetical Shadow mode is a separate future scope and has no order endpoints.
 - No orders, Trading API, API keys, account data, shorts, margin, futures, or leverage.
 - No candidate adopted.
