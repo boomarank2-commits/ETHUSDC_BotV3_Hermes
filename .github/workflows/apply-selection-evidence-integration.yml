@@ -1,19 +1,19 @@
-name: Apply selection evidence integration
+name: Clean selection evidence integration
 
-# One-shot integration workflow. Removed after the generated commit is verified.
+# One-shot cleanup workflow. Removed after the generated commit is verified.
 on:
   push:
     branches:
       - "review/research-evidence-producers-v1"
     paths:
       - ".github/workflows/apply-selection-evidence-integration.yml"
-      - "tools/apply_selection_evidence_integration.py"
+      - "tools/cleanup_selection_evidence_integration.py"
 
 permissions:
   contents: write
 
 jobs:
-  apply:
+  cleanup:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -28,19 +28,19 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Apply deterministic integration patch
-        run: python tools/apply_selection_evidence_integration.py
+      - name: Remove repeated integration fragments
+        run: python tools/cleanup_selection_evidence_integration.py
 
-      - name: Validate generated source
+      - name: Validate cleaned source
         run: |
           python -m compileall -q src tests
           git diff --check
 
-      - name: Commit integrated evidence pipeline
+      - name: Commit cleaned evidence pipeline
         shell: bash
         run: |
           if git diff --quiet; then
-            echo "No integration changes required."
+            echo "No cleanup changes required."
             exit 0
           fi
           git config user.name "github-actions[bot]"
@@ -50,5 +50,5 @@ jobs:
                   src/ethusdc_bot/backtest/research_loop_runner.py \
                   tests/unit/test_research_loop_runner.py \
                   tests/integration/test_research_loop_protocol_v2_smoke.py
-          git commit -m "Integrate complete selection evidence into research loop"
+          git commit -m "Remove duplicate selection evidence integration fragments"
           git push origin HEAD:review/research-evidence-producers-v1
