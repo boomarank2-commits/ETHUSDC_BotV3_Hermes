@@ -16,93 +16,105 @@ Review branch:
 
 `review/pr4-final-alignment`
 
-## Changes made on the review branch
+Draft integration PR:
 
-The confirmed proportional desired guidance is now:
+`#5 Align PR4 budget targets and document external review`
+
+## Changes completed on the review branch
+
+### Proportional desired guidance
+
+The confirmed guidance is now consistent throughout configuration, strict
+schema, portfolio policy, documentation and tests:
 
 - 100 USDC -> 3 USDC per calendar day
 - 200 USDC -> 6 USDC per calendar day
 - 500 USDC -> 15 USDC per calendar day
 - 1000 USDC -> 30 USDC per calendar day
 
-The prior 500-USDC desired value of 13 was changed to 15 in:
+The prior 500-USDC desired value of 13 was removed from the active contract.
 
-- `config/default.toml`
-- `src/ethusdc_bot/portfolio.py`
-- `docs/31_PORTFOLIO_SHADOW_PRODUCT_CONTRACT.md`
-- `tests/unit/test_portfolio_policy.py`
-- `tests/unit/test_config_templates.py`
+### Budget evidence scope
 
-The product contract now also states that a larger budget profile must have its
-own evidence before it can be called green. A green 100-USDC result must not be
-mathematically multiplied and presented as a proven 200/500/1000-USDC result.
+The sealed final evaluation remains canonical for the `100 USDC` research
+profile. A larger manually selected Shadow deployment budget remains allowed,
+but its proportional target is no longer silently represented as proven.
 
-## Important architecture finding
+Every Shadow deployment now records:
 
-At remote commit `bafbc18`, `assess_final_report(...)` determines the green,
-yellow, or red assessment from the final report before
-`adopt_for_shadow(...)` receives the manually selected deployment budget.
+- `color_scope = canonical_100_usdc_final_evaluation`
+- `target_evidence_budget_usdc = 100`
+- selected `deployment_budget_usdc`
+- proportional `deployment_target_usdc_per_day`
+- `deployment_target_status`
+- `deployment_target_reached`
 
-That means a final report proven for the canonical 100-USDC profile can later
-be adopted with a 200/500/1000-USDC deployment budget while retaining the
-source assessment color. This is safe from an order perspective, but the color
-is not automatically evidence that the larger budget achieved its proportional
-6/15/30-USDC daily target.
+Status rules:
 
-Before PR #4 is merged, Codex should make the semantics explicit and test them.
-Acceptable minimal outcomes are:
+- green 100-USDC source + 100-USDC deployment -> `verified`
+- yellow 100-USDC source + 100-USDC deployment -> `below_target`
+- any 200/500/1000-USDC deployment -> `unverified_scaling`
 
-1. Keep the source final-assessment color explicitly bound to the canonical
-   100-USDC evidence and show larger deployment budgets as unproven scaling
-   profiles until separately evaluated; or
-2. Introduce separate budget-profile evidence and a budget-specific assessment
-   without reopening or reusing the consumed holdout.
+Larger budgets are therefore usable in order-free Shadow, but require separate
+evidence before their 6/15/30-USDC target can be called achieved.
 
-Do not silently inherit a green 100-USDC target claim as a proven green result
-for a larger budget.
+### Cross-platform path safety
 
-## Still to verify on the local Codex worktree
+GitHub Actions revealed that native Linux `Path.resolve()` interpreted the
+canonical Windows external-data path as repository-local. A shared
+cross-platform containment helper now compares absolute Windows paths with
+Windows semantics even on Linux, while native POSIX containment remains strict.
 
-- whether local commits or uncommitted changes exist beyond `bafbc18`;
-- complete budget reporting, including average deployed capital and unused
-  capacity;
-- capacity rejection reporting;
-- absolute and budget-relative drawdown reporting;
-- backtest/shadow parity for identical candles;
-- no compounding after gains or losses;
-- stop does not create an artificial end-of-data exit;
-- no order, account, API-key, Paper, Testtrade, or Live paths;
-- all target-guidance references use 3/6/15/30;
-- no remaining `500 -> 13` expectations in code, tests, docs, or UI text.
+This removes a false positive without allowing raw data inside the repository.
+Regression tests cover Windows, POSIX, mixed path flavours and different drives.
 
-## Test status
+### Automated CI
 
-No local test suite was executed from this ChatGPT GitHub review environment.
-The changes are small and matching unit expectations were updated, but Codex
-must run the complete Windows/Python 3.12 suite before integration:
+A read-only GitHub Actions workflow now executes on review and agent branches:
 
-```powershell
-py -3.12 -m pytest -q
-py -3.12 -m compileall -q src
-git diff --check
-```
+- Python 3.12
+- project install with dev dependencies
+- full `pytest` suite
+- `compileall`
+- committed whitespace check
+- pytest diagnostics artifact on failure
 
-Do not disable tests or relax safety assertions.
+The corrected alignment state passed the complete CI before the budget-evidence
+scope patch. The final branch must remain green after every subsequent commit.
 
-## Integration instructions for Codex
+Temporary write-enabled patch workflows and their helper scripts were removed
+after their one-time commits. Only the read-only review CI remains.
 
-After the local interrupted worktree has been inspected and safely committed:
+## Important remaining Research Protocol blocker
 
-1. Fetch `review/pr4-final-alignment`.
-2. Compare it against the local `agent/portfolio-shadow-v1` state.
-3. Cherry-pick or manually apply only changes that are not already present.
-4. Resolve any target-guidance conflict in favor of 3/6/15/30.
-5. Run the complete suite.
-6. Update PR #4 with the final test count and semantic decision for larger
-   budget assessment colors.
-7. Keep PR #4 draft and do not merge until external review is complete.
+`research_loop_runner._quality_evidence()` currently emits protocol,
+validation, WFV and an empty `rolling` mapping. The fixed quality gate also
+requires real evidence for:
+
+- rolling drawdown and trade concentration
+- cost/slippage stress
+- parameter stability
+- temporal stability
+- regime stability
+
+Therefore a production finalist cannot currently obtain complete selection
+evidence even if its simple P&L metrics are attractive. These evidence
+producers must be implemented on a separate stacked branch using only
+training/validation/WFV data. The sealed holdout must not be opened or used for
+selection.
 
 ## Safety status
 
-This review did not enable Live, Paper, Testtrade, orders, account access,
-Trading API, API keys, shorts, margin, futures, or leverage.
+No change enables Live, Paper, Testtrade, orders, account access, Trading API,
+API keys, shorts, margin, futures or leverage.
+
+## Codex integration instructions
+
+1. Inspect and preserve all local unpushed work on `agent/portfolio-shadow-v1`.
+2. Fetch `review/pr4-final-alignment` and inspect PR #5.
+3. Compare, then cherry-pick or manually integrate only missing changes.
+4. Resolve all target guidance in favour of `3/6/15/30`.
+5. Preserve budget evidence scope; do not promote a green 100-USDC source colour
+   into a proven larger-budget result.
+6. Run the complete Windows Python 3.12 suite, compileall and diff check.
+7. Keep PR #4 and PR #5 unmerged until external review is complete.
