@@ -90,7 +90,20 @@ def test_real_protocol_v2_loop_reports_stages_without_evaluating_holdout(tmp_pat
     assert len(cycle["walk_forward_summaries"]) == cycle["walk_forward_candidates"]
     assert len(cycle["finalist_summaries"]) == cycle["finalists"]
     assert all(item["summary"]["fold_count"] == 2 for item in cycle["walk_forward_summaries"])
-    assert cycle["finalist_summaries"][0]["quality_gate"]["passed"] is False
+    finalist = cycle["finalist_summaries"][0]
+    evidence = finalist["quality_gate_evidence"]
+    gate = finalist["quality_gate"]
+    assert evidence["validation"]["drawdown_method"] == "mark_to_market"
+    assert evidence["wfv"]["aggregate"]["drawdown_method"] == "mark_to_market"
+    assert evidence["wfv"]["folds"]
+    assert all(fold["equity_curve_usdc"][0] == 0.0 for fold in evidence["wfv"]["folds"])
+    assert all(
+        fold["equity_curve_usdc"][-1] == fold["metrics"]["net_profit_usdc"]
+        for fold in evidence["wfv"]["folds"]
+    )
+    assert gate["passed"] is False
+    assert "rolling.max_underwater_days" in gate["missing_evidence"]
+    assert "stress.baseline.fee_bps_per_side" in gate["missing_evidence"]
     assert "blindtest_audit" not in cycle
     assert cycle["rolling_origin_summary"]["uses_final_audit"] is False
     assert cycle["rolling_origin_summary"]["eligible_as_quality_gate_evidence"] is False

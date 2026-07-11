@@ -52,6 +52,8 @@ def test_build_data_update_plan_contains_supported_public_tasks(tmp_path):
     for task in plan["supported_public_tasks"]:
         assert task["source_kind"] == "public_binance_data"
         assert task["execute_allowed"] is True
+        assert task["may_trigger_orders"] is False
+        assert task["may_submit_orders"] is False
 
 
 def test_initial_last_run_status_is_never_run():
@@ -314,7 +316,8 @@ def test_run_data_update_plan_execute_calls_public_downloader_only_for_supported
             "symbol": task["symbol"],
             "data_type": task["data_type"],
             "context_only": task.get("symbol") in {"BTCUSDC", "ETHBTC"},
-            "may_trigger_orders": task.get("symbol") == "ETHUSDC" and task.get("data_type") == "klines_1m",
+            "may_trigger_orders": task["may_trigger_orders"],
+            "may_submit_orders": task["may_submit_orders"],
             "file_results": [],
             "checksum_results": [],
         }
@@ -335,6 +338,21 @@ def test_run_data_update_plan_execute_calls_public_downloader_only_for_supported
     assert result["backtest_started"] is False
 
 
+def test_ethusdc_public_download_is_eligible_market_but_never_order_capable(tmp_path):
+    plan = controller.build_data_update_plan(tmp_path)
+    task = next(
+        row
+        for row in plan["supported_public_tasks"]
+        if row["task_id"] == "download_ethusdc_klines_1m"
+    )
+
+    assert task["eligible_trade_market"] is True
+    assert task["trade_market"] is True
+    assert task["context_only"] is False
+    assert task["may_trigger_orders"] is False
+    assert task["may_submit_orders"] is False
+
+
 def test_controller_preserves_context_only_order_safety(monkeypatch, tmp_path):
     seen = {}
 
@@ -348,8 +366,10 @@ def test_controller_preserves_context_only_order_safety(monkeypatch, tmp_path):
 
     assert seen["BTCUSDC"]["context_only"] is True
     assert seen["BTCUSDC"]["may_trigger_orders"] is False
+    assert seen["BTCUSDC"]["may_submit_orders"] is False
     assert seen["ETHBTC"]["context_only"] is True
     assert seen["ETHBTC"]["may_trigger_orders"] is False
+    assert seen["ETHBTC"]["may_submit_orders"] is False
 
 
 def test_run_data_update_plan_has_no_forbidden_result_fields_and_no_reports(tmp_path):

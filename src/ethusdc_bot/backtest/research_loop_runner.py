@@ -494,19 +494,16 @@ def _quality_evidence(record: dict[str, Any], full_training_result: Any) -> dict
             "worst_fold_net_usdc_per_day": wfv.get("worst_fold_net_usdc_per_day"),
             "fold_net_coefficient_of_variation": wfv.get("fold_net_coefficient_of_variation"),
             "full_training_net_usdc_per_day": full_training_result.metrics.net_usdc_per_day,
-            # The current simulator computes drawdown from closed trades. The
-            # immutable gate requires mark-to-market equity, so this evidence
-            # is deliberately labelled and must fail closed until implemented.
-            "drawdown_method": "closed_trade",
         }
     )
     validation = record["validation_metrics"].to_dict()
-    validation["drawdown_method"] = "closed_trade"
+    validation_result = record["validation_result"]
+    validation["drawdown_method"] = validation_result.drawdown_method
+    validation["max_underwater_days"] = validation_result.max_underwater_days
     folds: list[dict[str, Any]] = []
     for source in wfv.get("folds", []) or []:
         fold = dict(source)
         metrics = dict(fold.get("metrics", {}))
-        metrics["drawdown_method"] = "closed_trade"
         fold["metrics"] = metrics
         folds.append(fold)
     return {
@@ -815,11 +812,47 @@ def _looks_like_forbidden_audit_result_key(key: str) -> bool:
 
 
 def _select_frozen_candidate(cycles: list[dict[str, Any]]) -> dict[str, Any] | None:
-    eligible = [cycle for cycle in cycles if _quality_gate_freeze_eligible(cycle)]
+    eligible = [
+        cycle
+        for cycle in cycles
+        if _quality_gate_freeze_eligible(cycle) and _cycle_has_sealed_unopened_holdout(cycle)
+    ]
     if not eligible:
         return None
     best = max(eligible, key=_cycle_selected_rank)
     return best.get("selected_candidate")
+
+
+def _cycle_has_sealed_unopened_holdout(cycle: dict[str, Any]) -> bool:
+    window_plan = cycle.get("window_plan")
+    if not isinstance(window_plan, dict):
+        return False
+    return _sealed_holdout_window_ready(window_plan.get("final_holdout_window"))
+
+
+def _sealed_holdout_window_ready(value: Any) -> bool:
+    return bool(
+        isinstance(value, dict)
+        and value.get("status") == "sealed_unopened"
+        and value.get("consumed_audit_window") is False
+        and value.get("evaluated") is False
+        and value.get("days") == BLINDTEST_DAYS
+        and not isinstance(value.get("days"), bool)
+    )
+
+
+def _freeze_status(
+    config: LoopConfig,
+    frozen_candidate: dict[str, Any] | None,
+    active_holdout: Any,
+) -> str:
+    if config.required_days is None:
+        return "fixture_nonproduction_no_freeze"
+    if frozen_candidate is not None and _sealed_holdout_window_ready(active_holdout):
+        return "frozen_for_separate_sealed_holdout"
+    if not _sealed_holdout_window_ready(active_holdout):
+        return "blocked_by_holdout_policy"
+    return "blocked_by_quality_gates"
 
 
 def _quality_gate_freeze_eligible(cycle: dict[str, Any]) -> bool:
@@ -918,6 +951,7 @@ def _loop_report(**kwargs: Any) -> dict[str, Any]:
     window_plan = cycles[0].get("window_plan", {}) if cycles else {}
     active_holdout = window_plan.get("final_holdout_window", {}) if isinstance(window_plan, dict) else {}
     active_consumed = bool(active_holdout.get("consumed_audit_window", True))
+    active_holdout_freeze_ready = _sealed_holdout_window_ready(active_holdout)
     protocol = build_research_protocol(
         raw_root=config.raw_root,
         git_commit=kwargs["git_commit"],
@@ -938,7 +972,9 @@ def _loop_report(**kwargs: Any) -> dict[str, Any]:
     validation = validate_research_protocol(protocol)
     if not validation["valid"]:
         raise RuntimeError(f"Invalid Research Protocol v2: {validation['errors']}")
-    frozen_candidate = kwargs["frozen_candidate"]
+    frozen_candidate = (
+        kwargs["frozen_candidate"] if active_holdout_freeze_ready else None
+    )
     return {
         "schema_version": 2,
         "loop_run_id": kwargs["run_id"],
@@ -958,13 +994,7 @@ def _loop_report(**kwargs: Any) -> dict[str, Any]:
         "best_candidate": kwargs["best_candidate"],
         "best_validation_result": best_validation_result,
         "frozen_candidate": frozen_candidate,
-        "freeze_status": (
-            "fixture_nonproduction_no_freeze"
-            if config.required_days is None
-            else "frozen_for_separate_sealed_holdout"
-            if frozen_candidate
-            else "blocked_by_quality_gates"
-        ),
+        "freeze_status": _freeze_status(config, frozen_candidate, active_holdout),
         "candidate_stage_totals": stage_totals,
         "resource_budget": _resource_budget(config),
         "loop_resource_budget": {
@@ -981,6 +1011,12 @@ def _loop_report(**kwargs: Any) -> dict[str, Any]:
             "evaluated_in_research_loop": False,
             "affects_selection": False,
             "allowed_uses": ["historical_reference", "defect_analysis"],
+            "freeze_eligible": active_holdout_freeze_ready,
+            "freeze_blocker": (
+                None
+                if active_holdout_freeze_ready
+                else "final holdout must be 365 days, sealed_unopened, unconsumed, and unevaluated"
+            ),
         },
         "quality_gate_version": QUALITY_GATE_V1.version,
         "research_protocol": protocol,

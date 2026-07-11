@@ -34,6 +34,22 @@ def _intraday_candles(days: int, candles_per_day: int = 10) -> list[Candle]:
     ]
 
 
+def _flat_intraday_candles(days: int, candles_per_day: int = 10) -> list[Candle]:
+    start = datetime(2024, 1, 1, tzinfo=UTC)
+    return [
+        Candle(
+            open_time=int((start + timedelta(days=day, minutes=minute)).timestamp() * 1000),
+            open=100.0,
+            high=100.0,
+            low=100.0,
+            close=100.0,
+            volume=1.0,
+        )
+        for day in range(days)
+        for minute in range(candles_per_day)
+    ]
+
+
 def _daily_candles(days: int) -> list[Candle]:
     start = datetime(2024, 1, 1, tzinfo=UTC)
     return [
@@ -284,6 +300,56 @@ def test_walk_forward_sampling_rejects_partial_day_cap():
             max_candles_per_fold=5,
             expected_candles_per_day=10,
         )
+
+
+def test_walk_forward_folds_publish_real_mark_to_market_equity_proofs():
+    summary = evaluate_walk_forward(
+        _flat_intraday_candles(10),
+        StrategyCandidate("always_long", {"max_hold_minutes": 1}),
+        fold_count=2,
+        training_days=730,
+        blindtest_days=365,
+        expected_candles_per_day=10,
+    )
+
+    assert summary["fold_count"] == 2
+    assert summary["aggregate_metrics"]["drawdown_method"] == "mark_to_market"
+    assert summary["aggregate_metrics"]["max_underwater_days"] > 0
+    for fold in summary["folds"]:
+        curve = fold["equity_curve_usdc"]
+        timestamps = fold["equity_curve_timestamps_ms"]
+        assert fold["metrics"]["drawdown_method"] == "mark_to_market"
+        assert curve[0] == 0.0
+        assert curve[-1] == fold["metrics"]["net_profit_usdc"]
+        assert len(curve) == fold["sampled_validation_candles"] + 1
+        assert len(timestamps) == len(curve)
+        assert timestamps == sorted(timestamps)
+
+
+def test_walk_forward_aggregate_drawdown_uses_exact_chained_fold_curves():
+    summary = evaluate_walk_forward(
+        _flat_intraday_candles(10),
+        StrategyCandidate("always_long", {"max_hold_minutes": 1}),
+        fold_count=2,
+        expected_candles_per_day=10,
+    )
+    chained = []
+    offset = 0.0
+    for fold in summary["folds"]:
+        curve = fold["equity_curve_usdc"]
+        chained.extend(offset + value for value in (curve if not chained else curve[1:]))
+        offset += curve[-1]
+    peak = float("-inf")
+    expected_drawdown = 0.0
+    for value in chained:
+        peak = max(peak, value)
+        expected_drawdown = max(expected_drawdown, peak - value)
+
+    fold_drawdowns = [fold["metrics"]["max_drawdown_usdc"] for fold in summary["folds"]]
+    aggregate = summary["aggregate_metrics"]
+    assert aggregate["max_drawdown_usdc"] == pytest.approx(expected_drawdown, abs=1e-8)
+    assert aggregate["max_drawdown_usdc"] > max(fold_drawdowns)
+    assert aggregate["net_profit_usdc"] == pytest.approx(offset, abs=1e-8)
 
 
 def test_rolling_origin_evaluation_never_uses_final_audit_window():

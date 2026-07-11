@@ -21,7 +21,10 @@ The downloader now supports planning and optional execution for:
 Safety roles:
 
 - `ETHUSDC` klines are the only later `trade_market` source.
-- `BTCUSDC` and `ETHBTC` are always `market_context`, `context_only=true`, `trade_market=false`, `may_trigger_orders=false`.
+- `BTCUSDC` and `ETHBTC` are always `market_context`, `context_only=true`, `trade_market=false`, `may_trigger_orders=false`, `may_submit_orders=false`.
+- Public-data tasks always set `may_trigger_orders=false` and
+  `may_submit_orders=false`. `eligible_trade_market=true` for ETHUSDC only
+  describes the strategy market; it is never an order permission.
 - `ETHUSDC aggTrades` and `ETHUSDC trades` are `microstructure_tradeflow` only.
 
 ## Public functions
