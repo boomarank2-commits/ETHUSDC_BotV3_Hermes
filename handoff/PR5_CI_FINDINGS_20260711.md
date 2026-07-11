@@ -86,3 +86,10 @@ candidate cannot honestly obtain a complete selection pass.
 
 This work belongs in a separate stacked branch/PR and must not use or reopen the
 sealed holdout.
+
+## Current branch hygiene
+
+The two temporary write-enabled patch workflows and their deterministic helper
+scripts were removed after applying their one-time commits. The retained
+`review-ci.yml` workflow has read-only repository permissions and performs only
+installation, tests, compilation and whitespace checks.
