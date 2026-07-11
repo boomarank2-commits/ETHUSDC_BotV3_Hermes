@@ -17,7 +17,7 @@ def test_launcher_exists_and_targets_canonical_external_data_root() -> None:
 
     assert SCRIPT.is_file()
     assert r'C:\TradingBot\data\ETHUSDC_BotV3_Hermes' in text
-    assert r'raw\binance\spot\ETHUSDC\klines\1m' in text
+    assert r'raw\binance\spot\$Symbol\klines\1m' in text
     assert "Raw market data must remain outside the Git repository" in text
 
 
@@ -45,30 +45,36 @@ def test_launcher_binds_src_layout_for_every_python_child_process() -> None:
     assert "pythonpath = $env:PYTHONPATH" in text
 
 
-def test_launcher_requires_complete_three_year_ethusdc_inventory() -> None:
+def test_launcher_requires_complete_three_year_aligned_market_inventory() -> None:
     text = _script()
 
-    assert '"ETHUSDC-1m-*.zip"' in text
-    assert '"ETHUSDC-1m-*.zip.CHECKSUM"' in text
+    assert "function Assert-SymbolInventory" in text
+    assert '@("ETHUSDC", "BTCUSDC", "ETHBTC")' in text
+    assert '"$Symbol-1m-*.zip"' in text
+    assert '"$Symbol-1m-*.zip.CHECKSUM"' in text
     assert "$ZipCount -lt 1095" in text
     assert "$ChecksumCount -lt 1095" in text
-    assert "Unpaired ETHUSDC ZIP detected" in text
+    assert "Unpaired $Symbol ZIP detected" in text
+    assert "Unpaired $Symbol CHECKSUM detected" in text
+    assert "market_inventory = $MarketInventory" in text
+    assert 'context_only_symbols = @("BTCUSDC", "ETHBTC")' in text
 
 
 def test_launcher_runs_full_checks_before_supervised_research() -> None:
     text = _script()
+    inventory_position = text.index("Assert-SymbolInventory -Symbol $Symbol")
     pytest_position = text.index('"pytest", "-q"')
     compile_position = text.index('"compileall", "-q", "src"')
     import_position = text.index("RESEARCH_MODULE_IMPORT_OK")
     research_position = text.index('"ethusdc_bot.backtest.research_supervisor"')
 
-    assert pytest_position < research_position
+    assert inventory_position < pytest_position < research_position
     assert compile_position < research_position
     assert import_position < research_position
     assert 'Invoke-Checked -FilePath "py"' in text
 
 
-def test_launcher_uses_exact_production_stage_budgets() -> None:
+def test_launcher_uses_exact_production_stage_budgets_and_context() -> None:
     text = _script()
 
     expected_arguments = {
@@ -81,10 +87,11 @@ def test_launcher_uses_exact_production_stage_budgets() -> None:
     }
     for argument, value in expected_arguments.items():
         assert f'"{argument}", "{value}"' in text
+    assert '"--enable-context"' in text
     assert '"--fixture-smoke"' not in text
 
 
-def test_launcher_rejects_holdout_or_noncanonical_safety_report() -> None:
+def test_launcher_rejects_holdout_noncanonical_safety_or_missing_context_proof() -> None:
     text = _script()
 
     assert '$Report.audit_policy.evaluated_in_research_loop -ne $false' in text
@@ -97,6 +104,8 @@ def test_launcher_rejects_holdout_or_noncanonical_safety_report() -> None:
     assert '$Report.safety_status.api_keys -ne "not_used"' in text
     assert '$Report.safety_status.short_margin_futures_leverage -ne "forbidden"' in text
     assert '$Report.safety_status.candidate_adoptable -ne $false' in text
+    assert '$_.context_research.enabled -eq $true' in text
+    assert "Context research was requested but not proven enabled" in text
 
 
 def test_launcher_has_no_network_or_order_execution_commands() -> None:
