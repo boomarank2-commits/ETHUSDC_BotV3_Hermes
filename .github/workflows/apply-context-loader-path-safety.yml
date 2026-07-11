@@ -1,5 +1,6 @@
 name: Apply context loader path safety
 
+# One-shot workflow. Removed after the generated correction is verified.
 on:
   push:
     branches:
