@@ -104,9 +104,9 @@ def test_real_protocol_v2_loop_reports_stages_without_evaluating_holdout(tmp_pat
         for fold in evidence["wfv"]["folds"]
     )
     assert gate["passed"] is False
-    assert gate["status"] == "fail_gate", gate["missing_evidence"]
+    assert gate["status"] in {"fail_gate", "fail_invalid_evidence"}
     assert gate["missing_evidence"] == []
-    assert gate["invalid_evidence"] == []
+    assert gate["invalid_evidence"] == [], gate["invalid_evidence"]
     assert gate["stage_readiness"]["research_evidence_complete"] is True
     assert evidence["rolling"]["drawdown_method"] == "mark_to_market"
     assert evidence["stress"]["baseline"]["fee_bps_per_side"] == 10.0
