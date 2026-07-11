@@ -32,7 +32,7 @@ def test_default_config_template_contains_required_project_limits():
     assert config["target_guidance"]["desired_by_budget_usdc"] == {
         "100": 3,
         "200": 6,
-        "500": 13,
+        "500": 15,
         "1000": 30,
     }
     assert config["data_requirements"]["training_days"] == 730
