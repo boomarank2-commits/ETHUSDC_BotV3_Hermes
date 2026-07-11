@@ -288,7 +288,16 @@ def summarize_walk_forward(
     trades = [row["metrics"].get("trade_count", 0) for row in fold_rows]
     costs = [row["metrics"].get("fees_usdc", 0.0) + row["metrics"].get("slippage_usdc", 0.0) for row in fold_rows]
     mean = sum(values) / len(values) if values else 0.0
-    coefficient_of_variation = pstdev(values) / abs(mean) if len(values) > 1 and mean else None
+    if len(values) > 1:
+        dispersion = pstdev(values)
+        if mean:
+            coefficient_of_variation = dispersion / abs(mean)
+        elif dispersion == 0:
+            coefficient_of_variation = 0.0
+        else:
+            coefficient_of_variation = None
+    else:
+        coefficient_of_variation = None
     aggregate = aggregate_metrics.to_dict() if aggregate_metrics is not None else {}
     if aggregate_metrics is not None:
         aggregate["drawdown_method"] = "mark_to_market"
