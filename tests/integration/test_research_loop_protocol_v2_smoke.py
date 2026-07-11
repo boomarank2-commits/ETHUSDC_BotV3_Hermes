@@ -61,7 +61,6 @@ def test_real_protocol_v2_loop_reports_stages_without_evaluating_holdout(tmp_pat
     monkeypatch.setattr(loop_module, "simulate_strategy", simulate_spy)
     monkeypatch.setattr(walk_forward_module, "simulate_strategy", simulate_spy)
     monkeypatch.setattr(selection_evidence_module, "simulate_strategy", simulate_spy)
-    monkeypatch.setattr(selection_evidence_module, "simulate_strategy", simulate_spy)
 
     result = run_research_loop(
         LoopConfig(
@@ -170,7 +169,6 @@ def test_production_orchestration_enforces_defaults_and_never_simulates_planned_
     monkeypatch.setattr(loop_module, "build_research_window_plan", plan_spy)
     monkeypatch.setattr(loop_module, "simulate_strategy", simulate_spy)
     monkeypatch.setattr(walk_forward_module, "simulate_strategy", simulate_spy)
-    monkeypatch.setattr(selection_evidence_module, "simulate_strategy", simulate_spy)
     monkeypatch.setattr(selection_evidence_module, "simulate_strategy", simulate_spy)
 
     result = run_research_loop(

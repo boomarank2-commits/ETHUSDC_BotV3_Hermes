@@ -347,22 +347,6 @@ def run_parameter_stability(
             "blocked_reason": "numeric_parameter_count_exceeds_resource_limit",
             "uses_audit_or_holdout": False,
         }
-    if numeric_count > max_numeric_parameters:
-        return {
-            "all_numeric_parameters_perturbed": False,
-            "numeric_parameter_count": numeric_count,
-            "neighbor_count": 0,
-            "perturbation_fraction": gate.parameter_perturbation_fraction,
-            "session_hour_step": gate.parameter_session_hour_step,
-            "passing_neighbor_fraction": 0.0,
-            "median_net_retention": 0.0,
-            "worst_neighbor_net_usdc_per_day": 0.0,
-            "baseline_net_usdc_per_day": baseline.net_usdc_per_day,
-            "neighbors": [],
-            "resource_limit_numeric_parameters": max_numeric_parameters,
-            "blocked_reason": "numeric_parameter_count_exceeds_resource_limit",
-            "uses_audit_or_holdout": False,
-        }
     evaluations: list[NeighborEvaluation] = []
     for parameter, direction, value, neighbor in neighbor_specs:
         evaluations.append(
@@ -436,28 +420,6 @@ def _neighbor_values(
         ("minus", max(minimum, float(value) - delta)),
         ("plus", float(value) + delta),
     ]
-
-
-def _training_volatility_threshold(
-    candles: Sequence[Candle], lookback: int
-) -> float:
-    if len(candles) < 2:
-        return 0.0
-    moves: list[float] = []
-    for index in range(1, len(candles)):
-        previous = float(candles[index - 1].close)
-        current = float(candles[index].close)
-        moves.append(abs(current / previous - 1) * 10_000 if previous else 0.0)
-    rolling_values: list[float] = []
-    rolling_sum = 0.0
-    for index, move in enumerate(moves):
-        rolling_sum += move
-        if index >= lookback:
-            rolling_sum -= moves[index - lookback]
-        width = min(index + 1, lookback)
-        rolling_values.append(rolling_sum / width)
-    finite_values = [value for value in rolling_values if isfinite(value)]
-    return median(finite_values) if finite_values else 0.0
 
 
 def _training_volatility_threshold(
