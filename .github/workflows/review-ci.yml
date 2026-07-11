@@ -81,6 +81,10 @@ jobs:
         run: |
           if [[ -n "${GITHUB_BASE_REF}" ]]; then
             base_ref="${GITHUB_BASE_REF}"
+          elif [[ "${GITHUB_REF_NAME}" == "review/research-checkpoints-context-v1" ]]; then
+            base_ref="review/context-veto-engine-v1"
+          elif [[ "${GITHUB_REF_NAME}" == "review/context-veto-engine-v1" ]]; then
+            base_ref="review/context-data-alignment-v1"
           elif [[ "${GITHUB_REF_NAME}" == "review/context-data-alignment-v1" ]]; then
             base_ref="review/windows-production-research-runner-v1"
           elif [[ "${GITHUB_REF_NAME}" == "review/windows-production-research-runner-v1" ]]; then
