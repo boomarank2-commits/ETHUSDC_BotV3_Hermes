@@ -25,6 +25,59 @@ function Invoke-Checked {
     }
 }
 
+function Assert-SymbolInventory {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Symbol,
+        [Parameter(Mandatory = $true)]
+        [string]$Root
+    )
+
+    $Folder = Join-Path $Root "raw\binance\spot\$Symbol\klines\1m"
+    if (-not (Test-Path $Folder -PathType Container)) {
+        throw "$Symbol 1m data folder is missing: $Folder"
+    }
+    $ZipFiles = @(Get-ChildItem -Path $Folder -Filter "$Symbol-1m-*.zip" -File)
+    $ChecksumFiles = @(Get-ChildItem -Path $Folder -Filter "$Symbol-1m-*.zip.CHECKSUM" -File)
+    $ZipCount = $ZipFiles.Count
+    $ChecksumCount = $ChecksumFiles.Count
+    if ($ZipCount -lt 1095 -or $ChecksumCount -lt 1095) {
+        throw "Production context research requires at least 1095 $Symbol ZIP/CHECKSUM day pairs; found ZIP=$ZipCount CHECKSUM=$ChecksumCount"
+    }
+
+    $ZipNames = @{}
+    foreach ($Zip in $ZipFiles) {
+        $ZipNames[$Zip.Name] = $true
+    }
+    $ChecksumNames = @{}
+    foreach ($Checksum in $ChecksumFiles) {
+        $TargetName = $Checksum.Name.Substring(0, $Checksum.Name.Length - ".CHECKSUM".Length)
+        $ChecksumNames[$TargetName] = $true
+    }
+    $UnpairedZip = $ZipFiles | Where-Object { -not $ChecksumNames.ContainsKey($_.Name) } | Select-Object -First 1
+    if ($null -ne $UnpairedZip) {
+        throw "Unpaired $Symbol ZIP detected: $($UnpairedZip.FullName)"
+    }
+    $UnpairedChecksum = $ChecksumFiles | Where-Object {
+        $TargetName = $_.Name.Substring(0, $_.Name.Length - ".CHECKSUM".Length)
+        -not $ZipNames.ContainsKey($TargetName)
+    } | Select-Object -First 1
+    if ($null -ne $UnpairedChecksum) {
+        throw "Unpaired $Symbol CHECKSUM detected: $($UnpairedChecksum.FullName)"
+    }
+
+    $Sorted = @($ZipFiles | Sort-Object Name)
+    return [ordered]@{
+        symbol = $Symbol
+        folder = $Folder
+        zip_count = $ZipCount
+        checksum_count = $ChecksumCount
+        paired_count = $ZipCount
+        first_file = $Sorted[0].Name
+        last_file = $Sorted[-1].Name
+    }
+}
+
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $SrcRoot = (Resolve-Path (Join-Path $RepoRoot "src")).Path
 Set-Location $RepoRoot
@@ -75,24 +128,10 @@ if ($RawRootFull.Equals($RepoRootFull, [System.StringComparison]::OrdinalIgnoreC
     $RawRootFull.StartsWith($RepoRootFull.TrimEnd('\') + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "Raw market data must remain outside the Git repository"
 }
-$EthFolder = Join-Path $RawRootFull "raw\binance\spot\ETHUSDC\klines\1m"
-if (-not (Test-Path $EthFolder -PathType Container)) {
-    throw "ETHUSDC 1m data folder is missing: $EthFolder"
-}
-$ZipFiles = @(Get-ChildItem -Path $EthFolder -Filter "ETHUSDC-1m-*.zip" -File)
-$ChecksumFiles = @(Get-ChildItem -Path $EthFolder -Filter "ETHUSDC-1m-*.zip.CHECKSUM" -File)
-$ZipCount = $ZipFiles.Count
-$ChecksumCount = $ChecksumFiles.Count
-if ($ZipCount -lt 1095 -or $ChecksumCount -lt 1095) {
-    throw "Production research requires at least 1095 ETHUSDC ZIP/CHECKSUM day pairs; found ZIP=$ZipCount CHECKSUM=$ChecksumCount"
-}
-$ChecksumNames = @{}
-foreach ($Checksum in $ChecksumFiles) {
-    $ChecksumNames[$Checksum.Name.Substring(0, $Checksum.Name.Length - ".CHECKSUM".Length)] = $true
-}
-$UnpairedZip = $ZipFiles | Where-Object { -not $ChecksumNames.ContainsKey($_.Name) } | Select-Object -First 1
-if ($null -ne $UnpairedZip) {
-    throw "Unpaired ETHUSDC ZIP detected: $($UnpairedZip.FullName)"
+
+$MarketInventory = [ordered]@{}
+foreach ($Symbol in @("ETHUSDC", "BTCUSDC", "ETHBTC")) {
+    $MarketInventory[$Symbol] = Assert-SymbolInventory -Symbol $Symbol -Root $RawRootFull
 }
 
 if (-not $ReportsRoot) {
@@ -129,13 +168,17 @@ $ResearchArguments = @(
     "--enable-context"
 )
 
-Write-Host "==> Production Research Protocol v2"
+Write-Host "==> Production Research Protocol v2 with aligned public context"
 Write-Host "Branch: $GitBranch"
 Write-Host "Commit: $GitCommit"
 Write-Host "Source root: $SrcRoot"
 Write-Host "Raw root: $RawRootFull"
 Write-Host "Reports root: $ReportsRootFull"
 Write-Host "Max cycles: $MaxCycles"
+foreach ($Symbol in $MarketInventory.Keys) {
+    $Item = $MarketInventory[$Symbol]
+    Write-Host "$Symbol inventory: ZIP=$($Item.zip_count) CHECKSUM=$($Item.checksum_count) first=$($Item.first_file) last=$($Item.last_file)"
+}
 
 $ResearchOutput = & py @ResearchArguments 2>&1 | Tee-Object -FilePath $ConsoleLog
 if ($LASTEXITCODE -ne 0) {
@@ -176,11 +219,15 @@ if ($Report.safety_status.live -ne "locked" -or
     $Report.safety_status.candidate_adoptable -ne $false) {
     throw "Safety declaration in the research report is not canonical"
 }
+$ContextCycles = @($Report.cycles | Where-Object { $_.context_research.enabled -eq $true })
+if ($ContextCycles.Count -ne $Report.cycles.Count) {
+    throw "Context research was requested but not proven enabled in every completed cycle"
+}
 
 $LastCycle = $Report.cycles | Select-Object -Last 1
 $Manifest = [ordered]@{
     schema_version = 1
-    run_kind = "production_selection_research"
+    run_kind = "production_selection_research_with_context"
     started_at_utc = $StartedAtUtc.ToString("o")
     completed_at_utc = [DateTime]::UtcNow.ToString("o")
     git_branch = $GitBranch
@@ -190,6 +237,10 @@ $Manifest = [ordered]@{
     pythonpath = $env:PYTHONPATH
     raw_root = $RawRootFull
     reports_root = $ReportsRootFull
+    market_inventory = $MarketInventory
+    context_enabled = $true
+    context_trade_symbol = "ETHUSDC"
+    context_only_symbols = @("BTCUSDC", "ETHBTC")
     max_cycles = $MaxCycles
     canonical_stage_budgets = [ordered]@{
         generated = 40
@@ -222,6 +273,7 @@ Write-Host "Best validation: $($Report.best_validation_result)"
 if ($null -ne $LastCycle) {
     Write-Host "Last frontier: generated=$($LastCycle.generated_candidates) tested=$($LastCycle.tested_candidates) WFV=$($LastCycle.walk_forward_candidates) finalists=$($LastCycle.finalists)"
     Write-Host "Qualified finalists: $($LastCycle.qualified_finalists)"
+    Write-Host "Context candidates generated: $($LastCycle.context_research.context_candidate_count)"
 }
 Write-Host "Final holdout evaluated: False"
 Write-Host "Live/Paper/Testtrade/Orders: locked"
