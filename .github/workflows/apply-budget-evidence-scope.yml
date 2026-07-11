@@ -1,0 +1,53 @@
+name: Apply budget evidence scope
+
+on:
+  push:
+    branches:
+      - "review/pr4-final-alignment"
+    paths:
+      - ".github/workflows/apply-budget-evidence-scope.yml"
+      - "tools/apply_budget_evidence_scope.py"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout review branch
+        uses: actions/checkout@v4
+        with:
+          ref: review/pr4-final-alignment
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Apply deterministic budget evidence patch
+        run: python tools/apply_budget_evidence_scope.py
+
+      - name: Validate patched files
+        run: |
+          python -m compileall -q src
+          git diff --check
+
+      - name: Commit applied budget evidence fixes
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No patch changes required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/ethusdc_bot/shadow/adoption.py \
+                  src/ethusdc_bot/shadow/schema.py \
+                  src/ethusdc_bot/ui/dashboard_state.py \
+                  tests/unit/test_shadow_adoption.py \
+                  tests/unit/test_shadow_schema.py
+          git commit -m "Bind Shadow target claims to evidence budget"
+          git push origin HEAD:review/pr4-final-alignment
