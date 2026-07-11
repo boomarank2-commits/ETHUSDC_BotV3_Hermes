@@ -23,6 +23,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
           fetch-depth: 0
 
       - name: Set up Python 3.12
@@ -32,7 +33,7 @@ jobs:
           cache: pip
 
       - name: Apply context research integration on its dedicated branch
-        if: github.event_name == 'push' && github.ref_name == 'review/context-research-integration-v1'
+        if: github.ref_name == 'review/context-research-integration-v1' || github.head_ref == 'review/context-research-integration-v1'
         run: |
           python tools/patch_context_research_integration.py
           git diff --check
@@ -118,7 +119,7 @@ jobs:
         run: test "${{ steps.pytest.outputs.status }}" -eq 0
 
       - name: Commit tested context integration
-        if: github.event_name == 'push' && github.ref_name == 'review/context-research-integration-v1'
+        if: github.ref_name == 'review/context-research-integration-v1' || github.head_ref == 'review/context-research-integration-v1'
         shell: bash
         run: |
           if git diff --quiet; then exit 0; fi
