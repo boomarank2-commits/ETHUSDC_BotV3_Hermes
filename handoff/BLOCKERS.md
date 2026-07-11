@@ -2,37 +2,43 @@
 
 Current strategic blocker:
 
-- The `+3 USDC/day` target is not reached.
-- Post-fix control validation is negative at `-0.0086568356 USDC/day` with profit factor `0.4915795763` and only 17 trades.
-- The consumed audit-window result is also negative at `-0.0012839958 USDC/day` and is not eligible for selection or optimization.
+- No strategy has demonstrated the fixed `+3 USDC/day` target on a valid one-shot sealed holdout.
+- The last post-Slippage control validation was negative at `-0.0086568356 USDC/day`, profit factor `0.4915795763`, with 17 trades.
+- Its repeatedly viewed audit result is consumed historical evidence and cannot select or tune a candidate.
 
-Current methodological blockers:
+Current quality-evidence blockers:
 
-- `max_candidates_per_cycle=40` is misleading in practice: the generator currently emits 11 candidates and the runner hard-slices evaluation to the first 4.
-- Only one candidate per cycle receives walk-forward validation.
-- The repeatedly viewed 365-day window is consumed and cannot serve as an untouched final holdout.
-- The current loop evaluates that audit window every cycle even though it does not feed programmatic ranking.
-- Research reports do not yet separate generated, tested, WFV, and finalist counts.
-- Rolling-origin robustness across additional historical windows is not implemented.
-- The current `context_filter` does not consume BTCUSDC or ETHBTC data; it only re-runs an ETHUSDC base signal.
-- Fixed numerical quality gates and stress-test acceptance are not yet implemented.
+- Mark-to-market drawdown is not yet produced; closed-trade drawdown cannot satisfy `quality_gate_v1`.
+- Formal time-local rolling-origin refits are not implemented.
+- Concentration, underwater duration, parameter-neighborhood, cost-stress, temporal, and regime evidence producers are not implemented.
+- Therefore Protocol v2 intentionally reports failed/missing gates and cannot freeze a candidate.
 
-Other known product gaps:
+Current data-policy blocker:
 
+- Every selection-bearing date must avoid the consumed ledger window `2025-07-08` through `2026-07-07`.
+- As the latest dynamic 1,095-day window moves forward, consumed dates can enter training. Such a run now fails closed instead of silently reusing them.
+- The final 365-day holdout can overlap the ledger only as unevaluated consumed metadata; it cannot become selection evidence.
+
+Other product gaps:
+
+- Real BTCUSDC/ETHBTC context signals are not integrated; placeholder context candidates are not tested.
 - Exchange info remains unsupported by the current public-data downloader path.
-- BookTicker and orderbook snapshots require future public live collection and must not be fabricated historically.
+- BookTicker/orderbook history must not be fabricated; future collection is separate scope.
 - Full background UI execution/progress wiring remains incomplete.
 
-Resolved:
+Resolved methodological defects:
 
-- Diagnostic execution slippage no longer includes normal holding-period market movement.
-- Fees are recorded once per side and slippage is not double-subtracted from P&L.
-- Hand-checkable accounting and all exit paths have regression coverage.
+- Generated, tested, WFV, and finalist stages now have honest counts and IDs.
+- Candidate evaluation is deterministic and bounded instead of a hidden first-four slice.
+- Multiple candidates receive WFV on complete UTC-day folds.
+- Holdout candles are absent from the research loop.
+- Consumed selection overlap fails closed.
+- WFV aggregates cannot contradict their fold evidence and still pass.
+- A forged or mismatched passing gate cannot freeze a candidate.
+- Both legacy repeated-holdout entrypoints are disabled.
 
 Safety locks remain:
 
-- Live locked.
-- Paper locked. Only a separate public-data-only hypothetical Shadow mode may be considered later.
-- Testtrade locked.
-- No trading API, keys, account data, or orders.
-- No candidate adoption.
+- Live locked; Paper locked; Testtrade locked.
+- No candidate adoption, Trading API, API keys, account data, or orders.
+- Spot LONG-only; no shorts, margin, futures, or leverage.

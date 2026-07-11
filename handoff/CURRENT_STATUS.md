@@ -1,44 +1,43 @@
 # Current Status
 
-Status: The backtest execution-cost defect is fixed and independently verified. A post-fix control research loop was completed, but the strategic target remains unmet.
+Status: Research Protocol v2 is implemented and locally verified on branch `agent/research-protocol-v2`. It has not run a production historical search and has not evaluated a final holdout.
 
-Latest completed code change:
+Verified baseline:
 
-- Commit `03e9db0 Fix backtest execution cost accounting` corrects diagnostic slippage accounting in `src/ethusdc_bot/backtest/simulator.py`.
-- Entry and exit mid-prices are retained separately from execution prices.
-- Entry and exit fees and slippage are recorded separately.
-- Quantity remains based on the 100 USDC entry execution notional.
-- Net P&L remains execution-price gross P&L minus fees; diagnostic slippage is not subtracted twice.
-- End-of-data, take-profit, stop-loss, time-exit, break-even, and trailing-stop exits use the shared cost-accounting path.
-- `docs/29_BACKTEST_EXECUTION_COST_AUDIT.md` documents the defect, formulas, impact, and hand-checkable examples.
+- `origin/main` and local `main` were synchronized at `c73c71d Clarify control audit and Paper lock` before the branch was created.
+- The post-Slippage control remains historical evidence only: `research_loop_20260710T054549Z`.
+- Full Protocol-v2 branch suite: 505 tests passed with Python 3.12.
+- The real runner path was exercised with a six-day report labelled `fixture_smoke_non_production` and a separate synthetic production-orchestration wiring test using canonical budgets, folds, and origin policy.
+- Simulator spies proved that neither orchestration path evaluated a planned final-holdout candle.
 
-Post-fix control run:
+Protocol-v2 implementation:
 
-- Run ID: `research_loop_20260710T054549Z`.
-- Git commit recorded by the report: `03e9db0`.
-- Command: `PYTHONPATH=src python -m ethusdc_bot.backtest.research_loop_runner --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes --max-cycles 8 --max-candidates-per-cycle 40`.
-- Cycles executed: 4 of 8.
-- Stop reason: `validation_stagnation_3_cycles`.
-- Each cycle generated 11 candidates but evaluated only the first 4.
-- Only one validation leader per cycle received walk-forward validation.
-- Best validation: `-0.0086568356 USDC/day`, profit factor `0.4915795763`, 17 trades.
-- Best consumed audit-window result: `-0.0012839958 USDC/day`, profit factor `0.9423532464`, 14 trades.
-- Target `+3 USDC/day`: not reached.
-- No candidate is adoptable.
+- Dynamic 730-day training plus 365-day final-holdout metadata is anchored to the latest complete UTC day, never fixed years.
+- Production completeness requires exactly 1,440 contiguous 1-minute candles from 00:00 through 23:59 UTC. Partial or gap-compensated days fail closed.
+- The consumed ledger window `2025-07-08` through `2026-07-07` is forbidden in every selection-bearing training, validation, WFV, and historical-origin slice.
+- The current final holdout is metadata-only. The research loop never receives or evaluates its candles.
+- Candidate stages are honest and bounded: up to 40 generated, 12 tested, 3 WFV, and 2 finalists, with exact IDs and counts.
+- Candidate testing is deterministic and family-balanced when a cap is needed.
+- Six-fold WFV uses complete UTC-day boundaries and day-weighted aggregate metrics.
+- Fixed-candidate historical replay is labelled diagnostic and cannot affect ranking, quality gates, or freeze.
+- `quality_gate_v1` is immutable and fail-closed. WFV aggregates are independently checked against fold evidence.
+- A passing gate must match the selected finalist ID and canonical parameter signature before any freeze.
+- The public legacy `backtest.runner` and `research_runner` execution paths are disabled because they repeatedly evaluated holdout data.
+- Per-cycle work is hard-bounded and reported as candidate-day and one-minute candle-evaluation caps.
 
-Methodological status:
+Current gate outcome:
 
-- All previously viewed 365-day blindtest results are now formally classified as `consumed_audit_window = true`.
-- They may be retained for history, comparison, and defect analysis, but not for strategy selection, ranking, parameter changes, router decisions, or optimization.
-- Reports produced before `03e9db0` retain historical execution-price P&L evidence, but their slippage-derived rankings and cost diagnoses are obsolete.
-- The current loop's fixed first-four candidate frontier, single-candidate WFV, repeated audit evaluation, and non-functional context filter require a Research Protocol v2 repair before any strategy work.
+- No candidate is frozen or adoptable.
+- The current simulator reports closed-trade drawdown, while the gate requires mark-to-market drawdown.
+- Formal time-local rolling-origin refits, concentration, parameter-neighborhood, cost-stress, temporal, and regime evidence are not yet produced.
+- Missing or invalid evidence blocks freeze; it is never treated as zero or success.
+- `+3 USDC/day` remains not evaluated under Protocol v2 because no sealed-holdout workflow was run.
 
 Safety status:
 
-- Trade symbol: ETHUSDC only.
-- Quote/notional: fixed 100 USDC per trade, no compounding, at most one open position.
-- Cost baseline: 0.1% fee and 5 bps slippage per side, no BNB discount.
-- Spot LONG-only; no shorts, margin, futures, or leverage.
-- Live, Paper, and Testtrade remain locked. A separate future Shadow mode may use only public data and hypothetical trades, with no order endpoints.
+- ETHUSDC/USDC Spot LONG-only, fixed 100 USDC notional, at most one position, no compounding.
+- Baseline cost: 0.1% fee plus 5 bps slippage per side; no BNB discount.
+- No shorts, margin, futures, or leverage.
+- Live, Paper, and Testtrade remain locked.
 - No Binance Trading API, API keys, account data, or orders.
-- BTCUSDC and ETHBTC remain context-only and cannot open trades.
+- BTCUSDC and ETHBTC remain non-trading context only and are not yet integrated into signals.
