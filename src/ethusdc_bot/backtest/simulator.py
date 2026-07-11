@@ -116,6 +116,11 @@ def simulate_strategy(
         context_policy = ContextVetoPolicy.from_candidate_params(strategy.params)
         if market_context is not None:
             validate_context_against_trade_candles(candles, market_context)
+    context_policy: ContextVetoPolicy | None = None
+    if strategy.family == "context_filter":
+        context_policy = ContextVetoPolicy.from_candidate_params(strategy.params)
+        if market_context is not None:
+            validate_context_against_trade_candles(candles, market_context)
     trades: list[Trade] = []
     position: dict[str, float | int] | None = None
     pending_entry = False
