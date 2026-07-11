@@ -34,6 +34,9 @@ if (-not (Test-Path (Join-Path $RepoRoot "pyproject.toml") -PathType Leaf)) {
 if (-not (Test-Path (Join-Path $RepoRoot "src\ethusdc_bot") -PathType Container)) {
     throw "Repository root is invalid: src\ethusdc_bot is missing"
 }
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    throw "Git is not available"
+}
 if (-not (Get-Command py -ErrorAction SilentlyContinue)) {
     throw "Python launcher 'py' is not available"
 }
@@ -65,10 +68,20 @@ $EthFolder = Join-Path $RawRootFull "raw\binance\spot\ETHUSDC\klines\1m"
 if (-not (Test-Path $EthFolder -PathType Container)) {
     throw "ETHUSDC 1m data folder is missing: $EthFolder"
 }
-$ZipCount = @(Get-ChildItem -Path $EthFolder -Filter "ETHUSDC-1m-*.zip" -File).Count
-$ChecksumCount = @(Get-ChildItem -Path $EthFolder -Filter "ETHUSDC-1m-*.zip.CHECKSUM" -File).Count
+$ZipFiles = @(Get-ChildItem -Path $EthFolder -Filter "ETHUSDC-1m-*.zip" -File)
+$ChecksumFiles = @(Get-ChildItem -Path $EthFolder -Filter "ETHUSDC-1m-*.zip.CHECKSUM" -File)
+$ZipCount = $ZipFiles.Count
+$ChecksumCount = $ChecksumFiles.Count
 if ($ZipCount -lt 1095 -or $ChecksumCount -lt 1095) {
     throw "Production research requires at least 1095 ETHUSDC ZIP/CHECKSUM day pairs; found ZIP=$ZipCount CHECKSUM=$ChecksumCount"
+}
+$ChecksumNames = @{}
+foreach ($Checksum in $ChecksumFiles) {
+    $ChecksumNames[$Checksum.Name.Substring(0, $Checksum.Name.Length - ".CHECKSUM".Length)] = $true
+}
+$UnpairedZip = $ZipFiles | Where-Object { -not $ChecksumNames.ContainsKey($_.Name) } | Select-Object -First 1
+if ($null -ne $UnpairedZip) {
+    throw "Unpaired ETHUSDC ZIP detected: $($UnpairedZip.FullName)"
 }
 
 if (-not $ReportsRoot) {
@@ -124,7 +137,8 @@ if (-not (Test-Path $ReportJson -PathType Leaf)) {
     throw "Reported JSON does not exist: $ReportJson"
 }
 
-$Report = Get-Content -Path $ReportJson -Raw -Encoding UTF8 | ConvertFrom-Json -Depth 100
+# ConvertFrom-Json is intentionally used without -Depth for Windows PowerShell 5.1 compatibility.
+$Report = Get-Content -Path $ReportJson -Raw -Encoding UTF8 | ConvertFrom-Json
 if ($Report.execution_profile -ne "production_protocol") {
     throw "Unexpected execution profile: $($Report.execution_profile)"
 }
@@ -137,9 +151,11 @@ if ($Report.window_plan.final_holdout_window.evaluated -ne $false) {
 if ($Report.safety_status.live -ne "locked" -or
     $Report.safety_status.paper -ne "locked" -or
     $Report.safety_status.testtrade -ne "locked" -or
-    $Report.safety_status.orders -ne "disabled" -or
-    $Report.safety_status.trading_api -ne "disabled" -or
-    $Report.safety_status.api_keys -ne "not_used") {
+    $Report.safety_status.orders -ne "not_created" -or
+    $Report.safety_status.binance_trading_api -ne "not_used" -or
+    $Report.safety_status.api_keys -ne "not_used" -or
+    $Report.safety_status.short_margin_futures_leverage -ne "forbidden" -or
+    $Report.safety_status.candidate_adoptable -ne $false) {
     throw "Safety declaration in the research report is not canonical"
 }
 
