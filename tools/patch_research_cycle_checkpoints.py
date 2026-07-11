@@ -1,5 +1,6 @@
 from pathlib import Path
 
+# One-shot deterministic patch. The workflow and this helper are deleted after use.
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "src/ethusdc_bot/backtest/research_loop_runner.py"
 TESTS = ROOT / "tests/unit/test_research_loop_runner.py"
