@@ -42,22 +42,47 @@ Correction:
 - both `catalog_schema.py` and `raw_data_contract.py` now use the same helper;
 - regression tests cover Windows, POSIX, mixed-flavour and cross-drive cases.
 
+The corrected state subsequently passed the full automated test, compile and
+whitespace pipeline.
+
+## Budget evidence-scope correction
+
+A second review found that final green/yellow assessment was computed for the
+canonical 100-USDC final evaluation before a later manual Shadow deployment
+budget was selected. This permitted a 500-USDC Shadow deployment to inherit the
+source green colour without explicitly stating that 15 USDC/day had not been
+independently demonstrated.
+
+Correction:
+
+- source assessment colour is explicitly scoped to the canonical 100-USDC final
+  evaluation;
+- each deployment records its selected budget and proportional target;
+- 100-USDC green is `verified`;
+- 100-USDC yellow is `below_target`;
+- every larger deployment is `unverified_scaling` until separate evidence
+  exists;
+- strict schema and unit tests enforce these fields;
+- dashboard status exposes this distinction.
+
+This does not block larger fixed-lot Shadow budgets. It prevents an unsupported
+performance claim.
+
 ## Safety impact
 
-The correction does not loosen the rule that raw market data must remain
-outside the repository. It removes a false positive caused solely by running
-Windows path contracts on Linux. Real paths inside the repository remain
-blocked.
+The corrections do not loosen the rule that raw market data must remain outside
+the repository and do not enable trading.
 
 No Live, Paper, Testtrade, order, account, API-key, short, margin, futures or
 leverage capability was introduced.
 
-## Next checks
+## Research blocker identified
 
-A new full CI run must confirm:
+The current production research loop does not yet produce all evidence required
+by `quality_gate_v1`. Missing producers include rolling concentration,
+cost/slippage stress, parameter stability, temporal stability and regime
+stability. Until these are computed from training/validation/WFV data, a real
+candidate cannot honestly obtain a complete selection pass.
 
-- all 754 previous tests plus the new path-safety tests pass;
-- Python source compiles;
-- committed diff has no whitespace errors;
-- the larger-budget assessment is not displayed as independently proven merely
-  because the canonical 100-USDC final report was green.
+This work belongs in a separate stacked branch/PR and must not use or reopen the
+sealed holdout.
