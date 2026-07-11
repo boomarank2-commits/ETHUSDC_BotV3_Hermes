@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from statistics import median, pstdev
 from typing import Any
 
 from ethusdc_bot.backtest.data_loader import Candle
+from ethusdc_bot.backtest.equity import (
+    EquityPoint,
+    chain_equity_curves,
+    max_drawdown_usdc,
+    max_underwater_calendar_days,
+)
 from ethusdc_bot.backtest.metrics import BacktestMetrics, compute_metrics
 from ethusdc_bot.backtest.simulator import StrategyCandidate, simulate_strategy
 from ethusdc_bot.backtest.split import SplitResult
@@ -86,6 +92,7 @@ def evaluate_walk_forward(
     )
     fold_rows: list[dict[str, Any]] = []
     all_trades = []
+    fold_equity_curves: list[tuple[EquityPoint, ...]] = []
     simulated_days = 0
     for fold in folds:
         validation_window = _sample_whole_utc_days(
@@ -101,6 +108,7 @@ def evaluate_walk_forward(
             blindtest_days=blindtest_days,
         )
         fold_metrics = result.metrics.to_dict()
+        fold_metrics["drawdown_method"] = result.drawdown_method
         fold_net_profits = [float(trade.net_profit_usdc) for trade in result.trades]
         fold_metrics["gross_profit_usdc"] = round(
             sum(value for value in fold_net_profits if value > 0), 10
@@ -109,6 +117,7 @@ def evaluate_walk_forward(
             abs(sum(value for value in fold_net_profits if value < 0)), 10
         )
         all_trades.extend(result.trades)
+        fold_equity_curves.append(result.equity_curve)
         simulated_days += fold_days
         fold_rows.append(
             {
@@ -121,15 +130,26 @@ def evaluate_walk_forward(
                 "simulated_validation_days": fold_days,
                 "days": fold_days,
                 "metrics": fold_metrics,
+                "equity_curve_usdc": result.equity_curve_usdc,
+                "equity_curve_timestamps_ms": result.equity_curve_timestamps_ms,
             }
         )
+    chained_equity = chain_equity_curves(fold_equity_curves)
     aggregate = compute_metrics(
         all_trades,
         days=max(1, simulated_days),
         training_days=training_days,
         blindtest_days=blindtest_days,
     )
-    return summarize_walk_forward(fold_rows, aggregate_metrics=aggregate)
+    aggregate = replace(
+        aggregate,
+        max_drawdown_usdc=max_drawdown_usdc(chained_equity),
+    )
+    return summarize_walk_forward(
+        fold_rows,
+        aggregate_metrics=aggregate,
+        aggregate_max_underwater_days=max_underwater_calendar_days(chained_equity),
+    )
 
 
 def evaluate_walk_forward_frontier(
@@ -224,7 +244,10 @@ def evaluate_rolling_origins(
 
 
 def summarize_walk_forward(
-    fold_rows: list[dict[str, Any]], *, aggregate_metrics: BacktestMetrics | None = None
+    fold_rows: list[dict[str, Any]],
+    *,
+    aggregate_metrics: BacktestMetrics | None = None,
+    aggregate_max_underwater_days: int | None = None,
 ) -> dict[str, Any]:
     values = [row["metrics"]["net_usdc_per_day"] for row in fold_rows]
     profit_factors = [row["metrics"].get("profit_factor", 0.0) for row in fold_rows]
@@ -234,6 +257,9 @@ def summarize_walk_forward(
     mean = sum(values) / len(values) if values else 0.0
     coefficient_of_variation = pstdev(values) / abs(mean) if len(values) > 1 and mean else None
     aggregate = aggregate_metrics.to_dict() if aggregate_metrics is not None else {}
+    if aggregate_metrics is not None:
+        aggregate["drawdown_method"] = "mark_to_market"
+        aggregate["max_underwater_days"] = aggregate_max_underwater_days
     return {
         "ranking_uses_blindtest": False,
         "fold_count": len(fold_rows),

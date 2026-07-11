@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+import ethusdc_bot.backtest.research_loop_runner as loop_module
 from ethusdc_bot.backtest.metrics import BacktestMetrics
 from ethusdc_bot.backtest.quality_gates import evaluate_quality_gates
 from ethusdc_bot.backtest.research_loop_runner import LoopConfig, run_research_loop
@@ -472,3 +473,42 @@ def test_context_symbols_cannot_trigger_trades():
 
     assert candidate.params["context_symbol"] == "BTCUSDC"
     assert candidate.params["symbol"] == "ETHUSDC"
+
+
+def test_candidate_freeze_requires_exact_unconsumed_unevaluated_365_day_holdout(monkeypatch):
+    monkeypatch.setattr(loop_module, "_quality_gate_freeze_eligible", lambda cycle: True)
+    cycle = _cycle("candidate", validation=1.0)
+    cycle["window_plan"] = {
+        "final_holdout_window": {
+            "status": "sealed_unopened",
+            "consumed_audit_window": False,
+            "evaluated": False,
+            "days": 365,
+        }
+    }
+
+    assert loop_module._select_frozen_candidate([cycle]) == cycle["selected_candidate"]
+
+    for field, invalid in (
+        ("status", "consumed"),
+        ("consumed_audit_window", True),
+        ("evaluated", True),
+        ("days", 364),
+    ):
+        blocked = _cycle("candidate", validation=1.0)
+        holdout = dict(cycle["window_plan"]["final_holdout_window"])
+        holdout[field] = invalid
+        blocked["window_plan"] = {"final_holdout_window": holdout}
+        assert loop_module._select_frozen_candidate([blocked]) is None
+
+
+def test_production_freeze_status_names_holdout_policy_blocker(tmp_path):
+    config = LoopConfig(reports_root=tmp_path)
+    consumed = {
+        "status": "consumed",
+        "consumed_audit_window": True,
+        "evaluated": False,
+        "days": 365,
+    }
+
+    assert loop_module._freeze_status(config, None, consumed) == "blocked_by_holdout_policy"

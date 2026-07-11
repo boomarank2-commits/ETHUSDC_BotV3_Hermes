@@ -511,8 +511,14 @@ def _with_safety_metadata(task: Mapping[str, Any]) -> dict[str, Any]:
     symbol = str(enriched.get("symbol"))
     data_type = str(enriched.get("data_type"))
     enriched["context_only"] = symbol in {"BTCUSDC", "ETHBTC"}
-    enriched["may_trigger_orders"] = symbol == "ETHUSDC" and data_type == "klines_1m"
-    enriched["trade_market"] = symbol == "ETHUSDC" and data_type == "klines_1m"
+    eligible_trade_market = symbol == "ETHUSDC" and data_type == "klines_1m"
+    # These tasks only download public market data.  ETHUSDC being the
+    # strategy's eligible market must never be confused with permission to
+    # create or submit an order.
+    enriched["eligible_trade_market"] = eligible_trade_market
+    enriched["trade_market"] = eligible_trade_market
+    enriched["may_trigger_orders"] = False
+    enriched["may_submit_orders"] = False
     return enriched
 
 

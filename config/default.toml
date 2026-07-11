@@ -11,6 +11,31 @@ position_mode = "long_only"
 start_capital_usdc = 100
 risk_profile = "medium"
 
+[portfolio]
+model_version = "fixed_lot_portfolio_v1"
+lot_notional_usdc = 100
+default_deployment_budget_usdc = 100
+allowed_deployment_budgets_usdc = [100, 200, 500, 1000]
+compounding_enabled = false
+baseline_fee_bps_per_side = 10
+baseline_slippage_bps_per_side = 5
+soft_drawdown_fraction = 0.15
+
+[target_guidance]
+measurement = "net_usdc_per_calendar_day_after_costs"
+includes_zero_trade_days = true
+acceptable_by_budget_usdc = { "100" = 3, "200" = 5, "500" = 12, "1000" = 25 }
+desired_by_budget_usdc = { "100" = 3, "200" = 6, "500" = 13, "1000" = 30 }
+used_for_candidate_search = false
+
+[shadow]
+mode = "public_data_shadow"
+runtime_location = "outside_repository"
+orders_enabled = false
+trading_api_enabled = false
+api_keys_used = false
+automatic_live_transition_enabled = false
+
 [data_requirements]
 training_days = 730
 blindtest_days = 365
@@ -28,5 +53,5 @@ futures_enabled = false
 leverage_enabled = false
 
 [phase]
-current = "phase_1_skeleton"
-implementation_scope = "structure_templates_tests_only"
+current = "portfolio_shadow_foundation"
+implementation_scope = "offline_backtest_and_order_free_shadow_only"

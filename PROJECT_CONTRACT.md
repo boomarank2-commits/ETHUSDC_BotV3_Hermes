@@ -2,6 +2,11 @@
 
 Dieser Vertrag beschreibt, was gebaut werden soll und woran Erfolg oder Scheitern gemessen wird.
 
+Die spaeter verbindlich konkretisierten Kapital-, Ziel-, Ampel- und
+Shadow-Regeln stehen in `docs/31_PORTFOLIO_SHADOW_PRODUCT_CONTRACT.md`. Bei
+Widerspruechen zu aelteren Ziel- oder Paper-Beschreibungen hat Dokument 31
+Vorrang.
+
 ---
 
 ## 1. Projektgrundsatz
@@ -50,17 +55,19 @@ Kontextdaten duerfen genutzt werden, aber keine Orders ausloesen:
 
 ## 4. Zielwert
 
-Standardziel:
+Standardrichtwert:
 
 - Startkapital: `100 USDC`
-- Ziel: mindestens `+3 USDC/Tag`
+- gewuenschter Richtwert: etwa `+3 USDC/Tag`
 - Messung: realistischer 365-Tage-Blindtest
 - Nach Kosten: Fees, Slippage, Binance-Regeln
 
 Wichtig:
 
-Der Zielwert ist ein Abnahmekriterium fuer einen Kandidaten, keine Garantie fuer spaetere Live-Gewinne.
-Live muss nach Backtest im Paper-Trading bestaetigt werden.
+Der Zielwert ist ein sichtbarer Richtwert und keine Garantie fuer spaetere
+Gewinne. Robustheit und Zielerreichung werden getrennt ausgewiesen. Eine
+Uebernahme aktiviert zunaechst nur den orderfreien Shadow-Modus; Live bleibt
+separat gesperrt.
 
 ---
 

@@ -1,8 +1,8 @@
 """Tkinter local control dashboard for ETHUSDC_BotV3_Hermes.
 
-This UI is status and data-preparation control only. It does not implement an
-engine, strategy, backtest, paper trading, testtrade, live trading, orders, or
-API keys.
+This UI controls public-data preparation, Protocol-v2 training/WFV research,
+and explicit adoption of a verified final report into order-free Shadow mode.
+It has no live/paper/testtrade unlock, account access, API keys, or orders.
 """
 
 from __future__ import annotations
@@ -16,6 +16,20 @@ import time
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
 
+from ethusdc_bot.portfolio import ALLOWED_DEPLOYMENT_BUDGETS_USDC
+from ethusdc_bot.shadow.adoption import ShadowAdoptionError, adopt_for_shadow
+from ethusdc_bot.ui.backtest_controller import (
+    TrainingResearchController,
+    build_initial_training_research_status,
+)
+from ethusdc_bot.ui.final_evaluation_controller import (
+    FinalEvaluationController,
+    build_initial_final_evaluation_status,
+)
+from ethusdc_bot.ui.shadow_controller import (
+    ShadowController,
+    build_initial_shadow_status,
+)
 from ethusdc_bot.ui.dashboard_state import (
     BACKTEST_DISABLED_HINT,
     build_dashboard_snapshot,
@@ -102,11 +116,23 @@ class DashboardApp:
         self.last_run_status = build_initial_data_prep_last_run_status()
         self.current_runtime_status: dict[str, object] | None = None
         self.last_file_event_monotonic = time.monotonic()
+        self.training_research_controller = TrainingResearchController()
+        self.training_research_status = build_initial_training_research_status()
+        self.final_evaluation_controller = FinalEvaluationController()
+        self.final_evaluation_runtime_status = build_initial_final_evaluation_status()
+        self.shadow_controller = ShadowController()
+        self.shadow_controller_status = build_initial_shadow_status()
+        self.current_snapshot: dict[str, object] | None = None
+        self.training_reports_root = self.local_root / "runtime" / "reports" / "research_loop"
+        self.reports_root = self.local_root / "runtime" / "reports"
+        self.final_reports_root = self.local_root / "runtime" / "reports" / "sealed_holdout_final"
+        self.shadow_root = self.local_root / "runtime" / "shadow"
 
         self.root.title("ETHUSDC Bot V3 Hermes - Local Control Dashboard")
-        self.root.geometry("1100x760")
+        self.root.geometry("1180x900")
 
         self._build_widgets()
+        self.root.protocol("WM_DELETE_WINDOW", self.close_dashboard)
         self.refresh_status()
         self._drain_log_queue()
         self._heartbeat_active_run()
@@ -134,6 +160,68 @@ class DashboardApp:
         ttk.Button(toolbar, text="Datenordner öffnen", command=self.open_data_folder).pack(side=tk.LEFT, padx=4)
 
         runtime_frame = ttk.LabelFrame(self.root, text="Übersicht", padding=10)
+        action_bar = ttk.Frame(self.root, padding=(8, 0, 8, 8))
+        action_bar.pack(fill=tk.X)
+        self.training_button = ttk.Button(
+            action_bar,
+            text="Backtest starten (Training/WFV)",
+            command=self.start_training_research,
+        )
+        self.training_button.pack(side=tk.LEFT, padx=4)
+        self.final_evaluation_button = ttk.Button(
+            action_bar,
+            text="Finaltest einmalig ausfuehren",
+            command=self.start_sealed_final_evaluation,
+        )
+        self.final_evaluation_button.pack(side=tk.LEFT, padx=4)
+        ttk.Label(action_bar, text="Deployment-Budget:").pack(
+            side=tk.LEFT, padx=(16, 4)
+        )
+        self.deployment_budget_var = tk.StringVar(value="100")
+        self.deployment_budget_combo = ttk.Combobox(
+            action_bar,
+            textvariable=self.deployment_budget_var,
+            values=[str(value) for value in ALLOWED_DEPLOYMENT_BUDGETS_USDC],
+            state="readonly",
+            width=8,
+        )
+        self.deployment_budget_combo.pack(side=tk.LEFT, padx=4)
+        self.deployment_budget_combo.bind(
+            "<<ComboboxSelected>>", lambda _event: self.refresh_status()
+        )
+        ttk.Label(action_bar, text="USDC (immer 100 USDC je Lot)").pack(
+            side=tk.LEFT, padx=4
+        )
+        self.adopt_shadow_button = ttk.Button(
+            action_bar,
+            text="Backtest uebernehmen (nur Shadow)",
+            command=self.adopt_verified_final_to_shadow,
+        )
+        self.adopt_shadow_button.pack(side=tk.LEFT, padx=(16, 4))
+
+        shadow_action_bar = ttk.Frame(self.root, padding=(8, 0, 8, 8))
+        shadow_action_bar.pack(fill=tk.X)
+        ttk.Label(
+            shadow_action_bar,
+            text="Oeffentliche ETHUSDC-Daten / nur hypothetischer Shadow:",
+        ).pack(side=tk.LEFT, padx=4)
+        self.shadow_start_button = ttk.Button(
+            shadow_action_bar,
+            text="Shadow starten/fortsetzen",
+            command=self.start_shadow_runtime,
+        )
+        self.shadow_start_button.pack(side=tk.LEFT, padx=4)
+        self.shadow_stop_button = ttk.Button(
+            shadow_action_bar,
+            text="Shadow stoppen",
+            command=self.stop_shadow_runtime,
+        )
+        self.shadow_stop_button.pack(side=tk.LEFT, padx=4)
+        ttk.Label(
+            shadow_action_bar,
+            text="Keine Orders | keine API-Keys | kein Konto-Zugriff",
+        ).pack(side=tk.LEFT, padx=(16, 4))
+
         runtime_frame.pack(fill=tk.X, padx=8, pady=(0, 8))
         self.bot_state_var = tk.StringVar(value="Bot-Status: Bereit")
         self.phase_var = tk.StringVar(value="Datenstatus: wird ermittelt")
@@ -146,6 +234,9 @@ class DashboardApp:
         self.engine_var = tk.StringVar(value="Backtest: gesperrt, Daten/Engine fehlen, keine Fake-Ergebnisse")
         self.last_run_var = tk.StringVar(value="Letzter Lauf: noch keiner")
         self.last_run_detail_var = tk.StringVar(value="Nächster Blocker: noch kein Lauf gestartet")
+        self.portfolio_var = tk.StringVar(value="Portfolio: 100 USDC / 1 Lot")
+        self.final_var = tk.StringVar(value="Final-Ampel: kein Finalbericht")
+        self.shadow_var = tk.StringVar(value="Shadow: noch nicht uebernommen; Orders aus")
         for variable in (
             self.bot_state_var,
             self.phase_var,
@@ -157,6 +248,9 @@ class DashboardApp:
             self.last_run_var,
             self.last_run_detail_var,
             self.engine_var,
+            self.portfolio_var,
+            self.final_var,
+            self.shadow_var,
         ):
             ttk.Label(runtime_frame, textvariable=variable).pack(anchor=tk.W)
         ttk.Progressbar(runtime_frame, maximum=100, variable=self.progress_var).pack(fill=tk.X, pady=(6, 0))
@@ -177,13 +271,22 @@ class DashboardApp:
                 self.repository_root,
                 self.local_root,
                 data_prep_last_run_status=self.last_run_status,
+                deployment_budget_usdc=self._selected_deployment_budget(),
+                training_research_status=self.training_research_status,
+                final_evaluation_runtime_status=self.final_evaluation_runtime_status,
+                shadow_controller_status=self.shadow_controller_status,
+                training_reports_root=self.training_reports_root,
+                final_reports_root=self.final_reports_root,
+                shadow_root=self.shadow_root,
             )
+            self.current_snapshot = snapshot
             if self.active_data_thread is not None and self.active_data_thread.is_alive() and self.current_runtime_status:
                 self._apply_runtime_status(self.current_runtime_status)
             else:
                 self._apply_runtime_status(snapshot["data_prep_runtime_status"])
             self._apply_overall_data_status(snapshot)
             self._apply_last_run_status(snapshot["data_prep_last_run_status"])
+            self._apply_product_status(snapshot)
             text = format_operator_summary_for_display(snapshot)
         except Exception as exc:  # pragma: no cover - defensive UI reporting
             text = f"Failed to collect dashboard snapshot: {exc}\n"
@@ -226,9 +329,260 @@ class DashboardApp:
     def start_backtest_data_preparation(self) -> None:
         self.start_data_check_and_load()
 
+    def start_training_research(self) -> None:
+        """Start canonical training/validation/WFV without opening the holdout."""
+
+        if self.final_evaluation_controller.is_running:
+            messagebox.showwarning(
+                "Finaltest aktiv",
+                "Bitte den irreversiblen Finaltest zuerst beenden lassen.",
+            )
+            return
+        if self.active_data_thread is not None and self.active_data_thread.is_alive():
+            messagebox.showwarning(
+                "Datenlauf aktiv",
+                "Bitte den laufenden Datenprozess zuerst beenden lassen.",
+            )
+            return
+        if self.training_research_controller.is_running:
+            self._log("Training/WFV research is already running.")
+            return
+        snapshot = build_dashboard_snapshot(
+            self.repository_root,
+            self.local_root,
+            data_prep_last_run_status=self.last_run_status,
+            deployment_budget_usdc=self._selected_deployment_budget(),
+            training_research_status=self.training_research_status,
+            final_evaluation_runtime_status=self.final_evaluation_runtime_status,
+            shadow_controller_status=self.shadow_controller_status,
+            training_reports_root=self.training_reports_root,
+            final_reports_root=self.final_reports_root,
+            shadow_root=self.shadow_root,
+        )
+        if not snapshot["ui_status"]["backtest_start_button"]["enabled"]:
+            messagebox.showwarning(
+                "Training/WFV gesperrt",
+                str(snapshot["backtest_blocker_summary"]),
+            )
+            return
+        self._log(
+            "Starting canonical Protocol-v2 training/validation/WFV. "
+            "The sealed final holdout remains closed."
+        )
+        try:
+            _thread, container = self.training_research_controller.start(
+                self.local_root,
+                self.training_reports_root,
+                status_callback=lambda status: self.log_queue.put(
+                    ("training_research", status)
+                ),
+            )
+        except Exception as exc:
+            self._log(f"Could not start training/WFV: {exc}")
+            messagebox.showerror("Training/WFV Fehler", str(exc))
+            return
+        self.training_research_status = dict(container["status"])
+        self._apply_training_research_status(self.training_research_status)
+        self._set_data_buttons_enabled(False)
+
+    def start_sealed_final_evaluation(self) -> None:
+        """Run the explicitly confirmed irreversible one-shot holdout step."""
+
+        if self.training_research_controller.is_running:
+            messagebox.showwarning(
+                "Training/WFV aktiv",
+                "Bitte die laufende Training/WFV-Forschung zuerst beenden lassen.",
+            )
+            return
+        if self.final_evaluation_controller.is_running:
+            self._log("Sealed final evaluation is already running.")
+            return
+        snapshot = build_dashboard_snapshot(
+            self.repository_root,
+            self.local_root,
+            data_prep_last_run_status=self.last_run_status,
+            deployment_budget_usdc=self._selected_deployment_budget(),
+            training_research_status=self.training_research_status,
+            final_evaluation_runtime_status=self.final_evaluation_runtime_status,
+            shadow_controller_status=self.shadow_controller_status,
+            training_reports_root=self.training_reports_root,
+            final_reports_root=self.final_reports_root,
+            shadow_root=self.shadow_root,
+        )
+        button = snapshot["ui_status"]["sealed_final_button"]
+        source = button.get("source_report_path")
+        if not button.get("enabled") or not isinstance(source, str):
+            messagebox.showwarning(
+                "Finaltest gesperrt",
+                "Kein kanonisch eingefrorener Kandidat mit ungeoeffnetem Holdout verfuegbar.",
+            )
+            return
+        confirmed = messagebox.askyesno(
+            "Irreversiblen Finaltest ausfuehren",
+            (
+                "Der versiegelte 365-Tage-Holdout wird genau einmal geoeffnet. "
+                "Vor dem Datenzugriff entsteht ein permanenter Claim. Auch nach einem "
+                "Fehler darf dieser Lauf nicht wiederholt werden. Fortfahren?\n\n"
+                "Keine Orders, keine Trading-API, keine API-Keys."
+            ),
+        )
+        if not confirmed:
+            return
+        try:
+            _thread, container = self.final_evaluation_controller.start(
+                source,
+                self.local_root,
+                self.reports_root,
+                status_callback=lambda status: self.log_queue.put(
+                    ("final_evaluation", status)
+                ),
+            )
+        except Exception as exc:
+            self._log(f"Could not start sealed final evaluation: {exc}")
+            messagebox.showerror("Finaltest Fehler", str(exc))
+            return
+        self.final_evaluation_runtime_status = dict(container["status"])
+        self._apply_final_evaluation_runtime_status(
+            self.final_evaluation_runtime_status
+        )
+        self._set_data_buttons_enabled(False)
+
+    def adopt_verified_final_to_shadow(self) -> None:
+        """Adopt one green/yellow final report without starting real trading."""
+
+        snapshot = build_dashboard_snapshot(
+            self.repository_root,
+            self.local_root,
+            data_prep_last_run_status=self.last_run_status,
+            deployment_budget_usdc=self._selected_deployment_budget(),
+            training_research_status=self.training_research_status,
+            final_evaluation_runtime_status=self.final_evaluation_runtime_status,
+            shadow_controller_status=self.shadow_controller_status,
+            training_reports_root=self.training_reports_root,
+            final_reports_root=self.final_reports_root,
+            shadow_root=self.shadow_root,
+        )
+        button = snapshot["ui_status"]["shadow_adopt_button"]
+        report_path = button.get("report_path")
+        if not button.get("enabled") or not isinstance(report_path, str):
+            messagebox.showwarning(
+                "Shadow-Uebernahme gesperrt",
+                "Es gibt keinen frisch verifizierten gruenen oder gelben Finalbericht.",
+            )
+            return
+        budget = self._selected_deployment_budget()
+        confirmed = messagebox.askyesno(
+            "Nur Shadow uebernehmen",
+            (
+                f"Finalbericht mit {budget} USDC Deployment-Budget uebernehmen?\n\n"
+                "Es werden ausschliesslich hypothetische Trades vorbereitet. "
+                "Keine Orders, keine Trading-API, keine API-Keys, kein Live-Handel."
+            ),
+        )
+        if not confirmed:
+            return
+        try:
+            result = adopt_for_shadow(report_path, budget, self.shadow_root)
+        except (OSError, ValueError, ShadowAdoptionError) as exc:
+            self._log(f"Shadow adoption failed closed: {exc}")
+            messagebox.showerror("Shadow-Uebernahme fehlgeschlagen", str(exc))
+            return
+        self._log(
+            f"Adopted {result.deployment['deployment_id']} into stopped order-free Shadow state."
+        )
+        messagebox.showinfo(
+            "Shadow uebernommen",
+            "Kandidat wurde orderfrei uebernommen und bleibt gestoppt. Keine echte Order wurde erzeugt.",
+        )
+        self.refresh_status()
+
+    def start_shadow_runtime(self) -> None:
+        """Explicitly start or resume public-data-only hypothetical replay."""
+
+        if self.shadow_controller.is_running:
+            self._log("Shadow public-data runtime is already running.")
+            return
+        snapshot = build_dashboard_snapshot(
+            self.repository_root,
+            self.local_root,
+            data_prep_last_run_status=self.last_run_status,
+            deployment_budget_usdc=self._selected_deployment_budget(),
+            training_research_status=self.training_research_status,
+            final_evaluation_runtime_status=self.final_evaluation_runtime_status,
+            shadow_controller_status=self.shadow_controller_status,
+            training_reports_root=self.training_reports_root,
+            final_reports_root=self.final_reports_root,
+            shadow_root=self.shadow_root,
+        )
+        button = snapshot["ui_status"]["shadow_start_button"]
+        deployment_dir = button.get("deployment_dir")
+        if not button.get("enabled") or not isinstance(deployment_dir, str):
+            messagebox.showwarning(
+                "Shadow-Start gesperrt",
+                (
+                    "Kein gueltiges gestopptes/fortsetzbares Shadow-Deployment. "
+                    "Bei Datenintegritaetsfehlern bleibt Shadow absichtlich pausiert."
+                ),
+            )
+            return
+        try:
+            _thread, container = self.shadow_controller.start(
+                deployment_dir,
+                status_callback=lambda status: self.log_queue.put(
+                    ("shadow_controller", status)
+                ),
+            )
+        except Exception as exc:
+            self._log(f"Could not start public Shadow runtime: {exc}")
+            messagebox.showerror("Shadow-Start fehlgeschlagen", str(exc))
+            return
+        self.shadow_controller_status = dict(container["status"])
+        self._apply_shadow_controller_status(self.shadow_controller_status)
+        self.refresh_status()
+
+    def stop_shadow_runtime(self) -> None:
+        """Cooperatively stop the poller without closing hypothetical lots."""
+
+        self.shadow_controller_status = self.shadow_controller.stop()
+        self._apply_shadow_controller_status(self.shadow_controller_status)
+        self.refresh_status()
+
+    def close_dashboard(self) -> None:
+        """Request an orderly Shadow stop before closing the local UI."""
+
+        if self.shadow_controller.is_running:
+            self.shadow_controller_status = self.shadow_controller.stop()
+            self._log("Dashboard closes after the public Shadow worker stops.")
+            self._wait_for_shadow_shutdown(0)
+            return
+        self.root.destroy()
+
+    def _wait_for_shadow_shutdown(self, attempt: int) -> None:
+        if not self.shadow_controller.is_running or attempt >= 120:
+            self.root.destroy()
+            return
+        self.root.after(100, lambda: self._wait_for_shadow_shutdown(attempt + 1))
+
+    def _selected_deployment_budget(self) -> int:
+        value = getattr(self, "deployment_budget_var", None)
+        raw = value.get() if value is not None else "100"
+        try:
+            budget = int(raw)
+        except (TypeError, ValueError):
+            return 100
+        return budget if budget in ALLOWED_DEPLOYMENT_BUDGETS_USDC else 100
+
     def _start_data_preparation(self, execute: bool) -> None:
         if self.active_data_thread is not None and self.active_data_thread.is_alive():
             self._log("A data-preparation workflow is already running. No process was stopped.")
+            return
+        research_controller = getattr(self, "training_research_controller", None)
+        if research_controller is not None and research_controller.is_running:
+            self._log("Training/WFV is running; data preparation was not started.")
+            return
+        final_controller = getattr(self, "final_evaluation_controller", None)
+        if final_controller is not None and final_controller.is_running:
+            self._log("Sealed final evaluation is running; data preparation was not started.")
             return
 
         self.data_prep_running = True
@@ -267,6 +621,44 @@ class DashboardApp:
                 message = self.log_queue.get_nowait()
             except queue.Empty:
                 break
+            if (
+                isinstance(message, tuple)
+                and len(message) == 2
+                and message[0] == "shadow_controller"
+                and isinstance(message[1], dict)
+            ):
+                self.shadow_controller_status = dict(message[1])
+                self._apply_shadow_controller_status(
+                    self.shadow_controller_status
+                )
+                self.refresh_status()
+                continue
+            if (
+                isinstance(message, tuple)
+                and len(message) == 2
+                and message[0] == "final_evaluation"
+                and isinstance(message[1], dict)
+            ):
+                self.final_evaluation_runtime_status = dict(message[1])
+                self._apply_final_evaluation_runtime_status(
+                    self.final_evaluation_runtime_status
+                )
+                if not self.final_evaluation_runtime_status.get("running"):
+                    self._set_data_buttons_enabled(True)
+                    self.refresh_status()
+                continue
+            if (
+                isinstance(message, tuple)
+                and len(message) == 2
+                and message[0] == "training_research"
+                and isinstance(message[1], dict)
+            ):
+                self.training_research_status = dict(message[1])
+                self._apply_training_research_status(self.training_research_status)
+                if not self.training_research_status.get("running"):
+                    self._set_data_buttons_enabled(True)
+                    self.refresh_status()
+                continue
             if isinstance(message, dict):
                 if message.get("current_file_name") or message.get("current_file_index"):
                     self.last_file_event_monotonic = time.monotonic()
@@ -319,7 +711,9 @@ class DashboardApp:
         self.task_var.set(f"Aktueller Lauf: {text['progress']} seit Start - {text['current_download']}")
         self.file_var.set(f"Dateien: {text['files']}")
         self.elapsed_var.set(f"Laufzeit: {text['elapsed']}")
-        self.engine_var.set("Backtest: gesperrt, weil Daten/Engine fehlen. Keine Fake-Ergebnisse.")
+        self.engine_var.set(
+            "Backtest: wartet waehrend der Datenvorbereitung; keine Fake-Ergebnisse."
+        )
 
     def _apply_overall_data_status(self, snapshot: dict[str, object]) -> None:
         progress = float(snapshot.get("overall_data_progress_pct", 0) or 0)
@@ -338,7 +732,134 @@ class DashboardApp:
         elif status.get("last_run_status") == "failed":
             self.bot_state_var.set(f"Bot-Status: Fehler ({status.get('error')})")
 
+    def _apply_training_research_status(self, status: dict[str, object]) -> None:
+        phase = str(status.get("phase", "initial"))
+        freeze = str(status.get("freeze_status", "not_run"))
+        report = status.get("report_path")
+        if status.get("running"):
+            self.bot_state_var.set("Bot-Status: Training/Validation/WFV laeuft")
+            self.engine_var.set(
+                "Backtest: Training/WFV laeuft; Final-Holdout bleibt versiegelt."
+            )
+            self.training_button.configure(state=tk.DISABLED)
+            self.adopt_shadow_button.configure(state=tk.DISABLED)
+            return
+        self.engine_var.set(
+            f"Backtest: {phase} / {freeze}; Final-Holdout ausgewertet=false"
+        )
+        if phase in {"completed", "failed"}:
+            self._log(
+                f"Training/WFV {phase}: freeze_status={freeze}, report={report}, "
+                "final_holdout_evaluated=false"
+            )
+
+    def _apply_final_evaluation_runtime_status(
+        self, status: dict[str, object]
+    ) -> None:
+        phase = str(status.get("phase", "initial"))
+        outcome = str(status.get("final_holdout_outcome", "not_run"))
+        color = str(status.get("assessment_color", "none"))
+        if status.get("running"):
+            self.bot_state_var.set("Bot-Status: irreversibler Finaltest laeuft")
+            self.engine_var.set(
+                "Finaltest: One-shot laeuft; permanenter Claim aktiv; nicht wiederholen."
+            )
+            self.training_button.configure(state=tk.DISABLED)
+            self.final_evaluation_button.configure(state=tk.DISABLED)
+            self.adopt_shadow_button.configure(state=tk.DISABLED)
+            return
+        if phase in {"completed", "failed"}:
+            self._log(
+                f"Sealed final evaluation {phase}: outcome={outcome}, color={color}, "
+                f"report={status.get('final_report_path')}, retry_allowed=false"
+            )
+
+    def _apply_shadow_controller_status(self, status: dict[str, object]) -> None:
+        phase = str(status.get("phase", "initial"))
+        if status.get("running"):
+            self.bot_state_var.set("Bot-Status: Shadow beobachtet oeffentliche Daten")
+            self.shadow_var.set(
+                "Shadow: "
+                f"{phase} / nur hypothetisch / Orders aus / Trading-API aus"
+            )
+            return
+        if phase == "completed":
+            self._log(
+                "Shadow public-data runtime stopped cleanly; open hypothetical "
+                "lots were retained."
+            )
+        elif phase == "failed":
+            self._log(
+                "Shadow public-data runtime failed closed: "
+                f"{status.get('error')}"
+            )
+
+    def _apply_product_status(self, snapshot: dict[str, object]) -> None:
+        portfolio = snapshot["portfolio_status"]
+        final = snapshot["final_evaluation_status"]
+        shadow = snapshot["shadow_runtime_status"]
+        shadow_control = snapshot["shadow_controller_status"]
+        backtest_button = snapshot["ui_status"]["backtest_start_button"]
+        adopt_button = snapshot["ui_status"]["shadow_adopt_button"]
+        final_button = snapshot["ui_status"]["sealed_final_button"]
+        shadow_start_button = snapshot["ui_status"]["shadow_start_button"]
+        shadow_stop_button = snapshot["ui_status"]["shadow_stop_button"]
+        self.portfolio_var.set(
+            "Portfolio: "
+            f"{portfolio['deployment_budget_usdc']} USDC / "
+            f"{portfolio['lot_notional_usdc']} USDC je Lot / "
+            f"max. {portfolio['max_concurrent_lots']} Lots / Compounding aus"
+        )
+        self.final_var.set(
+            "Final-Ampel: "
+            f"{str(final['color']).upper()} / "
+            f"Netto pro Tag {final['final_net_usdc_per_day']} / "
+            f"Shadow-uebernehmbar {final['shadow_eligible']}"
+        )
+        self.shadow_var.set(
+            "Shadow: "
+            f"{shadow['status']} / {shadow['phase']} / "
+            f"Lots {shadow['open_lots']}/{shadow['max_open_lots']} / "
+            f"Steuerung {shadow_control.get('phase')} / "
+            "Orders aus / Trading-API aus"
+        )
+        data_running = self.active_data_thread is not None and self.active_data_thread.is_alive()
+        self.training_button.configure(
+            state=(
+                tk.NORMAL
+                if backtest_button["enabled"] and not data_running
+                else tk.DISABLED
+            )
+        )
+        self.final_evaluation_button.configure(
+            state=tk.NORMAL if final_button["enabled"] else tk.DISABLED
+        )
+        self.adopt_shadow_button.configure(
+            state=tk.NORMAL if adopt_button["enabled"] else tk.DISABLED
+        )
+        self.shadow_start_button.configure(
+            state=tk.NORMAL if shadow_start_button["enabled"] else tk.DISABLED
+        )
+        self.shadow_stop_button.configure(
+            state=tk.NORMAL if shadow_stop_button["enabled"] else tk.DISABLED
+        )
+        if (
+            not self.training_research_status.get("running")
+            and not self.final_evaluation_runtime_status.get("running")
+        ):
+            self.engine_var.set(
+                "Backtest: "
+                f"{snapshot['backtest_status']['status_text']} / "
+                f"Status {snapshot['backtest_status']['result_status']}"
+            )
+
     def _set_data_buttons_enabled(self, enabled: bool) -> None:
+        controller = getattr(self, "training_research_controller", None)
+        if controller is not None and controller.is_running:
+            enabled = False
+        final_controller = getattr(self, "final_evaluation_controller", None)
+        if final_controller is not None and final_controller.is_running:
+            enabled = False
         state = tk.NORMAL if enabled else tk.DISABLED
         self.load_button.configure(state=state)
         self.check_button.configure(state=state)

@@ -34,10 +34,13 @@ def test_project_status_contains_required_contract_values():
     assert status["market_type"] == "Spot"
     assert status["position_mode"] == "LONG-only"
     assert status["start_capital_usdc"] == 100
+    assert status["fixed_lot_notional_usdc"] == 100
     assert status["training_days"] == 730
     assert status["blindtest_days"] == 365
     assert status["required_utc_days"] == 1095
-    assert status["future_goal"] == ">= 3 USDC/day after realistic blindtest"
+    assert status["future_goal"] == (
+        "about 3 USDC/day after costs as a guideline, not a guarantee"
+    )
 
 
 def test_safety_status_keeps_trading_modes_locked():
@@ -244,7 +247,7 @@ def test_build_snapshot_contains_runtime_data_prep_status_and_blockers(tmp_path)
     assert "bot_current_status_text" in snapshot
 
 
-def test_build_snapshot_contains_data_prep_and_locked_protocol_v2_button(tmp_path):
+def test_build_snapshot_contains_wired_training_wfv_button_but_missing_data_blocks_it(tmp_path):
     snapshot = dashboard_state.build_dashboard_snapshot(Path.cwd(), tmp_path)
     prep = snapshot["data_prep_status"]
     button = snapshot["ui_status"]["backtest_start_button"]
@@ -254,25 +257,86 @@ def test_build_snapshot_contains_data_prep_and_locked_protocol_v2_button(tmp_pat
     assert prep["unsupported_task_count"] >= 1
     assert prep["live_collector_task_count"] >= 2
     assert button["visible"] is True
-    assert button["action"] == "research_protocol_v2_not_wired"
+    assert button["action"] == "training_validation_wfv_protocol_v2"
     assert button["enabled"] is False
     assert button["engine_locked"] is True
+    assert button["final_holdout_evaluated"] is False
     assert button["uses_trading_api"] is False
     assert button["live_paper_testtrade_locked"] is True
 
 
-def test_format_snapshot_for_display_contains_status_without_backtest_claims(tmp_path):
+def test_format_snapshot_for_display_contains_honest_backtest_and_shadow_status(tmp_path):
     snapshot = dashboard_state.build_dashboard_snapshot(Path.cwd(), tmp_path)
     text = dashboard_state.format_snapshot_for_display(snapshot)
 
     assert "ETHUSDC" in text
     assert "Live: locked" in text
     assert "Backtest Data Readiness:" in text
-    assert "Backtest engine is locked; Research Protocol v2 is not wired" in text
-    assert "Research Protocol v2 is not wired to the dashboard" in text
+    assert "Protocol-v2 training/validation/WFV is wired" in text
+    assert "sealed final evaluation remains separate" in text
     assert "Data Audit Status:" in text
     assert "Audit status: not_audited" in text
     assert "not_audited" in text
     assert "profit_usdc" not in text
-    assert "net_usdc_per_day" not in text
+    assert "Final evaluation: {'status': 'not_found'" in text
 
+
+def test_snapshot_exposes_fixed_lot_budget_and_order_free_shadow_controls(tmp_path):
+    snapshot = dashboard_state.build_dashboard_snapshot(
+        Path.cwd(), tmp_path, deployment_budget_usdc=500
+    )
+
+    portfolio = snapshot["portfolio_status"]
+    adopt = snapshot["ui_status"]["shadow_adopt_button"]
+    final_button = snapshot["ui_status"]["sealed_final_button"]
+    shadow_start = snapshot["ui_status"]["shadow_start_button"]
+    shadow_stop = snapshot["ui_status"]["shadow_stop_button"]
+    shadow = snapshot["shadow_runtime_status"]
+    assert portfolio["deployment_budget_usdc"] == 500
+    assert portfolio["lot_notional_usdc"] == 100.0
+    assert portfolio["max_concurrent_lots"] == 5
+    assert portfolio["compounding_enabled"] is False
+    assert adopt["enabled"] is False
+    assert adopt["orders_enabled"] is False
+    assert adopt["trading_api_enabled"] is False
+    assert adopt["live_enabled"] is False
+    assert final_button["enabled"] is False
+    assert final_button["orders_enabled"] is False
+    assert final_button["trading_api_enabled"] is False
+    assert final_button["live_enabled"] is False
+    assert shadow_start["enabled"] is False
+    assert shadow_start["orders_enabled"] is False
+    assert shadow_start["trading_api_enabled"] is False
+    assert shadow_start["live_enabled"] is False
+    assert shadow_stop["enabled"] is False
+    assert shadow_stop["orders_enabled"] is False
+    assert shadow["status"] == "not_adopted"
+    assert shadow["orders_enabled"] is False
+
+
+def test_snapshot_exposes_cooperative_shadow_stop_only_while_worker_runs(tmp_path):
+    snapshot = dashboard_state.build_dashboard_snapshot(
+        Path.cwd(),
+        tmp_path,
+        shadow_controller_status={
+            "phase": "running",
+            "running": True,
+            "stop_requested": False,
+            "error": None,
+        },
+    )
+
+    assert snapshot["ui_status"]["shadow_start_button"]["enabled"] is False
+    assert snapshot["ui_status"]["shadow_stop_button"]["enabled"] is True
+    assert snapshot["shadow_controller_status"]["running"] is True
+
+
+def test_final_status_is_read_only_and_reports_no_final_evaluation(tmp_path):
+    before = list(tmp_path.rglob("*"))
+
+    status = dashboard_state.collect_final_evaluation_status(tmp_path / "final")
+
+    assert status["status"] == "not_found"
+    assert status["color"] == "none"
+    assert status["shadow_eligible"] is False
+    assert list(tmp_path.rglob("*")) == before

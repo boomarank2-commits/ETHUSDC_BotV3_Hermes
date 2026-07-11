@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
+from math import isclose
 
-from ethusdc_bot.backtest.data_loader import Candle, SYMBOL
+from ethusdc_bot.backtest.data_loader import Candle, EXPECTED_STEP_MS, SYMBOL
+from ethusdc_bot.backtest.equity import EquityPoint, max_drawdown_usdc, max_underwater_calendar_days
 from ethusdc_bot.backtest.metrics import BacktestMetrics, compute_metrics
 
 
@@ -44,6 +46,9 @@ class SimulationResult:
     metrics: BacktestMetrics
     trades: list[Trade]
     rejection_reasons: Counter[str] = field(default_factory=Counter)
+    equity_curve: tuple[EquityPoint, ...] = ()
+    max_underwater_days: int = 0
+    drawdown_method: str = "mark_to_market"
 
     @property
     def net_profit_usdc(self) -> float:
@@ -65,6 +70,18 @@ class SimulationResult:
     def slippage_usdc(self) -> float:
         return self.metrics.slippage_usdc
 
+    @property
+    def max_drawdown_usdc(self) -> float:
+        return self.metrics.max_drawdown_usdc
+
+    @property
+    def equity_curve_usdc(self) -> list[float]:
+        return [point.equity_usdc for point in self.equity_curve]
+
+    @property
+    def equity_curve_timestamps_ms(self) -> list[int]:
+        return [point.timestamp_ms for point in self.equity_curve]
+
 
 def simulate_strategy(
     candles: list[Candle],
@@ -83,11 +100,23 @@ def simulate_strategy(
     rejections: Counter[str] = Counter()
     if symbol != SYMBOL:
         rejections["context_symbol_not_tradeable"] += 1
-        return SimulationResult(strategy, compute_metrics([], days=days, training_days=training_days, blindtest_days=blindtest_days), [], rejections)
+        return _build_result(
+            strategy,
+            [],
+            rejections,
+            _zero_equity_curve(candles),
+            days=days,
+            training_days=training_days,
+            blindtest_days=blindtest_days,
+        )
     trades: list[Trade] = []
     position: dict[str, float | int] | None = None
     pending_entry = False
     cooldown_until_index = -1
+    realized_net_usdc = 0.0
+    equity_curve: list[EquityPoint] = [
+        EquityPoint(candles[0].open_time if candles else 0, 0.0)
+    ]
     for index, candle in enumerate(candles):
         if pending_entry and position is None:
             entry_mid_price = candle.open
@@ -99,6 +128,7 @@ def simulate_strategy(
                 "quantity": quantity,
                 "entry_time": candle.open_time,
                 "entry_index": index,
+                "entry_fee_usdc": entry_price * quantity * fee_rate,
             }
             pending_entry = False
         if position is not None:
@@ -108,15 +138,113 @@ def simulate_strategy(
         if position is not None and exit_reason is not None:
             trade = _exit_trade(candle, position, fee_rate, slippage_bps, trade_usdc, exit_reason=exit_reason)
             trades.append(trade)
+            realized_net_usdc += trade.net_profit_usdc
             position = None
             cooldown_until_index = index + int(strategy.params.get("cooldown_minutes", 0) or 0)
             # A signal on this same candle may schedule a next-candle entry below.
+        if position is not None and index == len(candles) - 1:
+            trade = _exit_trade(
+                candle,
+                position,
+                fee_rate,
+                slippage_bps,
+                trade_usdc,
+                exit_reason="end_of_data",
+            )
+            trades.append(trade)
+            realized_net_usdc += trade.net_profit_usdc
+            position = None
         if position is None and index >= cooldown_until_index and index < len(candles) - 1 and _signal(candles, index, strategy):
             pending_entry = True
-    if position is not None and candles:
-        trades.append(_exit_trade(candles[-1], position, fee_rate, slippage_bps, trade_usdc, exit_reason="end_of_data"))
-    metrics = compute_metrics(trades, days=days, training_days=training_days, blindtest_days=blindtest_days)
-    return SimulationResult(strategy=strategy, metrics=metrics, trades=trades, rejection_reasons=rejections)
+        equity_curve.append(
+            EquityPoint(
+                timestamp_ms=candle.open_time + EXPECTED_STEP_MS - 1,
+                equity_usdc=_liquidation_equity_usdc(
+                    realized_net_usdc,
+                    position,
+                    candle.close,
+                    fee_rate,
+                    slippage_bps,
+                ),
+            )
+        )
+    return _build_result(
+        strategy,
+        trades,
+        rejections,
+        tuple(equity_curve),
+        days=days,
+        training_days=training_days,
+        blindtest_days=blindtest_days,
+    )
+
+
+def _build_result(
+    strategy: StrategyCandidate,
+    trades: list[Trade],
+    rejection_reasons: Counter[str],
+    equity_curve: tuple[EquityPoint, ...],
+    *,
+    days: int,
+    training_days: int,
+    blindtest_days: int,
+) -> SimulationResult:
+    metrics = compute_metrics(
+        trades,
+        days=days,
+        training_days=training_days,
+        blindtest_days=blindtest_days,
+    )
+    if not equity_curve:
+        equity_curve = (EquityPoint(0, 0.0),)
+    endpoint = metrics.net_profit_usdc
+    if not isclose(equity_curve[-1].equity_usdc, endpoint, rel_tol=1e-10, abs_tol=1e-8):
+        raise RuntimeError("Mark-to-market equity endpoint does not match realized net profit")
+    if equity_curve[-1].equity_usdc != endpoint:
+        equity_curve = (*equity_curve[:-1], replace(equity_curve[-1], equity_usdc=endpoint))
+    metrics = replace(metrics, max_drawdown_usdc=max_drawdown_usdc(equity_curve))
+    return SimulationResult(
+        strategy=strategy,
+        metrics=metrics,
+        trades=trades,
+        rejection_reasons=rejection_reasons,
+        equity_curve=equity_curve,
+        max_underwater_days=max_underwater_calendar_days(equity_curve),
+    )
+
+
+def _zero_equity_curve(candles: list[Candle]) -> tuple[EquityPoint, ...]:
+    if not candles:
+        return (EquityPoint(0, 0.0),)
+    return (
+        EquityPoint(candles[0].open_time, 0.0),
+        *(EquityPoint(candle.open_time + EXPECTED_STEP_MS - 1, 0.0) for candle in candles),
+    )
+
+
+def _liquidation_equity_usdc(
+    realized_net_usdc: float,
+    position: dict[str, float | int] | None,
+    mark_mid_price: float,
+    fee_rate: float,
+    slippage_bps: float,
+) -> float:
+    """Mark an open LONG at conservative immediate-liquidation value.
+
+    Execution slippage is embedded in entry and hypothetical exit prices. Only
+    fees are subtracted explicitly, which prevents slippage from being charged
+    a second time.
+    """
+
+    if position is None:
+        return round(realized_net_usdc, 10)
+    entry_price = float(position["entry_price"])
+    quantity = float(position["quantity"])
+    exit_price = mark_mid_price * (1 - slippage_bps / 10_000)
+    gross = (exit_price - entry_price) * quantity
+    entry_fee = float(position.get("entry_fee_usdc", entry_price * quantity * fee_rate))
+    exit_fee = exit_price * quantity * fee_rate
+    return round(realized_net_usdc + gross - entry_fee - exit_fee, 10)
 
 
 def _signal(candles: list[Candle], index: int, strategy: StrategyCandidate) -> bool:
