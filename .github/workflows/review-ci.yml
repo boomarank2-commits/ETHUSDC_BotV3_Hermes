@@ -81,6 +81,8 @@ jobs:
         run: |
           if [[ -n "${GITHUB_BASE_REF}" ]]; then
             base_ref="${GITHUB_BASE_REF}"
+          elif [[ "${GITHUB_REF_NAME}" == "review/context-data-alignment-v1" ]]; then
+            base_ref="review/windows-production-research-runner-v1"
           elif [[ "${GITHUB_REF_NAME}" == "review/windows-production-research-runner-v1" ]]; then
             base_ref="review/search-frontier-v2"
           elif [[ "${GITHUB_REF_NAME}" == "review/search-frontier-v2" ]]; then
