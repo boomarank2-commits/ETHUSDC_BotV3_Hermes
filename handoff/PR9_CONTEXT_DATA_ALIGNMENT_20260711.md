@@ -6,7 +6,8 @@ Stand: 2026-07-11
 
 - Branch: `review/context-data-alignment-v1`
 - Base: `review/windows-production-research-runner-v1`
-- Pull request: to be created after this handoff commit
+- Pull request: #9
+- Last fully tested implementation commit before this handoff update: `0e5b19201fa716e8bbc93e1854fb89e3ee77c34c`
 
 ## Implementierter Umfang
 
@@ -53,7 +54,18 @@ Die Ausrichtung verlangt zusätzlich:
 - exakt identische UTC-Open-Timestamps;
 - keine Interpolation, kein Forward-Fill und keine erfundene Kerze.
 
+Die Repository-Pfadprüfung bewertet den ursprünglichen Windows-/POSIX-Pfadtyp
+vor nativer Auflösung. Dadurch wird ein absoluter Windows-Datenpfad auf Linux
+nicht fälschlich als Repository-Unterordner interpretiert.
+
 ## Tests
+
+GitHub Actions, Ubuntu 24.04, Python 3.12 und PowerShell:
+
+- 793 Tests bestanden;
+- Python-Source-Kompilierung bestanden;
+- PowerShell-Parserprüfung bestanden;
+- gestapelte Whitespace-Prüfung bestanden.
 
 Neue Tests decken ab:
 
@@ -88,6 +100,6 @@ Unverändert gesperrt:
 
 ## Nächster Schritt
 
-Nach grüner CI kann ein separater PR trailing-only Kontextfeatures und
-Risiko-Vetos auf Basis exakt ausgerichteter BTCUSDC-/ETHBTC-Kerzen ergänzen.
-`context_filter` bleibt bis dahin in Search Frontier v2 deaktiviert.
+Ein separater PR ergänzt trailing-only Kontextfeatures und Risiko-Vetos auf
+Basis exakt ausgerichteter BTCUSDC-/ETHBTC-Kerzen. `context_filter` bleibt bis
+dahin in Search Frontier v2 deaktiviert.
