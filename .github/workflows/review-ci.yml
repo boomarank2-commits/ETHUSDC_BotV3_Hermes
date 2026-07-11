@@ -36,6 +36,7 @@ jobs:
         if: github.ref_name == 'review/context-research-integration-v1' || github.head_ref == 'review/context-research-integration-v1'
         run: |
           python tools/patch_context_research_integration.py
+          python tools/patch_context_test_expectations.py
           git diff --check
 
       - name: Install project and test dependencies
@@ -131,6 +132,8 @@ jobs:
                   src/ethusdc_bot/backtest/selection_evidence.py \
                   src/ethusdc_bot/backtest/research_loop_runner.py \
                   tools/run_production_research.ps1 \
-                  tests/unit/test_research_loop_runner.py
+                  tests/unit/test_research_loop_runner.py \
+                  tests/integration/test_research_loop_protocol_v2_smoke.py \
+                  tests/unit/test_search_frontier_v2.py
           git commit -m "Integrate aligned context into selection research"
           git push origin HEAD:review/context-research-integration-v1
