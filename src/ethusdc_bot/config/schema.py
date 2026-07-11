@@ -147,7 +147,7 @@ def validate_config(config: Mapping[str, Any]) -> None:
     require_literal(
         target_guidance,
         "desired_by_budget_usdc",
-        {"100": 3, "200": 6, "500": 13, "1000": 30},
+        {"100": 3, "200": 6, "500": 15, "1000": 30},
         "config.target_guidance",
     )
     require_false(
