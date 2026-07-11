@@ -36,6 +36,7 @@ from ethusdc_bot.backtest.search_space import (
     canonical_candidate_signature,
     generate_search_space,
     next_search_space_state,
+    search_frontier_summary,
     select_candidates_for_testing,
 )
 from ethusdc_bot.backtest.simulator import StrategyCandidate, simulate_strategy
@@ -257,6 +258,11 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
 
     def runner(cycle_index: int, state: SearchSpaceState) -> dict[str, Any]:
         generated = generate_search_space(state, max_candidates=config.max_candidates_per_cycle)
+        frontier_summary = search_frontier_summary(
+            generated,
+            state,
+            requested_cap=config.max_candidates_per_cycle,
+        )
         generated_rows = [
             {
                 "candidate_id": f"{candidate.family}_{cycle_index:02d}_{index:03d}",
@@ -265,9 +271,10 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
             for index, candidate in enumerate(generated, start=1)
         ]
 
-        # Context candidates remain generated for transparent inventory, but are
-        # ineligible until BTCUSDC/ETHBTC data are actually wired into signals.
-        supported_rows = [row for row in generated_rows if row["candidate"].family != "context_filter"]
+        # Search Frontier v2 contains only simulator-backed ETHUSDC families.
+        # Context candidates return only after aligned BTCUSDC/ETHBTC data is
+        # actually consumed by the signal engine.
+        supported_rows = list(generated_rows)
         supported = [row["candidate"] for row in supported_rows]
         selected_for_testing = select_candidates_for_testing(supported, config.tested_candidates_per_cycle)
         rows_by_signature = {
@@ -465,8 +472,9 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
             signature = canonical_candidate_signature(row["candidate"])
             if signature in tested_signatures:
                 continue
-            reason = "context_data_not_integrated" if row["candidate"].family == "context_filter" else "tested_stage_budget"
-            not_tested.append({"candidate_id": row["candidate_id"], "reason": reason})
+            not_tested.append(
+                {"candidate_id": row["candidate_id"], "reason": "tested_stage_budget"}
+            )
         not_tested_by_id = {row["candidate_id"]: row["reason"] for row in not_tested}
         generated_inventory = [
             {
@@ -497,6 +505,7 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
                 "finalists": finalist_ids,
             },
             "generated_candidate_inventory": generated_inventory,
+            "search_frontier": frontier_summary,
             "resource_budget": _resource_budget(config),
             "not_tested_candidates": not_tested,
             "best_training_candidate": _best_metric_row(records, "training_metrics"),

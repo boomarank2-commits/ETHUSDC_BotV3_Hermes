@@ -86,6 +86,10 @@ def test_real_protocol_v2_loop_reports_stages_without_evaluating_holdout(tmp_pat
     assert report["audit_policy"]["evaluated_in_research_loop"] is False
     assert report["target_reached"] is False
     assert cycle["generated_candidates"] == len(cycle["candidate_stage_ids"]["generated"])
+    assert cycle["search_frontier"]["generator_version"] == "ethusdc_frontier_v2"
+    assert cycle["search_frontier"]["generated_count"] == cycle["generated_candidates"]
+    assert cycle["search_frontier"]["context_candidates_enabled"] is False
+    assert cycle["search_frontier"]["uses_audit_or_holdout"] is False
     assert cycle["tested_candidates"] == len(cycle["candidate_stage_ids"]["tested"])
     assert cycle["walk_forward_candidates"] == 2
     assert cycle["finalists"] == 1
@@ -203,6 +207,12 @@ def test_production_orchestration_enforces_defaults_and_never_simulates_planned_
     assert planner_call["expected_candles_per_day"] == 1440
     assert planner_call["excluded_selection_windows"] == CONSUMED_AUDIT_WINDOWS
     assert cycle["resource_budget"]["generated_cap"] == 40
+    assert cycle["search_frontier"]["requested_cap"] == 40
+    assert cycle["search_frontier"]["generated_count"] == 40
+    assert sum(cycle["search_frontier"]["family_counts"].values()) == 40
+    assert cycle["search_frontier"]["context_disabled_reason"] == (
+        "real_context_market_data_not_integrated"
+    )
     assert cycle["resource_budget"]["tested_cap"] == 12
     assert cycle["resource_budget"]["walk_forward_cap"] == 3
     assert cycle["resource_budget"]["finalists_cap"] == 2
