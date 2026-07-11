@@ -39,6 +39,7 @@ def test_launcher_binds_src_layout_for_every_python_child_process() -> None:
     assert "$env:PYTHONPATH = $SrcRoot" in text
     assert '[System.IO.Path]::PathSeparator' in text
     assert "import ethusdc_bot.backtest.research_loop_runner" in text
+    assert "import ethusdc_bot.backtest.research_supervisor" in text
     assert "RESEARCH_MODULE_IMPORT_OK" in text
     assert "source_root = $SrcRoot" in text
     assert "pythonpath = $env:PYTHONPATH" in text
@@ -54,12 +55,12 @@ def test_launcher_requires_complete_three_year_ethusdc_inventory() -> None:
     assert "Unpaired ETHUSDC ZIP detected" in text
 
 
-def test_launcher_runs_full_checks_before_research() -> None:
+def test_launcher_runs_full_checks_before_supervised_research() -> None:
     text = _script()
     pytest_position = text.index('"pytest", "-q"')
     compile_position = text.index('"compileall", "-q", "src"')
     import_position = text.index("RESEARCH_MODULE_IMPORT_OK")
-    research_position = text.index('"ethusdc_bot.backtest.research_loop_runner"')
+    research_position = text.index('"ethusdc_bot.backtest.research_supervisor"')
 
     assert pytest_position < research_position
     assert compile_position < research_position
