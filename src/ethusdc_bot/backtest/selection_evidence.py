@@ -14,7 +14,7 @@ from math import isfinite
 from statistics import median
 from typing import Any, Protocol
 
-from ethusdc_bot.backtest.data_loader import Candle
+from ethusdc_bot.backtest.data_loader import AlignedMarketCandles, Candle
 from ethusdc_bot.backtest.quality_gates import QUALITY_GATE_V1, QualityGateV1
 from ethusdc_bot.backtest.simulator import (
     SimulationResult,
@@ -31,6 +31,7 @@ STRUCTURAL_PARAMETER_KEYS = {
     "symbol",
     "side",
     "base_family",
+    "context_base_family",
     "context_symbol",
     "context_rule",
 }
@@ -232,6 +233,7 @@ def run_cost_stress(
     *,
     days: int,
     gate: QualityGateV1 = QUALITY_GATE_V1,
+    market_context: AlignedMarketCandles | None = None,
 ) -> dict[str, Any]:
     """Evaluate the frozen candidate under the gate's fixed friction profiles."""
 
@@ -250,6 +252,7 @@ def run_cost_stress(
             trade_usdc=100.0,
             fee_rate=fee_bps / 10_000,
             slippage_bps=slippage_bps,
+            market_context=market_context,
         )
         results[name] = result
         evidence[name] = {
@@ -319,13 +322,19 @@ def run_parameter_stability(
     days: int,
     gate: QualityGateV1 = QUALITY_GATE_V1,
     baseline_result: SimulationResult | None = None,
-    max_numeric_parameters: int = 12,
+    max_numeric_parameters: int = 18,
+    market_context: AlignedMarketCandles | None = None,
 ) -> dict[str, Any]:
     """Evaluate bounded deterministic numeric neighbours on selection data."""
 
     if max_numeric_parameters <= 0:
         raise ValueError("max_numeric_parameters must be positive")
-    baseline = baseline_result or simulate_strategy(candles, candidate, days=days)
+    baseline = baseline_result or simulate_strategy(
+        candles,
+        candidate,
+        days=days,
+        market_context=market_context,
+    )
     neighbor_specs, numeric_count = generate_parameter_neighbors(
         candidate,
         perturbation_fraction=gate.parameter_perturbation_fraction,
@@ -355,7 +364,12 @@ def run_parameter_stability(
                 direction=direction,
                 value=value,
                 candidate=neighbor,
-                result=simulate_strategy(candles, neighbor, days=days),
+                result=simulate_strategy(
+                    candles,
+                    neighbor,
+                    days=days,
+                    market_context=market_context,
+                ),
             )
         )
     passing = [

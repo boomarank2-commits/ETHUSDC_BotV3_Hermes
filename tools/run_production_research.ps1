@@ -125,7 +125,8 @@ $ResearchArguments = @(
     "--walk-forward-candidates-per-cycle", "3",
     "--finalists-per-cycle", "2",
     "--walk-forward-folds", "6",
-    "--rolling-origin-limit", "3"
+    "--rolling-origin-limit", "3",
+    "--enable-context"
 )
 
 Write-Host "==> Production Research Protocol v2"

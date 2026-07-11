@@ -6,6 +6,10 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any, Final
 
+from ethusdc_bot.backtest.context_research import (
+    context_policy_for_profile,
+    wrap_candidate_with_context,
+)
 from ethusdc_bot.backtest.simulator import StrategyCandidate
 
 
@@ -19,7 +23,8 @@ ACTIVE_SEARCH_FAMILIES: Final = (
     "session_filter",
 )
 CONTEXT_CANDIDATES_ENABLED: Final = False
-CONTEXT_DISABLED_REASON: Final = "real_context_market_data_not_integrated"
+CONTEXT_DISABLED_REASON: Final = "context_research_must_be_explicitly_enabled"
+CONTEXT_SEARCH_FAMILY: Final = "context_filter"
 _MAX_DIAGNOSIS_PRESSURE: Final = 6
 _PROFILE_COUNT: Final = 7
 
@@ -89,7 +94,10 @@ def select_candidates_for_testing(
 
 
 def generate_search_space(
-    state: SearchSpaceState, *, max_candidates: int = 40
+    state: SearchSpaceState,
+    *,
+    max_candidates: int = 40,
+    context_enabled: bool = False,
 ) -> list[StrategyCandidate]:
     """Generate a bounded, deterministic ETHUSDC candidate frontier.
 
@@ -103,7 +111,13 @@ def generate_search_space(
         return []
     problem = _problem_assessment(state)
     pressure, opening_bias = _diagnosis_adjustments(state, problem)
-    candidates = _frontier_candidates(pressure, opening_bias)
+    if not isinstance(context_enabled, bool):
+        raise TypeError("context_enabled must be bool")
+    candidates = _frontier_candidates(
+        pressure,
+        opening_bias,
+        context_enabled=context_enabled,
+    )
 
     unique: list[StrategyCandidate] = []
     seen: set[CandidateSignature] = set()
@@ -129,25 +143,33 @@ def search_frontier_summary(
     state: SearchSpaceState,
     *,
     requested_cap: int,
+    context_enabled: bool = False,
 ) -> dict[str, Any]:
     """Return transparent metadata for one generated frontier."""
 
     problem = _problem_assessment(state)
     pressure, opening_bias = _diagnosis_adjustments(state, problem)
+    if not isinstance(context_enabled, bool):
+        raise TypeError("context_enabled must be bool")
     counts = Counter(candidate.family for candidate in candidates)
+    active_families = (
+        (*ACTIVE_SEARCH_FAMILIES, CONTEXT_SEARCH_FAMILY)
+        if context_enabled
+        else ACTIVE_SEARCH_FAMILIES
+    )
     return {
         "generator_version": SEARCH_FRONTIER_VERSION,
         "requested_cap": max(0, int(requested_cap)),
         "generated_count": len(candidates),
-        "active_families": list(ACTIVE_SEARCH_FAMILIES),
+        "active_families": list(active_families),
         "family_counts": {
-            family: counts.get(family, 0) for family in ACTIVE_SEARCH_FAMILIES
+            family: counts.get(family, 0) for family in active_families
         },
         "problem_assessment": problem,
         "diagnosis_pressure": pressure,
         "opening_bias": opening_bias,
-        "context_candidates_enabled": CONTEXT_CANDIDATES_ENABLED,
-        "context_disabled_reason": CONTEXT_DISABLED_REASON,
+        "context_candidates_enabled": context_enabled,
+        "context_disabled_reason": None if context_enabled else CONTEXT_DISABLED_REASON,
         "uses_audit_or_holdout": False,
         "target_used_as_parameter": False,
     }
@@ -198,20 +220,30 @@ def _diagnosis_adjustments(
 
 
 def _frontier_candidates(
-    pressure: int, opening_bias: int
+    pressure: int,
+    opening_bias: int,
+    *,
+    context_enabled: bool = False,
 ) -> list[StrategyCandidate]:
     candidates: list[StrategyCandidate] = []
     for profile in range(_PROFILE_COUNT):
-        candidates.extend(
-            (
-                _breakout_candidate(profile, pressure, opening_bias),
-                _cooldown_candidate(profile, pressure, opening_bias),
-                _momentum_candidate(profile, pressure, opening_bias),
-                _pullback_candidate(profile, pressure, opening_bias),
-                _mean_reversion_candidate(profile, pressure, opening_bias),
-                _session_candidate(profile, pressure, opening_bias),
-            )
+        base_candidates = (
+            _breakout_candidate(profile, pressure, opening_bias),
+            _cooldown_candidate(profile, pressure, opening_bias),
+            _momentum_candidate(profile, pressure, opening_bias),
+            _pullback_candidate(profile, pressure, opening_bias),
+            _mean_reversion_candidate(profile, pressure, opening_bias),
+            _session_candidate(profile, pressure, opening_bias),
         )
+        if context_enabled:
+            base_for_context = base_candidates[profile % len(base_candidates)]
+            candidates.append(
+                wrap_candidate_with_context(
+                    base_for_context,
+                    context_policy_for_profile(profile),
+                )
+            )
+        candidates.extend(base_candidates)
     return candidates
 
 
