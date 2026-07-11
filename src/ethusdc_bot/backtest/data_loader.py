@@ -327,11 +327,13 @@ def _parse_row(row: list[str]) -> Candle:
 
 
 def _validate_raw_root(path: Path) -> Path:
-    candidate = path.resolve()
     repository_root = Path.cwd().resolve()
-    if is_path_within(candidate, repository_root):
+    # Compare the original path first so an absolute Windows path keeps Windows
+    # semantics when validation runs on Linux CI. Native resolution happens
+    # only after the repository-containment decision.
+    if is_path_within(path, repository_root):
         raise DataLoadError("Backtest loader refuses repository-local raw data paths")
-    return candidate
+    return path.resolve()
 
 
 def _validate_allowed_symbol(symbol: str) -> str:
