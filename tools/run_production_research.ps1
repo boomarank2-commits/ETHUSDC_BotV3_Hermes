@@ -26,12 +26,13 @@ function Invoke-Checked {
 }
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$SrcRoot = (Resolve-Path (Join-Path $RepoRoot "src")).Path
 Set-Location $RepoRoot
 
 if (-not (Test-Path (Join-Path $RepoRoot "pyproject.toml") -PathType Leaf)) {
     throw "Repository root is invalid: pyproject.toml is missing"
 }
-if (-not (Test-Path (Join-Path $RepoRoot "src\ethusdc_bot") -PathType Container)) {
+if (-not (Test-Path (Join-Path $SrcRoot "ethusdc_bot") -PathType Container)) {
     throw "Repository root is invalid: src\ethusdc_bot is missing"
 }
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
@@ -39,6 +40,16 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
 }
 if (-not (Get-Command py -ErrorAction SilentlyContinue)) {
     throw "Python launcher 'py' is not available"
+}
+
+# The repository uses a src layout. Bind it explicitly for every child Python
+# process so the long research invocation cannot depend on an editable install
+# or on a shell-specific environment left behind by a previous session.
+$PathSeparator = [System.IO.Path]::PathSeparator
+if ([string]::IsNullOrWhiteSpace($env:PYTHONPATH)) {
+    $env:PYTHONPATH = $SrcRoot
+} else {
+    $env:PYTHONPATH = "$SrcRoot$PathSeparator$($env:PYTHONPATH)"
 }
 
 $GitStatus = (& git status --porcelain) -join "`n"
@@ -96,11 +107,16 @@ $ConsoleLog = Join-Path $ReportsRootFull "production_research_$Timestamp.console
 
 Invoke-Checked -FilePath "py" -ArgumentList @("-3.12", "-m", "pytest", "-q") -Description "Full Python test suite"
 Invoke-Checked -FilePath "py" -ArgumentList @("-3.12", "-m", "compileall", "-q", "src") -Description "Python source compilation"
+Invoke-Checked -FilePath "py" -ArgumentList @(
+    "-3.12",
+    "-c",
+    "import ethusdc_bot.backtest.research_loop_runner; import ethusdc_bot.backtest.research_supervisor; print('RESEARCH_MODULE_IMPORT_OK')"
+) -Description "Research module import check"
 
 $ResearchArguments = @(
     "-3.12",
     "-m",
-    "ethusdc_bot.backtest.research_loop_runner",
+    "ethusdc_bot.backtest.research_supervisor",
     "--raw-root", $RawRootFull,
     "--reports-root", $ReportsRootFull,
     "--max-cycles", "$MaxCycles",
@@ -115,6 +131,7 @@ $ResearchArguments = @(
 Write-Host "==> Production Research Protocol v2"
 Write-Host "Branch: $GitBranch"
 Write-Host "Commit: $GitCommit"
+Write-Host "Source root: $SrcRoot"
 Write-Host "Raw root: $RawRootFull"
 Write-Host "Reports root: $ReportsRootFull"
 Write-Host "Max cycles: $MaxCycles"
@@ -168,6 +185,8 @@ $Manifest = [ordered]@{
     git_branch = $GitBranch
     git_commit = $GitCommit
     working_tree_clean = $true
+    source_root = $SrcRoot
+    pythonpath = $env:PYTHONPATH
     raw_root = $RawRootFull
     reports_root = $ReportsRootFull
     max_cycles = $MaxCycles
