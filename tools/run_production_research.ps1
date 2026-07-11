@@ -110,13 +110,13 @@ Invoke-Checked -FilePath "py" -ArgumentList @("-3.12", "-m", "compileall", "-q",
 Invoke-Checked -FilePath "py" -ArgumentList @(
     "-3.12",
     "-c",
-    "import ethusdc_bot.backtest.research_loop_runner; print('RESEARCH_MODULE_IMPORT_OK')"
+    "import ethusdc_bot.backtest.research_loop_runner; import ethusdc_bot.backtest.research_supervisor; print('RESEARCH_MODULE_IMPORT_OK')"
 ) -Description "Research module import check"
 
 $ResearchArguments = @(
     "-3.12",
     "-m",
-    "ethusdc_bot.backtest.research_loop_runner",
+    "ethusdc_bot.backtest.research_supervisor",
     "--raw-root", $RawRootFull,
     "--reports-root", $ReportsRootFull,
     "--max-cycles", "$MaxCycles",
