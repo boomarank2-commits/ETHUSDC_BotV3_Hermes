@@ -147,6 +147,15 @@ def validate_context_against_trade_candles(
         raise DataLoadError(
             "ETHUSDC simulation candles and market context timestamps differ"
         )
+    for symbol, candles in (
+        ("BTCUSDC", context.btcusdc),
+        ("ETHBTC", context.ethbtc),
+    ):
+        open_times = tuple(candle.open_time for candle in candles)
+        if open_times != expected:
+            raise DataLoadError(
+                f"{symbol} market context timestamps differ from ETHUSDC"
+            )
 
 
 def evaluate_context_veto(
