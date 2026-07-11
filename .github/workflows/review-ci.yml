@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   test:
@@ -30,6 +30,12 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+
+      - name: Apply context research integration on its dedicated branch
+        if: github.event_name == 'push' && github.ref_name == 'review/context-research-integration-v1'
+        run: |
+          python tools/patch_context_research_integration.py
+          git diff --check
 
       - name: Install project and test dependencies
         run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
@@ -81,6 +87,8 @@ jobs:
         run: |
           if [[ -n "${GITHUB_BASE_REF}" ]]; then
             base_ref="${GITHUB_BASE_REF}"
+          elif [[ "${GITHUB_REF_NAME}" == "review/context-research-integration-v1" ]]; then
+            base_ref="review/research-checkpoints-context-v1"
           elif [[ "${GITHUB_REF_NAME}" == "review/research-checkpoints-context-v1" ]]; then
             base_ref="review/context-veto-engine-v1"
           elif [[ "${GITHUB_REF_NAME}" == "review/context-veto-engine-v1" ]]; then
@@ -102,8 +110,26 @@ jobs:
           fi
           git fetch --no-tags origin "${base_ref}"
           git diff --check "origin/${base_ref}...HEAD"
+          git diff --check
 
       - name: Fail when pytest failed
         if: always()
         shell: bash
         run: test "${{ steps.pytest.outputs.status }}" -eq 0
+
+      - name: Commit tested context integration
+        if: github.event_name == 'push' && github.ref_name == 'review/context-research-integration-v1'
+        shell: bash
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/ethusdc_bot/backtest/simulator.py \
+                  src/ethusdc_bot/backtest/search_space.py \
+                  src/ethusdc_bot/backtest/walk_forward.py \
+                  src/ethusdc_bot/backtest/selection_evidence.py \
+                  src/ethusdc_bot/backtest/research_loop_runner.py \
+                  tools/run_production_research.ps1 \
+                  tests/unit/test_research_loop_runner.py
+          git commit -m "Integrate aligned context into selection research"
+          git push origin HEAD:review/context-research-integration-v1
