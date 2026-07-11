@@ -104,14 +104,23 @@ def test_real_protocol_v2_loop_reports_stages_without_evaluating_holdout(tmp_pat
         for fold in evidence["wfv"]["folds"]
     )
     assert gate["passed"] is False
+    assert gate["status"] == "fail_gate"
+    assert gate["missing_evidence"] == []
+    assert gate["invalid_evidence"] == []
+    assert gate["stage_readiness"]["research_evidence_complete"] is True
     assert evidence["rolling"]["drawdown_method"] == "mark_to_market"
     assert evidence["stress"]["baseline"]["fee_bps_per_side"] == 10.0
     assert evidence["stress"]["joint"]["fee_bps_per_side"] == 15.0
     assert evidence["parameter_stability"]["uses_audit_or_holdout"] is False
     assert evidence["temporal"]["months_observed"] >= 1
     assert evidence["regime"]["threshold_source"] == "training_only"
-    assert "rolling.max_underwater_days" not in gate["missing_evidence"]
-    assert "stress.baseline.fee_bps_per_side" not in gate["missing_evidence"]
+    assert evidence["selection_evidence_provenance"] == {
+        "selection_data_only": True,
+        "uses_audit_or_holdout": False,
+        "rolling_temporal_regime_source": "chronological_walk_forward_validation_folds",
+        "parameter_source": "internal_validation_only",
+        "stress_source": "same_walk_forward_folds_fixed_cost_profiles",
+    }
     assert "blindtest_audit" not in cycle
     assert cycle["rolling_origin_summary"]["uses_final_audit"] is False
     assert cycle["rolling_origin_summary"]["eligible_as_quality_gate_evidence"] is False
@@ -192,6 +201,9 @@ def test_production_orchestration_enforces_defaults_and_never_simulates_planned_
     assert cycle["resource_budget"]["finalists_cap"] == 2
     assert cycle["resource_budget"]["walk_forward_folds"] == 6
     assert cycle["resource_budget"]["rolling_origin_cap"] == 3
+    assert cycle["resource_budget"]["stress_evidence_candidate_days_cap"] == 2920
+    assert cycle["resource_budget"]["parameter_evidence_candidate_days_cap"] == 7008
+    assert cycle["resource_budget"]["selection_total_candidate_days_cap"] == 24528
     assert cycle["walk_forward_candidates"] == 3
     assert cycle["finalists"] == 2
     assert report["freeze_status"] == "blocked_by_quality_gates"
