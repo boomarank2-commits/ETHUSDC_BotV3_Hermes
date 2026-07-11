@@ -8,6 +8,7 @@ from pathlib import Path
 import zipfile
 
 import ethusdc_bot.backtest.research_loop_runner as loop_module
+import ethusdc_bot.backtest.selection_evidence as selection_evidence_module
 import ethusdc_bot.backtest.walk_forward as walk_forward_module
 from ethusdc_bot.backtest.data_loader import Candle
 from ethusdc_bot.backtest.research_loop_runner import LoopConfig, run_research_loop
@@ -59,6 +60,7 @@ def test_real_protocol_v2_loop_reports_stages_without_evaluating_holdout(tmp_pat
 
     monkeypatch.setattr(loop_module, "simulate_strategy", simulate_spy)
     monkeypatch.setattr(walk_forward_module, "simulate_strategy", simulate_spy)
+    monkeypatch.setattr(selection_evidence_module, "simulate_strategy", simulate_spy)
 
     result = run_research_loop(
         LoopConfig(
@@ -102,8 +104,14 @@ def test_real_protocol_v2_loop_reports_stages_without_evaluating_holdout(tmp_pat
         for fold in evidence["wfv"]["folds"]
     )
     assert gate["passed"] is False
-    assert "rolling.max_underwater_days" in gate["missing_evidence"]
-    assert "stress.baseline.fee_bps_per_side" in gate["missing_evidence"]
+    assert evidence["rolling"]["drawdown_method"] == "mark_to_market"
+    assert evidence["stress"]["baseline"]["fee_bps_per_side"] == 10.0
+    assert evidence["stress"]["joint"]["fee_bps_per_side"] == 15.0
+    assert evidence["parameter_stability"]["uses_audit_or_holdout"] is False
+    assert evidence["temporal"]["months_observed"] >= 1
+    assert evidence["regime"]["threshold_source"] == "training_only"
+    assert "rolling.max_underwater_days" not in gate["missing_evidence"]
+    assert "stress.baseline.fee_bps_per_side" not in gate["missing_evidence"]
     assert "blindtest_audit" not in cycle
     assert cycle["rolling_origin_summary"]["uses_final_audit"] is False
     assert cycle["rolling_origin_summary"]["eligible_as_quality_gate_evidence"] is False
@@ -161,6 +169,7 @@ def test_production_orchestration_enforces_defaults_and_never_simulates_planned_
     monkeypatch.setattr(loop_module, "build_research_window_plan", plan_spy)
     monkeypatch.setattr(loop_module, "simulate_strategy", simulate_spy)
     monkeypatch.setattr(walk_forward_module, "simulate_strategy", simulate_spy)
+    monkeypatch.setattr(selection_evidence_module, "simulate_strategy", simulate_spy)
 
     result = run_research_loop(
         LoopConfig(

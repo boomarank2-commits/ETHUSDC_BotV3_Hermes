@@ -16,6 +16,10 @@ from ethusdc_bot.backtest.equity import (
 )
 from ethusdc_bot.backtest.metrics import BacktestMetrics, compute_metrics
 from ethusdc_bot.backtest.simulator import StrategyCandidate, simulate_strategy
+from ethusdc_bot.backtest.walk_forward_evidence import (
+    FoldSelectionObservation,
+    build_walk_forward_selection_evidence,
+)
 from ethusdc_bot.backtest.split import SplitResult
 
 
@@ -78,6 +82,9 @@ def evaluate_walk_forward(
     blindtest_days: int = 365,
     max_candles_per_fold: int | None = None,
     expected_candles_per_day: int | None = None,
+    fee_rate: float = 0.001,
+    slippage_bps: float = 5.0,
+    include_selection_evidence: bool = True,
 ) -> dict[str, Any]:
     if max_candles_per_fold is not None and (
         isinstance(max_candles_per_fold, bool)
@@ -85,6 +92,8 @@ def evaluate_walk_forward(
         or max_candles_per_fold <= 0
     ):
         raise ValueError("max_candles_per_fold must be a positive integer or None")
+    if fee_rate < 0 or slippage_bps < 0:
+        raise ValueError("fee_rate and slippage_bps must be non-negative")
     folds = build_walk_forward_folds(
         training,
         fold_count=fold_count,
@@ -93,6 +102,7 @@ def evaluate_walk_forward(
     fold_rows: list[dict[str, Any]] = []
     all_trades = []
     fold_equity_curves: list[tuple[EquityPoint, ...]] = []
+    selection_observations: list[FoldSelectionObservation] = []
     simulated_days = 0
     for fold in folds:
         validation_window = _sample_whole_utc_days(
@@ -106,6 +116,16 @@ def evaluate_walk_forward(
             days=fold_days,
             training_days=training_days,
             blindtest_days=blindtest_days,
+            fee_rate=fee_rate,
+            slippage_bps=slippage_bps,
+        )
+        selection_observations.append(
+            FoldSelectionObservation(
+                fold_id=fold.fold_id,
+                training_candles=tuple(fold.train_window),
+                validation_candles=tuple(validation_window),
+                result=result,
+            )
         )
         fold_metrics = result.metrics.to_dict()
         fold_metrics["drawdown_method"] = result.drawdown_method
@@ -145,11 +165,24 @@ def evaluate_walk_forward(
         aggregate,
         max_drawdown_usdc=max_drawdown_usdc(chained_equity),
     )
-    return summarize_walk_forward(
+    summary = summarize_walk_forward(
         fold_rows,
         aggregate_metrics=aggregate,
         aggregate_max_underwater_days=max_underwater_calendar_days(chained_equity),
     )
+    if include_selection_evidence:
+        summary["selection_evidence"] = build_walk_forward_selection_evidence(
+            selection_observations,
+            chained_equity=chained_equity,
+        )
+    else:
+        summary["selection_evidence"] = {
+            "not_computed_reason": "stress_profile_reuses_baseline_selection_evidence",
+            "uses_audit_or_holdout": False,
+        }
+    summary["fee_bps_per_side"] = fee_rate * 10_000
+    summary["slippage_bps_per_side"] = slippage_bps
+    return summary
 
 
 def evaluate_walk_forward_frontier(

@@ -30,6 +30,7 @@ from ethusdc_bot.backtest.research_runner import (
     build_family_diagnosis,
     rank_candidates,
 )
+from ethusdc_bot.backtest.selection_evidence import run_parameter_stability
 from ethusdc_bot.backtest.search_space import (
     SearchSpaceState,
     canonical_candidate_signature,
@@ -49,12 +50,20 @@ from ethusdc_bot.backtest.split import (
 from ethusdc_bot.backtest.strategy_search import TARGET_USDC_PER_DAY
 from ethusdc_bot.backtest.walk_forward import (
     evaluate_rolling_origins,
+    evaluate_walk_forward,
     evaluate_walk_forward_frontier,
     rank_with_walk_forward,
+)
+from ethusdc_bot.backtest.walk_forward_evidence import (
+    build_walk_forward_stress_evidence,
 )
 from ethusdc_bot.data_pipeline.data_readiness import build_data_readiness_report
 
 
+MAX_PARAMETER_STABILITY_NUMERIC_PARAMETERS = 12
+PARAMETER_NEIGHBORS_PER_NUMERIC_PARAMETER = 2
+STRESS_PROFILES_BEYOND_BASELINE = 2
+INTERNAL_VALIDATION_DAYS = TRAINING_DAYS // 5
 MAX_SELECTION_CANDIDATE_DAYS_PER_CYCLE = (
     (
         CANDIDATE_STAGE_BUDGETS["tested_candidates"]
@@ -63,6 +72,15 @@ MAX_SELECTION_CANDIDATE_DAYS_PER_CYCLE = (
     )
     * TRAINING_DAYS
     + CANDIDATE_STAGE_BUDGETS["finalists"] * 3 * BLINDTEST_DAYS
+)
+MAX_SELECTION_EVIDENCE_CANDIDATE_DAYS_PER_CYCLE = (
+    CANDIDATE_STAGE_BUDGETS["finalists"]
+    * (
+        STRESS_PROFILES_BEYOND_BASELINE * TRAINING_DAYS
+        + PARAMETER_NEIGHBORS_PER_NUMERIC_PARAMETER
+        * MAX_PARAMETER_STABILITY_NUMERIC_PARAMETERS
+        * INTERNAL_VALIDATION_DAYS
+    )
 )
 
 
@@ -314,6 +332,74 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
                 record["candidate"],
                 origin_limit=config.rolling_origin_limit,
             )
+            joint_stress_wfv = evaluate_walk_forward(
+                split.training,
+                record["candidate"],
+                fold_count=config.walk_forward_fold_count,
+                training_days=split.training_days,
+                blindtest_days=split.blindtest_days,
+                expected_candles_per_day=1440,
+                fee_rate=QUALITY_GATE_V1.joint_stress_fee_bps_per_side / 10_000,
+                slippage_bps=QUALITY_GATE_V1.joint_stress_slippage_bps_per_side,
+                include_selection_evidence=False,
+            )
+            slippage_stress_wfv = evaluate_walk_forward(
+                split.training,
+                record["candidate"],
+                fold_count=config.walk_forward_fold_count,
+                training_days=split.training_days,
+                blindtest_days=split.blindtest_days,
+                expected_candles_per_day=1440,
+                fee_rate=QUALITY_GATE_V1.slippage_stress_fee_bps_per_side / 10_000,
+                slippage_bps=QUALITY_GATE_V1.slippage_stress_slippage_bps_per_side,
+                include_selection_evidence=False,
+            )
+            baseline_selection = record["walk_forward_summary"].get(
+                "selection_evidence", {}
+            )
+            record["selection_evidence"] = {
+                "rolling": baseline_selection.get("rolling", {}),
+                "temporal": baseline_selection.get("temporal", {}),
+                "regime": baseline_selection.get("regime", {}),
+                "stress": build_walk_forward_stress_evidence(
+                    record["walk_forward_summary"],
+                    joint_stress_wfv,
+                    slippage_stress_wfv,
+                    baseline_fee_bps=QUALITY_GATE_V1.baseline_fee_bps_per_side,
+                    baseline_slippage_bps=(
+                        QUALITY_GATE_V1.baseline_slippage_bps_per_side
+                    ),
+                    joint_fee_bps=QUALITY_GATE_V1.joint_stress_fee_bps_per_side,
+                    joint_slippage_bps=(
+                        QUALITY_GATE_V1.joint_stress_slippage_bps_per_side
+                    ),
+                    slippage_fee_bps=(
+                        QUALITY_GATE_V1.slippage_stress_fee_bps_per_side
+                    ),
+                    slippage_stress_bps=(
+                        QUALITY_GATE_V1.slippage_stress_slippage_bps_per_side
+                    ),
+                ),
+                "parameter_stability": run_parameter_stability(
+                    validation,
+                    record["candidate"],
+                    days=validation_days,
+                    gate=QUALITY_GATE_V1,
+                    baseline_result=record["validation_result"],
+                    max_numeric_parameters=(
+                        MAX_PARAMETER_STABILITY_NUMERIC_PARAMETERS
+                    ),
+                ),
+                "provenance": {
+                    "selection_data_only": True,
+                    "uses_audit_or_holdout": False,
+                    "rolling_temporal_regime_source": (
+                        "chronological_walk_forward_validation_folds"
+                    ),
+                    "parameter_source": "internal_validation_only",
+                    "stress_source": "same_walk_forward_folds_fixed_cost_profiles",
+                },
+            }
             evidence = _quality_evidence(record, full_training_result)
             record["quality_gate_evidence"] = evidence
             record["quality_gate"] = _bind_quality_gate(
@@ -496,6 +582,7 @@ def _quality_evidence(record: dict[str, Any], full_training_result: Any) -> dict
             "full_training_net_usdc_per_day": full_training_result.metrics.net_usdc_per_day,
         }
     )
+    selection_evidence = record.get("selection_evidence", {})
     validation = record["validation_metrics"].to_dict()
     validation_result = record["validation_result"]
     validation["drawdown_method"] = validation_result.drawdown_method
@@ -518,10 +605,16 @@ def _quality_evidence(record: dict[str, Any], full_training_result: Any) -> dict
             "folds": folds,
             "aggregate": aggregate,
         },
-        # Formal rolling-origin evidence requires a time-local pipeline refit.
-        # Fixed-candidate historical replays are reported but never promoted
-        # into the quality-gate evidence mapping.
-        "rolling": {},
+        "rolling": dict(selection_evidence.get("rolling", {})),
+        "stress": dict(selection_evidence.get("stress", {})),
+        "parameter_stability": dict(
+            selection_evidence.get("parameter_stability", {})
+        ),
+        "temporal": dict(selection_evidence.get("temporal", {})),
+        "regime": dict(selection_evidence.get("regime", {})),
+        "selection_evidence_provenance": dict(
+            selection_evidence.get("provenance", {})
+        ),
     }
 
 
@@ -999,9 +1092,21 @@ def _loop_report(**kwargs: Any) -> dict[str, Any]:
         "resource_budget": _resource_budget(config),
         "loop_resource_budget": {
             "max_cycles": config.max_cycles,
-            "selection_candidate_days_cap": _selection_candidate_day_cap(config) * config.max_cycles,
+            "selection_candidate_days_cap": (
+                _selection_candidate_day_cap(config) * config.max_cycles
+            ),
             "selection_candle_evaluations_cap": (
                 _selection_candidate_day_cap(config) * config.max_cycles * 1440
+            ),
+            "selection_total_candidate_days_cap": (
+                _resource_budget(config)["selection_total_candidate_days_cap"]
+                * config.max_cycles
+            ),
+            "selection_total_candle_evaluations_cap": (
+                _resource_budget(config)[
+                    "selection_total_candle_evaluations_cap"
+                ]
+                * config.max_cycles
             ),
         },
         "cycles": cycles,
@@ -1029,6 +1134,18 @@ def _loop_report(**kwargs: Any) -> dict[str, Any]:
 
 def _resource_budget(config: LoopConfig) -> dict[str, int]:
     candidate_days = _selection_candidate_day_cap(config)
+    stress_days = (
+        config.finalists_per_cycle
+        * STRESS_PROFILES_BEYOND_BASELINE
+        * TRAINING_DAYS
+    )
+    parameter_days = (
+        config.finalists_per_cycle
+        * PARAMETER_NEIGHBORS_PER_NUMERIC_PARAMETER
+        * MAX_PARAMETER_STABILITY_NUMERIC_PARAMETERS
+        * INTERNAL_VALIDATION_DAYS
+    )
+    total_days = candidate_days + stress_days + parameter_days
     return {
         "generated_cap": config.max_candidates_per_cycle,
         "tested_cap": config.tested_candidates_per_cycle,
@@ -1038,6 +1155,13 @@ def _resource_budget(config: LoopConfig) -> dict[str, int]:
         "rolling_origin_cap": config.rolling_origin_limit,
         "selection_candidate_days_cap": candidate_days,
         "selection_candle_evaluations_cap": candidate_days * 1440,
+        "stress_evidence_candidate_days_cap": stress_days,
+        "parameter_evidence_candidate_days_cap": parameter_days,
+        "selection_total_candidate_days_cap": total_days,
+        "selection_total_candle_evaluations_cap": total_days * 1440,
+        "max_numeric_parameters_per_finalist": (
+            MAX_PARAMETER_STABILITY_NUMERIC_PARAMETERS
+        ),
     }
 
 

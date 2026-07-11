@@ -67,6 +67,11 @@ def _cycle(candidate_id: str, validation: float, safety=None):
             "rolling_origin_cap": 3,
             "selection_candidate_days_cap": 4015,
             "selection_candle_evaluations_cap": 5_781_600,
+            "stress_evidence_candidate_days_cap": 1460,
+            "parameter_evidence_candidate_days_cap": 3504,
+            "selection_total_candidate_days_cap": 8979,
+            "selection_total_candle_evaluations_cap": 12_929_760,
+            "max_numeric_parameters_per_finalist": 12,
         },
         "selected_candidate": {
             "candidate_id": selected_id,

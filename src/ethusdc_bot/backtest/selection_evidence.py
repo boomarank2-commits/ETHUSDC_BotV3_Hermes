@@ -174,17 +174,21 @@ def build_regime_evidence(
         raise ValueError("lookback_minutes must exceed one")
     if not training_candles or not evaluation_candles:
         return _empty_regime_evidence(lookback_minutes)
-    training_volatility = [
-        _trailing_state(training_candles, index, lookback_minutes)[1]
-        for index in range(1, len(training_candles))
+    volatility_threshold = _training_volatility_threshold(
+        training_candles, lookback_minutes
+    )
+    evaluation_times = [candle.open_time for candle in evaluation_candles]
+    trailing_context = [
+        *training_candles[-lookback_minutes:],
+        *evaluation_candles,
     ]
-    finite_training_volatility = [value for value in training_volatility if isfinite(value)]
-    volatility_threshold = median(finite_training_volatility) if finite_training_volatility else 0.0
-    times = [candle.open_time for candle in evaluation_candles]
+    context_offset = min(lookback_minutes, len(training_candles))
     rows: dict[str, list[float]] = {label: [] for label in REGIME_LABELS}
     for trade in trades:
-        index = bisect_left(times, int(trade.entry_time))
-        trend, volatility = _trailing_state(evaluation_candles, index, lookback_minutes)
+        evaluation_index = bisect_left(evaluation_times, int(trade.entry_time))
+        trend, volatility = _trailing_state(
+            trailing_context, context_offset + evaluation_index, lookback_minutes
+        )
         trend_label = "up" if trend >= 0 else "down"
         volatility_label = "high" if volatility > volatility_threshold else "low"
         rows[f"{trend_label}_{volatility_label}"].append(float(trade.net_profit_usdc))
@@ -193,11 +197,14 @@ def build_regime_evidence(
     for label in REGIME_LABELS:
         values = rows[label]
         positive = sum(value for value in values if value > 0)
+        negative = abs(sum(value for value in values if value < 0))
         regime_rows.append(
             {
                 "regime": label,
                 "trade_count": len(values),
                 "net_profit_usdc": _round(sum(values)),
+                "gross_profit_usdc": _round(positive),
+                "gross_loss_usdc": _round(negative),
                 "profit_factor": _round(_finite_profit_factor(values)),
                 "positive_pnl_share": _round(positive / total_positive) if total_positive > 0 else 0.0,
             }
@@ -311,15 +318,35 @@ def run_parameter_stability(
     *,
     days: int,
     gate: QualityGateV1 = QUALITY_GATE_V1,
+    baseline_result: SimulationResult | None = None,
+    max_numeric_parameters: int = 12,
 ) -> dict[str, Any]:
-    """Evaluate all deterministic numeric neighbours on the same selection data."""
+    """Evaluate bounded deterministic numeric neighbours on selection data."""
 
-    baseline = simulate_strategy(candles, candidate, days=days)
+    if max_numeric_parameters <= 0:
+        raise ValueError("max_numeric_parameters must be positive")
+    baseline = baseline_result or simulate_strategy(candles, candidate, days=days)
     neighbor_specs, numeric_count = generate_parameter_neighbors(
         candidate,
         perturbation_fraction=gate.parameter_perturbation_fraction,
         session_hour_step=gate.parameter_session_hour_step,
     )
+    if numeric_count > max_numeric_parameters:
+        return {
+            "all_numeric_parameters_perturbed": False,
+            "numeric_parameter_count": numeric_count,
+            "neighbor_count": 0,
+            "perturbation_fraction": gate.parameter_perturbation_fraction,
+            "session_hour_step": gate.parameter_session_hour_step,
+            "passing_neighbor_fraction": 0.0,
+            "median_net_retention": 0.0,
+            "worst_neighbor_net_usdc_per_day": 0.0,
+            "baseline_net_usdc_per_day": baseline.net_usdc_per_day,
+            "neighbors": [],
+            "resource_limit_numeric_parameters": max_numeric_parameters,
+            "blocked_reason": "numeric_parameter_count_exceeds_resource_limit",
+            "uses_audit_or_holdout": False,
+        }
     evaluations: list[NeighborEvaluation] = []
     for parameter, direction, value, neighbor in neighbor_specs:
         evaluations.append(
@@ -393,6 +420,28 @@ def _neighbor_values(
         ("minus", max(minimum, float(value) - delta)),
         ("plus", float(value) + delta),
     ]
+
+
+def _training_volatility_threshold(
+    candles: Sequence[Candle], lookback: int
+) -> float:
+    if len(candles) < 2:
+        return 0.0
+    moves: list[float] = []
+    for index in range(1, len(candles)):
+        previous = float(candles[index - 1].close)
+        current = float(candles[index].close)
+        moves.append(abs(current / previous - 1) * 10_000 if previous else 0.0)
+    rolling_values: list[float] = []
+    rolling_sum = 0.0
+    for index, move in enumerate(moves):
+        rolling_sum += move
+        if index >= lookback:
+            rolling_sum -= moves[index - lookback]
+        width = min(index + 1, lookback)
+        rolling_values.append(rolling_sum / width)
+    finite_values = [value for value in rolling_values if isfinite(value)]
+    return median(finite_values) if finite_values else 0.0
 
 
 def _trailing_state(
