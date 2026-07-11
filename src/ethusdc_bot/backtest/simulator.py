@@ -7,7 +7,8 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from math import isclose
 
-from ethusdc_bot.backtest.data_loader import Candle, EXPECTED_STEP_MS, SYMBOL
+from ethusdc_bot.backtest.context_features import ContextVetoPolicy, evaluate_context_veto, validate_context_against_trade_candles
+from ethusdc_bot.backtest.data_loader import AlignedMarketCandles, Candle, EXPECTED_STEP_MS, SYMBOL
 from ethusdc_bot.backtest.equity import EquityPoint, max_drawdown_usdc, max_underwater_calendar_days
 from ethusdc_bot.backtest.metrics import BacktestMetrics, compute_metrics
 
@@ -93,6 +94,7 @@ def simulate_strategy(
     slippage_bps: float = 5.0,
     training_days: int = 0,
     blindtest_days: int = 0,
+    market_context: AlignedMarketCandles | None = None,
 ) -> SimulationResult:
     if str(strategy.params.get("side", "LONG")) != "LONG":
         raise ValueError("Simulator is LONG-only; shorts are forbidden")
@@ -109,6 +111,11 @@ def simulate_strategy(
             training_days=training_days,
             blindtest_days=blindtest_days,
         )
+    context_policy: ContextVetoPolicy | None = None
+    if strategy.family == "context_filter":
+        context_policy = ContextVetoPolicy.from_candidate_params(strategy.params)
+        if market_context is not None:
+            validate_context_against_trade_candles(candles, market_context)
     trades: list[Trade] = []
     position: dict[str, float | int] | None = None
     pending_entry = False
