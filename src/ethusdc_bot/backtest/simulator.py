@@ -7,7 +7,8 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from math import isclose
 
-from ethusdc_bot.backtest.data_loader import Candle, EXPECTED_STEP_MS, SYMBOL
+from ethusdc_bot.backtest.context_features import ContextVetoPolicy, evaluate_context_veto, validate_context_against_trade_candles
+from ethusdc_bot.backtest.data_loader import AlignedMarketCandles, Candle, EXPECTED_STEP_MS, SYMBOL
 from ethusdc_bot.backtest.equity import EquityPoint, max_drawdown_usdc, max_underwater_calendar_days
 from ethusdc_bot.backtest.metrics import BacktestMetrics, compute_metrics
 
@@ -93,6 +94,7 @@ def simulate_strategy(
     slippage_bps: float = 5.0,
     training_days: int = 0,
     blindtest_days: int = 0,
+    market_context: AlignedMarketCandles | None = None,
 ) -> SimulationResult:
     if str(strategy.params.get("side", "LONG")) != "LONG":
         raise ValueError("Simulator is LONG-only; shorts are forbidden")
@@ -109,6 +111,11 @@ def simulate_strategy(
             training_days=training_days,
             blindtest_days=blindtest_days,
         )
+    context_policy: ContextVetoPolicy | None = None
+    if strategy.family == "context_filter":
+        context_policy = ContextVetoPolicy.from_candidate_params(strategy.params)
+        if market_context is not None:
+            validate_context_against_trade_candles(candles, market_context)
     trades: list[Trade] = []
     position: dict[str, float | int] | None = None
     pending_entry = False
@@ -154,8 +161,18 @@ def simulate_strategy(
             trades.append(trade)
             realized_net_usdc += trade.net_profit_usdc
             position = None
-        if position is None and index >= cooldown_until_index and index < len(candles) - 1 and _signal(candles, index, strategy):
-            pending_entry = True
+        if position is None and index >= cooldown_until_index and index < len(candles) - 1:
+            entry_allowed, rejection_reason = _entry_decision(
+                candles,
+                index,
+                strategy,
+                market_context=market_context,
+                context_policy=context_policy,
+            )
+            if entry_allowed:
+                pending_entry = True
+            elif rejection_reason is not None:
+                rejections[rejection_reason] += 1
         equity_curve.append(
             EquityPoint(
                 timestamp_ms=candle.open_time + EXPECTED_STEP_MS - 1,
@@ -247,6 +264,35 @@ def _liquidation_equity_usdc(
     return round(realized_net_usdc + gross - entry_fee - exit_fee, 10)
 
 
+def _entry_decision(
+    candles: list[Candle],
+    index: int,
+    strategy: StrategyCandidate,
+    *,
+    market_context: AlignedMarketCandles | None,
+    context_policy: ContextVetoPolicy | None,
+) -> tuple[bool, str | None]:
+    if strategy.family != "context_filter":
+        return _signal(candles, index, strategy), None
+
+    base_family = str(strategy.params.get("base_family", "momentum"))
+    if base_family == "context_filter":
+        return False, "context_recursive_base_forbidden"
+    base_params = {
+        key: value
+        for key, value in strategy.params.items()
+        if key != "base_family" and not key.startswith("context_")
+    }
+    if not _signal(candles, index, StrategyCandidate(base_family, base_params)):
+        return False, None
+    if market_context is None or context_policy is None:
+        return False, "context_data_missing"
+    decision = evaluate_context_veto(market_context, index, context_policy)
+    if decision.allowed:
+        return True, None
+    return False, decision.reason
+
+
 def _signal(candles: list[Candle], index: int, strategy: StrategyCandidate) -> bool:
     if strategy.family == "always_long":
         return True
@@ -288,11 +334,7 @@ def _signal(candles: list[Candle], index: int, strategy: StrategyCandidate) -> b
             return False
         return _signal(candles, index, StrategyCandidate(str(strategy.params.get("base_family", "momentum")), dict(strategy.params)))
     if strategy.family == "context_filter":
-        # Context symbols are filters only. ETHUSDC remains the only tradeable
-        # symbol, and the base ETHUSDC strategy must still generate the signal.
-        if str(strategy.params.get("symbol", SYMBOL)) != SYMBOL:
-            return False
-        return _signal(candles, index, StrategyCandidate(str(strategy.params.get("base_family", "momentum")), dict(strategy.params)))
+        return False
     return False
 
 
