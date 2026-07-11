@@ -32,6 +32,18 @@ def test_launcher_refuses_dirty_worktree_and_binds_exact_commit() -> None:
     assert "working_tree_clean = $true" in text
 
 
+def test_launcher_binds_src_layout_for_every_python_child_process() -> None:
+    text = _script()
+
+    assert '$SrcRoot = (Resolve-Path (Join-Path $RepoRoot "src")).Path' in text
+    assert "$env:PYTHONPATH = $SrcRoot" in text
+    assert '[System.IO.Path]::PathSeparator' in text
+    assert "import ethusdc_bot.backtest.research_loop_runner" in text
+    assert "RESEARCH_MODULE_IMPORT_OK" in text
+    assert "source_root = $SrcRoot" in text
+    assert "pythonpath = $env:PYTHONPATH" in text
+
+
 def test_launcher_requires_complete_three_year_ethusdc_inventory() -> None:
     text = _script()
 
@@ -46,10 +58,12 @@ def test_launcher_runs_full_checks_before_research() -> None:
     text = _script()
     pytest_position = text.index('"pytest", "-q"')
     compile_position = text.index('"compileall", "-q", "src"')
+    import_position = text.index("RESEARCH_MODULE_IMPORT_OK")
     research_position = text.index('"ethusdc_bot.backtest.research_loop_runner"')
 
     assert pytest_position < research_position
     assert compile_position < research_position
+    assert import_position < research_position
     assert 'Invoke-Checked -FilePath "py"' in text
 
 
