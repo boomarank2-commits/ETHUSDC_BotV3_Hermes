@@ -425,7 +425,16 @@ class _Evaluator:
         total_gross_profit = sum(row["gross_profit_usdc"] for row in rows)
         total_gross_loss = sum(row["gross_loss_usdc"] for row in rows)
         mean_net = sum(net_values) / len(net_values) if net_values else 0.0
-        derived_cv = pstdev(net_values) / abs(mean_net) if len(net_values) > 1 and mean_net else None
+        if len(net_values) > 1:
+            dispersion = pstdev(net_values)
+            if mean_net:
+                derived_cv = dispersion / abs(mean_net)
+            elif dispersion == 0:
+                derived_cv = 0.0
+            else:
+                derived_cv = None
+        else:
+            derived_cv = None
 
         chained_equity = [0.0]
         equity_offset = 0.0

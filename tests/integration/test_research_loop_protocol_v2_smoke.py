@@ -104,10 +104,17 @@ def test_real_protocol_v2_loop_reports_stages_without_evaluating_holdout(tmp_pat
         for fold in evidence["wfv"]["folds"]
     )
     assert gate["passed"] is False
-    assert gate["status"] in {"fail_gate", "fail_invalid_evidence"}
+    assert gate["status"] == "fail_invalid_evidence"
     assert gate["missing_evidence"] == []
-    assert gate["invalid_evidence"] == [], gate["invalid_evidence"]
-    assert gate["stage_readiness"]["research_evidence_complete"] is True
+    # The six-day monotonic fixture intentionally produces no closed wins or
+    # losses. Profit factor is therefore undefined and must remain fail-closed.
+    # This is different from missing producer evidence, which must stay empty.
+    assert gate["invalid_evidence"] == [
+        "wfv.aggregate.profit_factor",
+        "wfv.folds[0].metrics.gross_profit_usdc",
+        "wfv.folds[1].metrics.gross_profit_usdc",
+    ]
+    assert gate["stage_readiness"]["research_evidence_complete"] is False
     assert evidence["rolling"]["drawdown_method"] == "mark_to_market"
     assert evidence["stress"]["baseline"]["fee_bps_per_side"] == 10.0
     assert evidence["stress"]["joint"]["fee_bps_per_side"] == 15.0
