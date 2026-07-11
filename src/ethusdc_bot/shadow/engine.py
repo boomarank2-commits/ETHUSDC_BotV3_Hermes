@@ -14,13 +14,16 @@ from typing import Any
 
 from ethusdc_bot.backtest.data_loader import Candle, EXPECTED_STEP_MS
 from ethusdc_bot.backtest.portfolio_simulator import (
+    BOUNDED_SHADOW_RETENTION_PROFILE,
     CapacityRejection,
     PortfolioEngineState,
     PortfolioLot,
     PortfolioStepEvent,
     PortfolioTrade,
     advance_portfolio_engine,
+    compact_portfolio_engine_for_bounded_shadow,
     new_portfolio_engine_state,
+    required_strategy_history_candles,
 )
 from ethusdc_bot.backtest.simulator import StrategyCandidate
 from ethusdc_bot.portfolio import PortfolioPolicy
@@ -98,6 +101,44 @@ class ShadowReplayResult:
     processed_candles: int
     ignored_idempotent_candles: int
     trades_emitted: tuple[PortfolioTrade, ...]
+
+
+def bounded_shadow_retention_profile(
+    state: ShadowReplayState,
+) -> dict[str, object]:
+    """Return the deterministic marker payload for bounded Shadow replay."""
+
+    if not isinstance(state, ShadowReplayState):
+        raise TypeError("state must be a ShadowReplayState")
+    return {
+        "profile": BOUNDED_SHADOW_RETENTION_PROFILE,
+        "retained_history_candles": required_strategy_history_candles(
+            state.strategy
+        ),
+        "max_equity_points": 1,
+        "retain_cumulative_trades": False,
+        "retain_cumulative_capacity_rejections": False,
+    }
+
+
+def select_bounded_shadow_retention(
+    state: ShadowReplayState,
+) -> ShadowReplayState:
+    """Explicitly compact replay state after a runtime profile marker exists.
+
+    Initialization intentionally remains full-retention for compatibility with
+    legacy event-chain state digests.  New runtimes select this profile exactly
+    once and persist that choice before reducing more candles.
+    """
+
+    if not isinstance(state, ShadowReplayState):
+        raise TypeError("state must be a ShadowReplayState")
+    return replace(
+        state,
+        engine_state=compact_portfolio_engine_for_bounded_shadow(
+            state.engine_state, state.strategy
+        ),
+    )
 
 
 def initialize_shadow_replay(
@@ -205,7 +246,7 @@ def replay_closed_candles(
     events: list[ShadowReplayEvent] = []
     processed = 0
     ignored = 0
-    trades_before = len(current.trades)
+    emitted: list[PortfolioTrade] = []
     seen_in_batch: set[int] = set()
     known = {candle.open_time: candle for candle in current.engine_state.candles}
     known_at_batch_start = frozenset(known)
@@ -221,6 +262,18 @@ def replay_closed_candles(
             events.append(pause_event)
             break
         timestamp = candle.open_time
+        retained = current.engine_state.candles
+        if (
+            current.engine_state.retention_profile
+            == BOUNDED_SHADOW_RETENTION_PROFILE
+            and retained
+            and timestamp < retained[0].open_time
+        ):
+            current, pause_event = _pause(
+                current, "replay_outside_retained_history", timestamp
+            )
+            events.append(pause_event)
+            break
         if timestamp in known_at_batch_start:
             if known[timestamp] == candle:
                 ignored += 1
@@ -289,19 +342,20 @@ def replay_closed_candles(
         known[timestamp] = candle
         processed += 1
         for step_event in step_events:
+            if step_event.trade is not None:
+                emitted.append(step_event.trade)
             shadow_event = _shadow_event(current, step_event)
             events.append(shadow_event)
             current = replace(
                 current, next_event_sequence=current.next_event_sequence + 1
             )
 
-    emitted = current.trades[trades_before:]
     return ShadowReplayResult(
         state=current,
         events=tuple(events),
         processed_candles=processed,
         ignored_idempotent_candles=ignored,
-        trades_emitted=emitted,
+        trades_emitted=tuple(emitted),
     )
 
 
@@ -418,8 +472,10 @@ __all__ = [
     "ShadowReplayEvent",
     "ShadowReplayResult",
     "ShadowReplayState",
+    "bounded_shadow_retention_profile",
     "initialize_shadow_replay",
     "replay_closed_candles",
+    "select_bounded_shadow_retention",
     "start_shadow_replay",
     "stop_shadow_replay",
 ]

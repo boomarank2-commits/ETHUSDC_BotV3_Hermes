@@ -25,12 +25,18 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from ethusdc_bot.backtest.data_loader import Candle, EXPECTED_STEP_MS
-from ethusdc_bot.backtest.portfolio_simulator import PortfolioTrade
+from ethusdc_bot.backtest.portfolio_simulator import (
+    BOUNDED_SHADOW_RETENTION_PROFILE,
+    FULL_RETENTION_PROFILE,
+    PortfolioTrade,
+)
 from ethusdc_bot.shadow.engine import (
     ShadowReplayResult,
     ShadowReplayState,
+    bounded_shadow_retention_profile,
     initialize_shadow_replay,
     replay_closed_candles,
+    select_bounded_shadow_retention,
     start_shadow_replay,
     stop_shadow_replay,
 )
@@ -214,12 +220,13 @@ class ShadowRuntime:
     def start(self) -> dict[str, Any]:
         """Persistently start candle consumption without enabling order paths."""
 
-        if self._replay_state.phase == "running":
-            return self.state
-        if self._replay_state.phase not in {"adopted_stopped", "stopped"}:
+        if self._replay_state.phase not in {"adopted_stopped", "stopped", "running"}:
             raise ShadowRuntimeStateError(
                 f"cannot start Shadow runtime from phase {self._replay_state.phase!r}"
             )
+        self._select_bounded_runtime_profile()
+        if self._replay_state.phase == "running":
+            return self.state
         prior_phase = self._replay_state.phase
         next_state = start_shadow_replay(self.deployment, self._replay_state)
         payload = self._lifecycle_payload(
@@ -229,6 +236,27 @@ class ShadowRuntime:
         )
         self._commit_event("shadow_started", payload, next_state)
         return self.state
+
+    def _select_bounded_runtime_profile(self) -> None:
+        if (
+            self._replay_state.engine_state.retention_profile
+            == BOUNDED_SHADOW_RETENTION_PROFILE
+        ):
+            return
+        prior_state = self._replay_state
+        try:
+            next_state = select_bounded_shadow_retention(prior_state)
+        except (TypeError, ValueError, RuntimeError) as exc:
+            raise ShadowRuntimeStateError(
+                f"could not select bounded Shadow retention: {exc}"
+            ) from exc
+        payload = _retention_profile_payload(
+            self.deployment,
+            self._deployment_digest,
+            prior_state=prior_state,
+            resulting_state=next_state,
+        )
+        self._commit_event("shadow_runtime_profile_selected", payload, next_state)
 
     def stop(self) -> dict[str, Any]:
         """Stop consumption without liquidating or changing an open lot."""
@@ -421,23 +449,16 @@ class ShadowRuntime:
             resulting_phase=resulting_phase,
             reason=reason,
             resulting_state_digest=_state_digest(next_state),
+            compact_context=_uses_bounded_retention(next_state),
         )
         self._commit_event(event_type, payload, next_state)
 
     def _event_context(self) -> dict[str, Any]:
-        return {
-            "deployment_id": self.deployment["deployment_id"],
-            "deployment_digest": self._deployment_digest,
-            "source_report_sha256": self.deployment["source_report"]["sha256"],
-            "candidate_signature": deepcopy(
-                self.deployment["candidate"]["candidate_signature"]
-            ),
-            "public_data_only": True,
-            "hypothetical": True,
-            "orders_enabled": False,
-            "trading_api_enabled": False,
-            "api_keys_used": False,
-        }
+        return _event_context(
+            self.deployment,
+            self._deployment_digest,
+            compact=_uses_bounded_retention(self._replay_state),
+        )
 
     def _lifecycle_payload(
         self,
@@ -582,7 +603,25 @@ def _rebuild_from_events(
     for record in iterator:
         event_type = record["event_type"]
         payload = record["payload"]
-        if event_type == "shadow_started":
+        if event_type == "shadow_runtime_profile_selected":
+            if (
+                replay_state.engine_state.retention_profile
+                != FULL_RETENTION_PROFILE
+            ):
+                raise ShadowRuntimeIntegrityError(
+                    "Shadow retention profile may be selected exactly once"
+                )
+            try:
+                next_state = select_bounded_shadow_retention(replay_state)
+            except (TypeError, ValueError, RuntimeError) as exc:
+                raise ShadowRuntimeIntegrityError(str(exc)) from exc
+            expected = _retention_profile_payload(
+                deployment,
+                deployment_digest,
+                prior_state=replay_state,
+                resulting_state=next_state,
+            )
+        elif event_type == "shadow_started":
             prior = replay_state.phase
             try:
                 next_state = start_shadow_replay(deployment, replay_state)
@@ -594,6 +633,7 @@ def _rebuild_from_events(
                 prior_phase=prior,
                 resulting_phase=next_state.phase,
                 resulting_state_digest=_state_digest(next_state),
+                compact_context=_uses_bounded_retention(next_state),
             )
         elif event_type == "shadow_stopped":
             if replay_state.phase != "running":
@@ -608,6 +648,7 @@ def _rebuild_from_events(
                 prior_phase=prior,
                 resulting_phase=next_state.phase,
                 resulting_state_digest=_state_digest(next_state),
+                compact_context=_uses_bounded_retention(next_state),
             )
         elif event_type in {"candle_reduced", "shadow_paused"}:
             if replay_state.phase != "running":
@@ -659,13 +700,14 @@ def _rebuild_from_events(
                 resulting_phase=resulting_phase,
                 reason=reason,
                 resulting_state_digest=_state_digest(next_state),
+                compact_context=_uses_bounded_retention(next_state),
             )
         else:
             raise ShadowRuntimeIntegrityError(
                 f"unsupported Shadow runtime event type: {event_type!r}"
             )
 
-        if not _json_equal(payload, expected):
+        if not _event_payload_matches(payload, expected, next_state):
             raise ShadowRuntimeIntegrityError(
                 f"Shadow event {record['sequence']} payload disagrees with deterministic replay"
             )
@@ -800,8 +842,13 @@ def _snapshot_from_replay(
     candles = engine.candles
     open_lots: list[dict[str, Any]] = []
     for lot in engine.open_lots:
+        local_entry_index = lot.entry_index - engine.history_start_index
+        if local_entry_index < 0 or local_entry_index >= len(candles):
+            raise ShadowRuntimeIntegrityError(
+                "open Shadow lot lies outside retained candle history"
+            )
         held_closes = [
-            float(candle.close) for candle in candles[lot.entry_index :]
+            float(candle.close) for candle in candles[local_entry_index:]
         ]
         best_close = max(held_closes) if held_closes else float(lot.entry_price)
         open_lots.append(
@@ -849,6 +896,21 @@ def _snapshot_from_replay(
 
 
 def _state_digest(state: ShadowReplayState) -> str:
+    if _uses_bounded_retention(state):
+        return _bounded_state_digest(state)
+    return _summary_state_digest_v1(state)
+
+
+def _uses_bounded_retention(state: ShadowReplayState) -> bool:
+    return (
+        state.engine_state.retention_profile
+        == BOUNDED_SHADOW_RETENTION_PROFILE
+    )
+
+
+def _summary_state_digest_v1(state: ShadowReplayState) -> str:
+    """Digest written by bafbc18 before bounded retention was introduced."""
+
     engine = state.engine_state
     payload = {
         "schema_version": 1,
@@ -894,6 +956,91 @@ def _state_digest(state: ShadowReplayState) -> str:
         "trading_api_enabled": False,
     }
     return sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+def _bounded_state_digest(state: ShadowReplayState) -> str:
+    engine = state.engine_state
+    payload = {
+        "schema_version": 2,
+        "digest_version": "bounded_shadow_state_v2",
+        "deployment_id": state.deployment_id,
+        "phase": state.phase,
+        "paused_reason": state.paused_reason,
+        "strategy": asdict(state.strategy),
+        "portfolio_policy": state.policy.to_dict(),
+        "retention_profile": engine.retention_profile,
+        "retained_history_limit": engine.retained_history_limit,
+        "history_start_index": engine.history_start_index,
+        "total_processed_candles": engine.total_processed_candles,
+        "last_candle": asdict(engine.candles[-1]) if engine.candles else None,
+        "open_lots": [asdict(lot) for lot in engine.open_lots],
+        "pending_entry": (
+            asdict(engine.pending_entry) if engine.pending_entry is not None else None
+        ),
+        "cooldown_until_index": engine.cooldown_until_index,
+        "realized_net_usdc": engine.realized_net_usdc,
+        "last_equity_point": (
+            asdict(engine.equity_curve[-1]) if engine.equity_curve else None
+        ),
+        "next_lot_sequence": engine.next_lot_sequence,
+        "max_concurrent_lots": engine.max_concurrent_lots,
+        "max_open_entry_exposure_usdc": engine.max_open_entry_exposure_usdc,
+        "max_reserved_notional_usdc": engine.max_reserved_notional_usdc,
+        "next_event_sequence": state.next_event_sequence,
+        "hypothetical": True,
+        "orders_enabled": False,
+        "trading_api_enabled": False,
+    }
+    return sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+def _legacy_full_state_digest(state: ShadowReplayState) -> str:
+    """Reproduce e848431 digests for read-only backward compatibility."""
+
+    legacy_engine = asdict(state.engine_state)
+    for field in {
+        "retention_profile",
+        "retained_history_limit",
+        "history_start_index",
+        "total_processed_candles",
+    }:
+        legacy_engine.pop(field, None)
+    payload = {
+        "schema_version": 1,
+        "deployment_id": state.deployment_id,
+        "phase": state.phase,
+        "paused_reason": state.paused_reason,
+        "strategy": asdict(state.strategy),
+        "portfolio_policy": state.policy.to_dict(),
+        "engine_state": legacy_engine,
+        "next_event_sequence": state.next_event_sequence,
+        "hypothetical": True,
+        "orders_enabled": False,
+        "trading_api_enabled": False,
+    }
+    return sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+def _event_payload_matches(
+    persisted: object,
+    expected: object,
+    resulting_state: ShadowReplayState,
+) -> bool:
+    if _json_equal(persisted, expected):
+        return True
+    if (
+        resulting_state.engine_state.retention_profile != FULL_RETENTION_PROFILE
+        or not isinstance(persisted, Mapping)
+        or not isinstance(expected, Mapping)
+        or set(persisted) != set(expected)
+        or "resulting_state_digest" not in expected
+    ):
+        return False
+    legacy_expected = dict(expected)
+    legacy_expected["resulting_state_digest"] = _legacy_full_state_digest(
+        resulting_state
+    )
+    return _json_equal(persisted, legacy_expected)
 
 
 @contextmanager
@@ -943,8 +1090,23 @@ def _exclusive_writer_lock(path: Path) -> Iterator[None]:
 
 
 def _event_context(
-    deployment: Mapping[str, Any], deployment_digest: str
+    deployment: Mapping[str, Any],
+    deployment_digest: str,
+    *,
+    compact: bool = False,
 ) -> dict[str, Any]:
+    if compact:
+        return {
+            "schema_version": 2,
+            "deployment_id": deployment["deployment_id"],
+            "deployment_digest": deployment_digest,
+            "runtime_profile": BOUNDED_SHADOW_RETENTION_PROFILE,
+            "public_data_only": True,
+            "hypothetical": True,
+            "orders_enabled": False,
+            "trading_api_enabled": False,
+            "api_keys_used": False,
+        }
     return {
         "deployment_id": deployment["deployment_id"],
         "deployment_digest": deployment_digest,
@@ -967,12 +1129,34 @@ def _lifecycle_payload(
     prior_phase: str,
     resulting_phase: str,
     resulting_state_digest: str,
+    compact_context: bool = False,
 ) -> dict[str, Any]:
     return {
-        "context": _event_context(deployment, deployment_digest),
+        "context": _event_context(
+            deployment, deployment_digest, compact=compact_context
+        ),
         "prior_phase": prior_phase,
         "resulting_phase": resulting_phase,
         "resulting_state_digest": resulting_state_digest,
+    }
+
+
+def _retention_profile_payload(
+    deployment: Mapping[str, Any],
+    deployment_digest: str,
+    *,
+    prior_state: ShadowReplayState,
+    resulting_state: ShadowReplayState,
+) -> dict[str, Any]:
+    return {
+        "context": _event_context(deployment, deployment_digest),
+        "profile": bounded_shadow_retention_profile(resulting_state),
+        "prior_phase": prior_state.phase,
+        "resulting_phase": resulting_state.phase,
+        "prior_digest_version": "shadow_state_summary_v1",
+        "prior_state_digest": _summary_state_digest_v1(prior_state),
+        "resulting_digest_version": "bounded_shadow_state_v2",
+        "resulting_state_digest": _bounded_state_digest(resulting_state),
     }
 
 
@@ -992,9 +1176,12 @@ def _feed_transition_payload(
     resulting_phase: str,
     reason: str,
     resulting_state_digest: str,
+    compact_context: bool = False,
 ) -> dict[str, Any]:
     return {
-        "context": _event_context(deployment, deployment_digest),
+        "context": _event_context(
+            deployment, deployment_digest, compact=compact_context
+        ),
         "prior_phase": prior_phase,
         "resulting_phase": resulting_phase,
         "reason": reason,
@@ -1009,7 +1196,11 @@ def _reduced_payload(
     reduction: ShadowReplayResult,
 ) -> dict[str, Any]:
     return {
-        "context": _event_context(deployment, deployment_digest),
+        "context": _event_context(
+            deployment,
+            deployment_digest,
+            compact=_uses_bounded_retention(reduction.state),
+        ),
         "candle": _candle_to_payload(candle),
         "step_events": _step_events_payload(reduction),
         "trades": [asdict(trade) for trade in reduction.trades_emitted],
@@ -1024,7 +1215,11 @@ def _paused_payload(
     reduction: ShadowReplayResult,
 ) -> dict[str, Any]:
     return {
-        "context": _event_context(deployment, deployment_digest),
+        "context": _event_context(
+            deployment,
+            deployment_digest,
+            compact=_uses_bounded_retention(reduction.state),
+        ),
         "attempted_candle": _candle_to_payload(candle),
         "reason": reduction.state.paused_reason,
         "step_events": _step_events_payload(reduction),

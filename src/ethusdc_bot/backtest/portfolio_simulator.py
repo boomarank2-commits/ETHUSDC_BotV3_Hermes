@@ -29,6 +29,12 @@ from ethusdc_bot.backtest.simulator import (
 from ethusdc_bot.portfolio import PortfolioPolicy
 
 
+FULL_RETENTION_PROFILE = "full"
+BOUNDED_SHADOW_RETENTION_PROFILE = "bounded_shadow_v1"
+MAX_BOUNDED_HISTORY_CANDLES = 10_081
+STRATEGY_HISTORY_MARGIN_CANDLES = 1
+
+
 @dataclass(frozen=True)
 class PortfolioTrade(Trade):
     """A normal simulator trade with its fixed-lot portfolio identity."""
@@ -108,6 +114,10 @@ class PortfolioEngineState:
     max_concurrent_lots: int = 0
     max_open_entry_exposure_usdc: float = 0.0
     max_reserved_notional_usdc: float = 0.0
+    retention_profile: str = FULL_RETENTION_PROFILE
+    retained_history_limit: int | None = None
+    history_start_index: int = 0
+    total_processed_candles: int = 0
 
     @property
     def reserved_lots(self) -> int:
@@ -170,6 +180,76 @@ def new_portfolio_engine_state() -> PortfolioEngineState:
     return PortfolioEngineState()
 
 
+def required_strategy_history_candles(strategy: StrategyCandidate) -> int:
+    """Return the exact bounded history required by the shared strategy rules.
+
+    Signals need the current candle plus their longest configured lookback.
+    Open-lot exit rules additionally need every close since entry until the
+    configured time exit.  The single-candle margin accounts for the current
+    candle in both cases.
+    """
+
+    if not isinstance(strategy, StrategyCandidate):
+        raise TypeError("strategy must be a StrategyCandidate")
+    params = strategy.params
+    lookback = _positive_history_parameter(params, "lookback", 5)
+    trend_lookback = _positive_history_parameter(
+        params, "trend_lookback", lookback
+    )
+    volatility_lookback = _positive_history_parameter(
+        params, "volatility_lookback", lookback
+    )
+    max_hold = _positive_history_parameter(params, "max_hold_minutes", 30)
+    required = (
+        max(lookback, trend_lookback, volatility_lookback, max_hold)
+        + STRATEGY_HISTORY_MARGIN_CANDLES
+    )
+    if required > MAX_BOUNDED_HISTORY_CANDLES:
+        raise ValueError(
+            "bounded Shadow strategy history exceeds the hard 10081-candle limit"
+        )
+    return required
+
+
+def compact_portfolio_engine_for_bounded_shadow(
+    state: PortfolioEngineState,
+    strategy: StrategyCandidate,
+) -> PortfolioEngineState:
+    """Select bounded Shadow retention and compact a full reducer state.
+
+    This operation is explicit so pre-existing event logs continue to replay
+    with the legacy full-retention digest until the runtime records a profile
+    selection marker.  Forward-relevant state is preserved; historical trades,
+    capacity rejections, and equity samples remain available in the event log.
+    """
+
+    if not isinstance(state, PortfolioEngineState):
+        raise TypeError("state must be a PortfolioEngineState")
+    limit = required_strategy_history_candles(strategy)
+    _validate_retention_state(state, strategy=None)
+    if state.retention_profile == BOUNDED_SHADOW_RETENTION_PROFILE:
+        if state.retained_history_limit != limit:
+            raise ValueError(
+                "bounded Shadow retention does not match the active strategy"
+            )
+        return state
+
+    trim_count = max(0, len(state.candles) - limit)
+    history_start_index = state.history_start_index + trim_count
+    _ensure_open_lot_history_is_retained(state.open_lots, history_start_index)
+    curve = state.equity_curve[-1:] if state.equity_curve else ()
+    return replace(
+        state,
+        candles=state.candles[trim_count:],
+        trades=(),
+        capacity_rejections=(),
+        equity_curve=curve,
+        retention_profile=BOUNDED_SHADOW_RETENTION_PROFILE,
+        retained_history_limit=limit,
+        history_start_index=history_start_index,
+    )
+
+
 def advance_portfolio_engine(
     state: PortfolioEngineState,
     candle: Candle,
@@ -191,10 +271,12 @@ def advance_portfolio_engine(
         raise TypeError("state must be a PortfolioEngineState")
     if not isinstance(candle, Candle):
         raise TypeError("candle must be a Candle")
+    _validate_retention_state(state, strategy=strategy)
     _validate_next_candle_timestamp(state, candle)
 
     candles = (*state.candles, candle)
-    index = len(candles) - 1
+    local_index = len(candles) - 1
+    global_index = state.total_processed_candles
     fee_rate = policy.baseline_fee_bps_per_side / 10_000
     slippage_bps = policy.baseline_slippage_bps_per_side
     lots = list(state.open_lots)
@@ -222,7 +304,7 @@ def advance_portfolio_engine(
             entry_mid_price=entry_mid_price,
             entry_price=entry_price,
             quantity=quantity,
-            entry_index=index,
+            entry_index=global_index,
             entry_fee_usdc=entry_price * quantity * fee_rate,
             entry_notional_usdc=policy.lot_notional_usdc,
         )
@@ -243,7 +325,9 @@ def advance_portfolio_engine(
     remaining: list[PortfolioLot] = []
     exited_normally = False
     for lot in lots:
-        reason = _exit_reason(candles, index, lot.as_simulator_position(), strategy)
+        position = lot.as_simulator_position()
+        position["entry_index"] = lot.entry_index - state.history_start_index
+        reason = _exit_reason(candles, local_index, position, strategy)
         if reason is None:
             remaining.append(lot)
             continue
@@ -263,7 +347,7 @@ def advance_portfolio_engine(
         )
     lots = remaining
     if exited_normally:
-        cooldown_until_index = index + int(
+        cooldown_until_index = global_index + int(
             strategy.params.get("cooldown_minutes", 0) or 0
         )
 
@@ -288,7 +372,11 @@ def advance_portfolio_engine(
             )
         lots = []
 
-    if not end_of_data and index >= cooldown_until_index and _signal(candles, index, strategy):
+    if (
+        not end_of_data
+        and global_index >= cooldown_until_index
+        and _signal(candles, local_index, strategy)
+    ):
         reserved_lots = len(lots) + (1 if pending is not None else 0)
         if reserved_lots < policy.max_concurrent_lots:
             pending = PendingPortfolioEntry(signal_time_ms=candle.open_time)
@@ -334,6 +422,20 @@ def advance_portfolio_engine(
             ),
         ),
     )
+    history_start_index = state.history_start_index
+    if state.retention_profile == BOUNDED_SHADOW_RETENTION_PROFILE:
+        limit = state.retained_history_limit
+        if limit is None:  # pragma: no cover - guarded by retention validation
+            raise RuntimeError("bounded Shadow history limit is missing")
+        trim_count = max(0, len(candles) - limit)
+        history_start_index += trim_count
+        candles = candles[trim_count:]
+        _ensure_open_lot_history_is_retained(lots, history_start_index)
+        # The append-only Shadow event log is the cumulative audit source.
+        # Keep only forward-relevant reducer state in memory.
+        trades = []
+        rejections = []
+        curve = curve[-1:]
     next_state = PortfolioEngineState(
         candles=candles,
         open_lots=tuple(lots),
@@ -347,6 +449,10 @@ def advance_portfolio_engine(
         max_concurrent_lots=max_concurrent,
         max_open_entry_exposure_usdc=round(max_open_exposure, 10),
         max_reserved_notional_usdc=round(max_reserved, 10),
+        retention_profile=state.retention_profile,
+        retained_history_limit=state.retained_history_limit,
+        history_start_index=history_start_index,
+        total_processed_candles=global_index + 1,
     )
     return next_state, tuple(events)
 
@@ -532,6 +638,75 @@ def _validate_context(strategy: StrategyCandidate, policy: PortfolioPolicy) -> N
         raise ValueError("Portfolio simulator is LONG-only; shorts are forbidden")
 
 
+def _positive_history_parameter(
+    params: dict[str, object], name: str, default: int
+) -> int:
+    raw = params.get(name, default) or default
+    if isinstance(raw, bool):
+        raise ValueError(f"strategy {name} must be a positive integer")
+    try:
+        value = int(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(f"strategy {name} must be a positive integer") from exc
+    if value < 1 or value != raw:
+        raise ValueError(f"strategy {name} must be a positive integer")
+    return value
+
+
+def _validate_retention_state(
+    state: PortfolioEngineState, strategy: StrategyCandidate | None
+) -> None:
+    if state.retention_profile not in {
+        FULL_RETENTION_PROFILE,
+        BOUNDED_SHADOW_RETENTION_PROFILE,
+    }:
+        raise ValueError("portfolio retention profile is invalid")
+    if type(state.history_start_index) is not int or state.history_start_index < 0:
+        raise ValueError("portfolio history start index is invalid")
+    if (
+        type(state.total_processed_candles) is not int
+        or state.total_processed_candles < 0
+    ):
+        raise ValueError("portfolio processed-candle count is invalid")
+    if (
+        state.history_start_index + len(state.candles)
+        != state.total_processed_candles
+    ):
+        raise ValueError("portfolio retained history indexes are inconsistent")
+    if state.retention_profile == FULL_RETENTION_PROFILE:
+        if state.retained_history_limit is not None or state.history_start_index != 0:
+            raise ValueError("full-retention portfolio state is inconsistent")
+        return
+    if (
+        type(state.retained_history_limit) is not int
+        or state.retained_history_limit < 1
+        or state.retained_history_limit > MAX_BOUNDED_HISTORY_CANDLES
+    ):
+        raise ValueError("bounded Shadow retained history limit is invalid")
+    if len(state.candles) > state.retained_history_limit:
+        raise ValueError("bounded Shadow retained candle history exceeds its limit")
+    if len(state.equity_curve) > 1:
+        raise ValueError("bounded Shadow retained equity history exceeds one point")
+    if state.trades or state.capacity_rejections:
+        raise ValueError("bounded Shadow state retained cumulative audit records")
+    if strategy is not None:
+        required = required_strategy_history_candles(strategy)
+        if state.retained_history_limit != required:
+            raise ValueError(
+                "bounded Shadow retention does not match the active strategy"
+            )
+    _ensure_open_lot_history_is_retained(
+        state.open_lots, state.history_start_index
+    )
+
+
+def _ensure_open_lot_history_is_retained(
+    lots: tuple[PortfolioLot, ...] | list[PortfolioLot], history_start_index: int
+) -> None:
+    if any(lot.entry_index < history_start_index for lot in lots):
+        raise RuntimeError("bounded Shadow compaction would discard open-lot history")
+
+
 def _validate_next_candle_timestamp(
     state: PortfolioEngineState, candle: Candle
 ) -> None:
@@ -564,14 +739,20 @@ def _validate_candle_timestamps(candles: list[Candle]) -> None:
 
 
 __all__ = [
+    "BOUNDED_SHADOW_RETENTION_PROFILE",
     "CapacityRejection",
+    "FULL_RETENTION_PROFILE",
+    "MAX_BOUNDED_HISTORY_CANDLES",
     "PendingPortfolioEntry",
     "PortfolioEngineState",
     "PortfolioLot",
     "PortfolioSimulationResult",
     "PortfolioStepEvent",
     "PortfolioTrade",
+    "STRATEGY_HISTORY_MARGIN_CANDLES",
     "advance_portfolio_engine",
+    "compact_portfolio_engine_for_bounded_shadow",
     "new_portfolio_engine_state",
+    "required_strategy_history_candles",
     "simulate_portfolio_strategy",
 ]

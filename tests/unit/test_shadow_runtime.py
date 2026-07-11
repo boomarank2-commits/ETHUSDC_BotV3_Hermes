@@ -187,6 +187,11 @@ def test_adoption_runtime_restart_is_exact_and_every_candle_is_a_full_reduction(
         if event["event_type"] == "candle_reduced"
     ]
     assert len(candle_events) == 3
+    assert restarted.replay_state.engine_state.retention_profile == "bounded_shadow_v1"
+    assert [
+        event["event_type"]
+        for event in read_event_log(deployment_dir / "events.jsonl")
+    ].count("shadow_runtime_profile_selected") == 1
     assert set(candle_events[0]["payload"]["candle"]) == {
         "open_time_ms",
         "open",
@@ -198,6 +203,11 @@ def test_adoption_runtime_restart_is_exact_and_every_candle_is_a_full_reduction(
     assert isinstance(candle_events[0]["payload"]["step_events"], list)
     assert isinstance(candle_events[0]["payload"]["trades"], list)
     assert len(candle_events[0]["payload"]["resulting_state_digest"]) == 64
+    assert candle_events[0]["payload"]["context"]["schema_version"] == 2
+    assert candle_events[0]["payload"]["context"]["runtime_profile"] == (
+        "bounded_shadow_v1"
+    )
+    assert "candidate_signature" not in candle_events[0]["payload"]["context"]
     assert restarted.state["safety"] == shadow_safety_status()
 
 
@@ -221,13 +231,13 @@ def test_event_fsync_before_snapshot_crash_is_repaired_only_from_exact_prefix(
     assert json.loads(
         (deployment_dir / "state.json").read_text(encoding="utf-8")
     ) == state_before_crash
-    assert len(read_event_log(deployment_dir / "events.jsonl")) == 3
+    assert len(read_event_log(deployment_dir / "events.jsonl")) == 4
 
     monkeypatch.setattr(runtime_module, "write_state_atomic", original_writer)
     recovered = ShadowRuntime.open(deployment_dir)
 
     assert recovered.recovered_snapshot is True
-    assert recovered.state["event_count"] == 3
+    assert recovered.state["event_count"] == 4
     assert recovered.state["last_processed_candle_open_time_ms"] == _candles([100])[0].open_time
     assert json.loads(
         (deployment_dir / "state.json").read_text(encoding="utf-8")
@@ -325,8 +335,16 @@ def test_runtime_trade_results_match_shared_fixed_lot_backtest_reducer(tmp_path)
     result = runtime.process_closed_candles(candles)
 
     assert result.trades_emitted == tuple(backtest.trades)
-    assert runtime.replay_state.trades == tuple(backtest.trades)
+    assert runtime.replay_state.trades == ()
     assert runtime.state["realized_net_usdc"] == backtest.net_profit_usdc
+    persisted_trades = [
+        trade
+        for event in read_event_log(deployment_dir / "events.jsonl")
+        if event["event_type"] == "candle_reduced"
+        for trade in event["payload"]["trades"]
+    ]
+    assert len(persisted_trades) == len(backtest.trades)
+    assert persisted_trades[0]["lot_id"] == backtest.trades[0].lot_id
 
 
 def test_500_budget_reaches_five_fixed_lots_without_exceeding_capacity(tmp_path):
@@ -378,6 +396,7 @@ def test_synchronous_run_poller_uses_public_injection_and_stops_without_liquidat
     assert runtime.replay_state.trades == ()
     assert [event["event_type"] for event in read_event_log(deployment_dir / "events.jsonl")] == [
         "deployment_adopted",
+        "shadow_runtime_profile_selected",
         "shadow_started",
         "candle_reduced",
         "candle_reduced",
@@ -434,7 +453,58 @@ def test_second_stale_runtime_is_rejected_before_append_and_log_remains_valid(
     assert (deployment_dir / "events.jsonl").read_bytes() == before
     reopened = ShadowRuntime.open(deployment_dir)
     assert reopened.state["phase"] == "running"
-    assert reopened.state["event_count"] == 2
+    assert reopened.state["event_count"] == 3
+
+
+def test_legacy_full_state_digest_replays_then_migrates_with_audited_marker(
+    tmp_path,
+):
+    deployment_dir, _, _ = _adopted_dir(tmp_path)
+    legacy = ShadowRuntime.open(deployment_dir)
+    legacy_started = runtime_module.start_shadow_replay(
+        legacy.deployment, legacy.replay_state
+    )
+    legacy_payload = runtime_module._lifecycle_payload(
+        legacy.deployment,
+        legacy._deployment_digest,
+        prior_phase="adopted_stopped",
+        resulting_phase="running",
+        resulting_state_digest=runtime_module._legacy_full_state_digest(
+            legacy_started
+        ),
+    )
+    record = append_event(
+        deployment_dir / "events.jsonl",
+        "shadow_started",
+        legacy_payload,
+        timestamp_utc="2026-01-01T00:00:01Z",
+    )
+    legacy_snapshot = runtime_module._snapshot_from_replay(
+        legacy.deployment,
+        legacy_started,
+        event_count=record["sequence"],
+        last_event_hash=record["event_hash"],
+        updated_at_utc=record["timestamp_utc"],
+    )
+    write_state_atomic(deployment_dir / "state.json", legacy_snapshot)
+
+    reopened = ShadowRuntime.open(deployment_dir)
+    assert reopened.state["phase"] == "running"
+    assert reopened.replay_state.engine_state.retention_profile == "full"
+
+    reopened.start()
+
+    assert reopened.replay_state.engine_state.retention_profile == (
+        "bounded_shadow_v1"
+    )
+    assert [
+        event["event_type"]
+        for event in read_event_log(deployment_dir / "events.jsonl")
+    ] == [
+        "deployment_adopted",
+        "shadow_started",
+        "shadow_runtime_profile_selected",
+    ]
 
 
 def test_real_poller_gap_is_durably_paused_and_not_disguised_as_stop(tmp_path):
