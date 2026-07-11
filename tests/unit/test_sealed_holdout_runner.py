@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+from hashlib import sha256
 import json
 from pathlib import Path
 from statistics import median, pstdev
@@ -459,7 +460,7 @@ def test_semantic_claim_blocks_reformatted_equivalent_source_before_load(tmp_pat
         json.dumps(source_report, separators=(",", ":"), sort_keys=False),
         encoding="utf-8",
     )
-    assert runner_module.sha256(source.read_bytes()).hexdigest() != first_source_sha
+    assert sha256(source.read_bytes()).hexdigest() != first_source_sha
 
     with pytest.raises(SealedHoldoutAlreadyClaimedError):
         run_sealed_holdout(source, raw_root, reports_root)

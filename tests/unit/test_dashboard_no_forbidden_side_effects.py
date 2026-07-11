@@ -66,10 +66,12 @@ def test_training_button_starts_only_the_injected_training_wfv_controller(monkey
 
     app.active_data_thread = None
     app.training_research_controller = Controller()
+    app.final_evaluation_controller = SimpleNamespace(is_running=False)
     app.repository_root = ROOT
     app.local_root = tmp_path
     app.last_run_status = {}
     app.training_research_status = {"phase": "initial", "running": False}
+    app.final_evaluation_runtime_status = {"phase": "initial", "running": False}
     app.training_reports_root = tmp_path / "runtime/reports/research_loop"
     app.final_reports_root = tmp_path / "runtime/reports/sealed_holdout_final"
     app.shadow_root = tmp_path / "runtime/shadow"
@@ -103,6 +105,8 @@ def test_shadow_adoption_button_requires_confirmation_and_stays_order_free(monke
     app.local_root = tmp_path
     app.last_run_status = {}
     app.training_research_status = {"phase": "completed", "running": False}
+    app.final_evaluation_runtime_status = {"phase": "completed", "running": False}
+    app.training_reports_root = tmp_path / "runtime/reports/research_loop"
     app.final_reports_root = tmp_path
     app.shadow_root = tmp_path / "runtime/shadow"
     app._selected_deployment_budget = lambda: 500
@@ -135,6 +139,61 @@ def test_shadow_adoption_button_requires_confirmation_and_stays_order_free(monke
 
     assert calls[0] == (str(report_path), 500, app.shadow_root)
     assert calls[1] == "refresh"
+
+
+def test_final_button_requires_confirmation_and_starts_one_shot_controller(monkeypatch, tmp_path):
+    module = importlib.import_module("ethusdc_bot.ui.dashboard")
+    app = module.DashboardApp.__new__(module.DashboardApp)
+    source = tmp_path / "frozen.json"
+    calls = []
+
+    class FinalController:
+        is_running = False
+
+        def start(self, source_path, raw_root, reports_root, status_callback=None):
+            calls.append((source_path, raw_root, reports_root, status_callback))
+            return object(), {
+                "status": {
+                    "phase": "running",
+                    "running": True,
+                    "final_holdout_outcome": "one_shot_in_progress",
+                }
+            }
+
+    app.repository_root = ROOT
+    app.local_root = tmp_path / "raw"
+    app.last_run_status = {}
+    app.training_research_controller = SimpleNamespace(is_running=False)
+    app.final_evaluation_controller = FinalController()
+    app.training_research_status = {"phase": "completed", "running": False}
+    app.final_evaluation_runtime_status = {"phase": "initial", "running": False}
+    app.training_reports_root = tmp_path / "reports/research_loop"
+    app.final_reports_root = tmp_path / "reports/sealed_holdout_final"
+    app.reports_root = tmp_path / "reports"
+    app.shadow_root = tmp_path / "shadow"
+    app.log_queue = SimpleNamespace(put=lambda value: None)
+    app._selected_deployment_budget = lambda: 100
+    app._apply_final_evaluation_runtime_status = lambda status: None
+    app._set_data_buttons_enabled = lambda enabled: None
+    app._log = lambda value: None
+    monkeypatch.setattr(
+        module,
+        "build_dashboard_snapshot",
+        lambda *args, **kwargs: {
+            "ui_status": {
+                "sealed_final_button": {
+                    "enabled": True,
+                    "source_report_path": str(source),
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(module.messagebox, "askyesno", lambda *args: True)
+
+    app.start_sealed_final_evaluation()
+
+    assert len(calls) == 1
+    assert calls[0][:3] == (str(source), app.local_root, app.reports_root)
 
 
 def test_operator_runtime_text_shows_running_file_progress():

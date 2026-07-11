@@ -288,6 +288,7 @@ def test_snapshot_exposes_fixed_lot_budget_and_order_free_shadow_controls(tmp_pa
 
     portfolio = snapshot["portfolio_status"]
     adopt = snapshot["ui_status"]["shadow_adopt_button"]
+    final_button = snapshot["ui_status"]["sealed_final_button"]
     shadow = snapshot["shadow_runtime_status"]
     assert portfolio["deployment_budget_usdc"] == 500
     assert portfolio["lot_notional_usdc"] == 100.0
@@ -297,6 +298,10 @@ def test_snapshot_exposes_fixed_lot_budget_and_order_free_shadow_controls(tmp_pa
     assert adopt["orders_enabled"] is False
     assert adopt["trading_api_enabled"] is False
     assert adopt["live_enabled"] is False
+    assert final_button["enabled"] is False
+    assert final_button["orders_enabled"] is False
+    assert final_button["trading_api_enabled"] is False
+    assert final_button["live_enabled"] is False
     assert shadow["status"] == "not_adopted"
     assert shadow["orders_enabled"] is False
 

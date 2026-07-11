@@ -22,6 +22,10 @@ from ethusdc_bot.ui.backtest_controller import (
     TrainingResearchController,
     build_initial_training_research_status,
 )
+from ethusdc_bot.ui.final_evaluation_controller import (
+    FinalEvaluationController,
+    build_initial_final_evaluation_status,
+)
 from ethusdc_bot.ui.dashboard_state import (
     BACKTEST_DISABLED_HINT,
     build_dashboard_snapshot,
@@ -110,8 +114,11 @@ class DashboardApp:
         self.last_file_event_monotonic = time.monotonic()
         self.training_research_controller = TrainingResearchController()
         self.training_research_status = build_initial_training_research_status()
+        self.final_evaluation_controller = FinalEvaluationController()
+        self.final_evaluation_runtime_status = build_initial_final_evaluation_status()
         self.current_snapshot: dict[str, object] | None = None
         self.training_reports_root = self.local_root / "runtime" / "reports" / "research_loop"
+        self.reports_root = self.local_root / "runtime" / "reports"
         self.final_reports_root = self.local_root / "runtime" / "reports" / "sealed_holdout_final"
         self.shadow_root = self.local_root / "runtime" / "shadow"
 
@@ -154,6 +161,12 @@ class DashboardApp:
             command=self.start_training_research,
         )
         self.training_button.pack(side=tk.LEFT, padx=4)
+        self.final_evaluation_button = ttk.Button(
+            action_bar,
+            text="Finaltest einmalig ausfuehren",
+            command=self.start_sealed_final_evaluation,
+        )
+        self.final_evaluation_button.pack(side=tk.LEFT, padx=4)
         ttk.Label(action_bar, text="Deployment-Budget:").pack(
             side=tk.LEFT, padx=(16, 4)
         )
@@ -230,6 +243,8 @@ class DashboardApp:
                 data_prep_last_run_status=self.last_run_status,
                 deployment_budget_usdc=self._selected_deployment_budget(),
                 training_research_status=self.training_research_status,
+                final_evaluation_runtime_status=self.final_evaluation_runtime_status,
+                training_reports_root=self.training_reports_root,
                 final_reports_root=self.final_reports_root,
                 shadow_root=self.shadow_root,
             )
@@ -286,6 +301,12 @@ class DashboardApp:
     def start_training_research(self) -> None:
         """Start canonical training/validation/WFV without opening the holdout."""
 
+        if self.final_evaluation_controller.is_running:
+            messagebox.showwarning(
+                "Finaltest aktiv",
+                "Bitte den irreversiblen Finaltest zuerst beenden lassen.",
+            )
+            return
         if self.active_data_thread is not None and self.active_data_thread.is_alive():
             messagebox.showwarning(
                 "Datenlauf aktiv",
@@ -301,6 +322,8 @@ class DashboardApp:
             data_prep_last_run_status=self.last_run_status,
             deployment_budget_usdc=self._selected_deployment_budget(),
             training_research_status=self.training_research_status,
+            final_evaluation_runtime_status=self.final_evaluation_runtime_status,
+            training_reports_root=self.training_reports_root,
             final_reports_root=self.final_reports_root,
             shadow_root=self.shadow_root,
         )
@@ -330,6 +353,67 @@ class DashboardApp:
         self._apply_training_research_status(self.training_research_status)
         self._set_data_buttons_enabled(False)
 
+    def start_sealed_final_evaluation(self) -> None:
+        """Run the explicitly confirmed irreversible one-shot holdout step."""
+
+        if self.training_research_controller.is_running:
+            messagebox.showwarning(
+                "Training/WFV aktiv",
+                "Bitte die laufende Training/WFV-Forschung zuerst beenden lassen.",
+            )
+            return
+        if self.final_evaluation_controller.is_running:
+            self._log("Sealed final evaluation is already running.")
+            return
+        snapshot = build_dashboard_snapshot(
+            self.repository_root,
+            self.local_root,
+            data_prep_last_run_status=self.last_run_status,
+            deployment_budget_usdc=self._selected_deployment_budget(),
+            training_research_status=self.training_research_status,
+            final_evaluation_runtime_status=self.final_evaluation_runtime_status,
+            training_reports_root=self.training_reports_root,
+            final_reports_root=self.final_reports_root,
+            shadow_root=self.shadow_root,
+        )
+        button = snapshot["ui_status"]["sealed_final_button"]
+        source = button.get("source_report_path")
+        if not button.get("enabled") or not isinstance(source, str):
+            messagebox.showwarning(
+                "Finaltest gesperrt",
+                "Kein kanonisch eingefrorener Kandidat mit ungeoeffnetem Holdout verfuegbar.",
+            )
+            return
+        confirmed = messagebox.askyesno(
+            "Irreversiblen Finaltest ausfuehren",
+            (
+                "Der versiegelte 365-Tage-Holdout wird genau einmal geoeffnet. "
+                "Vor dem Datenzugriff entsteht ein permanenter Claim. Auch nach einem "
+                "Fehler darf dieser Lauf nicht wiederholt werden. Fortfahren?\n\n"
+                "Keine Orders, keine Trading-API, keine API-Keys."
+            ),
+        )
+        if not confirmed:
+            return
+        try:
+            _thread, container = self.final_evaluation_controller.start(
+                source,
+                self.local_root,
+                self.reports_root,
+                status_callback=lambda status: self.log_queue.put(
+                    ("final_evaluation", status)
+                ),
+            )
+        except Exception as exc:
+            self._log(f"Could not start sealed final evaluation: {exc}")
+            messagebox.showerror("Finaltest Fehler", str(exc))
+            return
+        self.final_evaluation_runtime_status = dict(container["status"])
+        self._apply_final_evaluation_runtime_status(
+            self.final_evaluation_runtime_status
+        )
+        self._set_data_buttons_enabled(False)
+
     def adopt_verified_final_to_shadow(self) -> None:
         """Adopt one green/yellow final report without starting real trading."""
 
@@ -339,6 +423,8 @@ class DashboardApp:
             data_prep_last_run_status=self.last_run_status,
             deployment_budget_usdc=self._selected_deployment_budget(),
             training_research_status=self.training_research_status,
+            final_evaluation_runtime_status=self.final_evaluation_runtime_status,
+            training_reports_root=self.training_reports_root,
             final_reports_root=self.final_reports_root,
             shadow_root=self.shadow_root,
         )
@@ -393,6 +479,10 @@ class DashboardApp:
         if research_controller is not None and research_controller.is_running:
             self._log("Training/WFV is running; data preparation was not started.")
             return
+        final_controller = getattr(self, "final_evaluation_controller", None)
+        if final_controller is not None and final_controller.is_running:
+            self._log("Sealed final evaluation is running; data preparation was not started.")
+            return
 
         self.data_prep_running = True
         self.last_file_event_monotonic = time.monotonic()
@@ -430,6 +520,20 @@ class DashboardApp:
                 message = self.log_queue.get_nowait()
             except queue.Empty:
                 break
+            if (
+                isinstance(message, tuple)
+                and len(message) == 2
+                and message[0] == "final_evaluation"
+                and isinstance(message[1], dict)
+            ):
+                self.final_evaluation_runtime_status = dict(message[1])
+                self._apply_final_evaluation_runtime_status(
+                    self.final_evaluation_runtime_status
+                )
+                if not self.final_evaluation_runtime_status.get("running"):
+                    self._set_data_buttons_enabled(True)
+                    self.refresh_status()
+                continue
             if (
                 isinstance(message, tuple)
                 and len(message) == 2
@@ -536,12 +640,34 @@ class DashboardApp:
                 "final_holdout_evaluated=false"
             )
 
+    def _apply_final_evaluation_runtime_status(
+        self, status: dict[str, object]
+    ) -> None:
+        phase = str(status.get("phase", "initial"))
+        outcome = str(status.get("final_holdout_outcome", "not_run"))
+        color = str(status.get("assessment_color", "none"))
+        if status.get("running"):
+            self.bot_state_var.set("Bot-Status: irreversibler Finaltest laeuft")
+            self.engine_var.set(
+                "Finaltest: One-shot laeuft; permanenter Claim aktiv; nicht wiederholen."
+            )
+            self.training_button.configure(state=tk.DISABLED)
+            self.final_evaluation_button.configure(state=tk.DISABLED)
+            self.adopt_shadow_button.configure(state=tk.DISABLED)
+            return
+        if phase in {"completed", "failed"}:
+            self._log(
+                f"Sealed final evaluation {phase}: outcome={outcome}, color={color}, "
+                f"report={status.get('final_report_path')}, retry_allowed=false"
+            )
+
     def _apply_product_status(self, snapshot: dict[str, object]) -> None:
         portfolio = snapshot["portfolio_status"]
         final = snapshot["final_evaluation_status"]
         shadow = snapshot["shadow_runtime_status"]
         backtest_button = snapshot["ui_status"]["backtest_start_button"]
         adopt_button = snapshot["ui_status"]["shadow_adopt_button"]
+        final_button = snapshot["ui_status"]["sealed_final_button"]
         self.portfolio_var.set(
             "Portfolio: "
             f"{portfolio['deployment_budget_usdc']} USDC / "
@@ -568,10 +694,16 @@ class DashboardApp:
                 else tk.DISABLED
             )
         )
+        self.final_evaluation_button.configure(
+            state=tk.NORMAL if final_button["enabled"] else tk.DISABLED
+        )
         self.adopt_shadow_button.configure(
             state=tk.NORMAL if adopt_button["enabled"] else tk.DISABLED
         )
-        if not self.training_research_status.get("running"):
+        if (
+            not self.training_research_status.get("running")
+            and not self.final_evaluation_runtime_status.get("running")
+        ):
             self.engine_var.set(
                 "Backtest: "
                 f"{snapshot['backtest_status']['status_text']} / "
@@ -581,6 +713,9 @@ class DashboardApp:
     def _set_data_buttons_enabled(self, enabled: bool) -> None:
         controller = getattr(self, "training_research_controller", None)
         if controller is not None and controller.is_running:
+            enabled = False
+        final_controller = getattr(self, "final_evaluation_controller", None)
+        if final_controller is not None and final_controller.is_running:
             enabled = False
         state = tk.NORMAL if enabled else tk.DISABLED
         self.load_button.configure(state=state)

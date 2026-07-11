@@ -23,6 +23,10 @@ from ethusdc_bot.shadow.store import (
     verify_event_log,
 )
 from ethusdc_bot.ui.backtest_controller import build_initial_training_research_status
+from ethusdc_bot.ui.final_evaluation_controller import (
+    build_initial_final_evaluation_status,
+    discover_latest_frozen_research_report,
+)
 from ethusdc_bot.ui.data_update_controller import (
     build_data_update_plan,
     build_initial_data_prep_last_run_status,
@@ -273,6 +277,8 @@ def build_dashboard_snapshot(
     *,
     deployment_budget_usdc: int = 100,
     training_research_status: Mapping[str, Any] | None = None,
+    final_evaluation_runtime_status: Mapping[str, Any] | None = None,
+    training_reports_root: str | Path | None = None,
     final_reports_root: str | Path | None = None,
     shadow_root: str | Path | None = None,
 ) -> dict[str, Any]:
@@ -295,7 +301,15 @@ def build_dashboard_snapshot(
     training_status = dict(
         training_research_status or build_initial_training_research_status()
     )
+    final_runtime_status = dict(
+        final_evaluation_runtime_status or build_initial_final_evaluation_status()
+    )
     local_path = Path(local_root)
+    research_root = (
+        Path(training_reports_root)
+        if training_reports_root is not None
+        else local_path / "runtime" / "reports" / "research_loop"
+    )
     final_root = (
         Path(final_reports_root)
         if final_reports_root is not None
@@ -304,11 +318,19 @@ def build_dashboard_snapshot(
     shadow_state_root = Path(shadow_root) if shadow_root is not None else local_path / "runtime" / "shadow"
     portfolio_status = collect_portfolio_status(deployment_budget_usdc)
     final_status = collect_final_evaluation_status(final_root)
+    frozen_research_status = discover_latest_frozen_research_report(research_root)
     shadow_status = collect_shadow_runtime_status(shadow_state_root)
     data_ready = bool(data_readiness_report.get("data_gate_ready"))
     research_running = bool(training_status.get("running"))
-    can_start_training = data_ready and not research_running
+    final_running = bool(final_runtime_status.get("running"))
+    can_start_training = data_ready and not research_running and not final_running
     can_adopt_shadow = bool(final_status["shadow_eligible"])
+    can_run_final = bool(
+        frozen_research_status["status"] == "ready_for_explicit_one_shot"
+        and not research_running
+        and not final_running
+        and final_status["status"] == "not_found"
+    )
     return {
         "schema_version": 1,
         "project_status": collect_project_status(),
@@ -321,9 +343,12 @@ def build_dashboard_snapshot(
         "data_prep_last_run_status": last_run_status,
         "portfolio_status": portfolio_status,
         "training_research_status": training_status,
+        "final_evaluation_runtime_status": final_runtime_status,
+        "frozen_research_status": frozen_research_status,
         "final_evaluation_status": final_status,
         "shadow_runtime_status": shadow_status,
         "final_reports_root": str(final_root),
+        "training_reports_root": str(research_root),
         "shadow_root": str(shadow_state_root),
         "operator_data_status_rows": build_operator_data_status_rows(data_readiness_report),
         "overall_data_progress_pct": overall_progress["overall_data_progress_pct"],
@@ -376,6 +401,19 @@ def build_dashboard_snapshot(
                 "hint": (
                     "Only a freshly re-verified green/yellow final evaluation can be adopted. "
                     "Adoption creates no real order."
+                ),
+            },
+            "sealed_final_button": {
+                "visible": True,
+                "enabled": can_run_final,
+                "action": "run_irreversible_sealed_holdout_once",
+                "source_report_path": frozen_research_status["report_path"],
+                "orders_enabled": False,
+                "trading_api_enabled": False,
+                "live_enabled": False,
+                "hint": (
+                    "Irreversible one-shot final evaluation. A persistent claim is created "
+                    "before the sealed candles are loaded; failures must not be retried."
                 ),
             },
             "live_paper_testtrade": "locked",
@@ -498,6 +536,8 @@ def format_operator_summary_for_display(snapshot: Mapping[str, Any]) -> str:
     final = snapshot["final_evaluation_status"]
     shadow = snapshot["shadow_runtime_status"]
     research = snapshot["training_research_status"]
+    frozen = snapshot["frozen_research_status"]
+    final_runtime = snapshot["final_evaluation_runtime_status"]
     lines = [
         "ETHUSDC Bot V3 Hermes",
         "",
@@ -520,6 +560,16 @@ def format_operator_summary_for_display(snapshot: Mapping[str, Any]) -> str:
         (
             "Research-Status: "
             f"{research.get('phase')} / {research.get('freeze_status')}"
+        ),
+        (
+            "Frozen Candidate: "
+            f"{frozen.get('status')} / {frozen.get('candidate_id')}"
+        ),
+        (
+            "Finaltest-Lauf: "
+            f"{final_runtime.get('phase')} / "
+            f"{final_runtime.get('final_holdout_outcome')} / "
+            f"wiederholbar={final_runtime.get('retry_allowed')}"
         ),
         (
             "Portfolio: "
