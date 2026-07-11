@@ -1,0 +1,49 @@
+name: Apply Shadow fixture scope
+
+on:
+  push:
+    branches:
+      - "review/pr4-final-alignment"
+    paths:
+      - ".github/workflows/apply-shadow-fixture-scope.yml"
+      - "tools/apply_shadow_fixture_scope.py"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout review branch
+        uses: actions/checkout@v4
+        with:
+          ref: review/pr4-final-alignment
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Apply deterministic fixture patch
+        run: python tools/apply_shadow_fixture_scope.py
+
+      - name: Validate patched files
+        run: |
+          python -m compileall -q tests
+          git diff --check
+
+      - name: Commit updated fixtures
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No fixture changes required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/unit/test_shadow_engine.py tests/unit/test_shadow_runtime.py
+          git commit -m "Update Shadow fixtures for evidence-scoped assessments"
+          git push origin HEAD:review/pr4-final-alignment
