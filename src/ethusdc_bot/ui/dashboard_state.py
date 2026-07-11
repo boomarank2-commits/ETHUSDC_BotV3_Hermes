@@ -142,6 +142,11 @@ def collect_shadow_runtime_status(shadow_root: str | Path) -> dict[str, Any]:
             "orders_enabled": False,
             "trading_api_enabled": False,
             "api_keys_used": False,
+            "source_assessment_color": "none",
+            "target_evidence_budget_usdc": 100,
+            "deployment_target_usdc_per_day": None,
+            "deployment_target_status": "not_available",
+            "deployment_target_reached": False,
         }
     deployment_dir = deployments[-1]
     try:
@@ -171,6 +176,11 @@ def collect_shadow_runtime_status(shadow_root: str | Path) -> dict[str, Any]:
             "orders_enabled": False,
             "trading_api_enabled": False,
             "api_keys_used": False,
+            "source_assessment_color": "none",
+            "target_evidence_budget_usdc": 100,
+            "deployment_target_usdc_per_day": None,
+            "deployment_target_status": "integrity_error",
+            "deployment_target_reached": False,
         }
     return {
         "status": "valid",
@@ -188,6 +198,19 @@ def collect_shadow_runtime_status(shadow_root: str | Path) -> dict[str, Any]:
         "orders_enabled": False,
         "trading_api_enabled": False,
         "api_keys_used": False,
+        "source_assessment_color": deployment["assessment"]["color"],
+        "target_evidence_budget_usdc": deployment["assessment"][
+            "target_evidence_budget_usdc"
+        ],
+        "deployment_target_usdc_per_day": deployment["assessment"][
+            "deployment_target_usdc_per_day"
+        ],
+        "deployment_target_status": deployment["assessment"][
+            "deployment_target_status"
+        ],
+        "deployment_target_reached": deployment["assessment"][
+            "deployment_target_reached"
+        ],
     }
 
 

@@ -237,6 +237,10 @@ def test_yellow_report_can_be_adopted_for_shadow_but_never_live(tmp_path):
     assert result.deployment["assessment"]["color"] == "yellow"
     assert result.deployment["assessment"]["shadow_eligible"] is True
     assert result.deployment["assessment"]["live_eligible"] is False
+    assert result.deployment["assessment"]["deployment_target_status"] == (
+        "below_target"
+    )
+    assert result.deployment["assessment"]["deployment_target_reached"] is False
     assert result.deployment["safety"]["live"] == "locked"
     assert result.deployment["safety"]["orders_enabled"] is False
 
@@ -320,6 +324,28 @@ def test_adoption_atomically_persists_fixed_lot_policy_and_hash_bound_receipt(tm
     assert deployment["safety"]["trading_api_enabled"] is False
     assert deployment["safety"]["api_keys_used"] is False
     assert deployment["assessment"]["live_eligible"] is False
+    assert deployment["assessment"]["color_scope"] == (
+        "canonical_100_usdc_final_evaluation"
+    )
+    assert deployment["assessment"]["target_evidence_budget_usdc"] == 100
+    assert deployment["assessment"]["deployment_budget_usdc"] == budget
+    assert deployment["assessment"]["deployment_target_usdc_per_day"] == {
+        100: 3.0,
+        200: 6.0,
+        500: 15.0,
+        1000: 30.0,
+    }[budget]
+    if budget == 100:
+        assert deployment["assessment"]["deployment_target_status"] == "verified"
+        assert deployment["assessment"]["deployment_target_reached"] is True
+    else:
+        assert deployment["assessment"]["deployment_target_status"] == (
+            "unverified_scaling"
+        )
+        assert deployment["assessment"]["deployment_target_reached"] is False
+        assert "deployment_budget_scaling_unverified" in deployment["assessment"][
+            "reason_codes"
+        ]
     assert state["phase"] == "adopted_stopped"
     assert state["event_count"] == 1
     assert state["last_event_hash"] == events[0]["event_hash"]

@@ -77,6 +77,8 @@ FINAL_REPORT_KEYS = {
     "safety",
 }
 SAFE_IDENTIFIER_RE = re.compile(r"[^A-Za-z0-9_.-]+")
+TARGET_EVIDENCE_BUDGET_USDC = 100
+TARGET_COLOR_SCOPE = "canonical_100_usdc_final_evaluation"
 
 
 class ShadowAdoptionError(ValueError):
@@ -166,6 +168,16 @@ def adopt_for_shadow(
     safe_final_id = SAFE_IDENTIFIER_RE.sub("_", final_id).strip("._-") or "final"
     deployment_id = f"shadow_{safe_final_id}_{uuid4().hex[:12]}"
     candidate = json.loads(json.dumps(report["candidate"], allow_nan=False))
+    if deployment_budget_usdc == TARGET_EVIDENCE_BUDGET_USDC:
+        deployment_target_status = (
+            "verified" if assessment.target_reached else "below_target"
+        )
+    else:
+        deployment_target_status = "unverified_scaling"
+    deployment_reason_codes = list(assessment.reason_codes)
+    if deployment_target_status == "unverified_scaling":
+        deployment_reason_codes.append("deployment_budget_scaling_unverified")
+
     deployment = {
         "schema_version": 1,
         "deployment_id": deployment_id,
@@ -191,10 +203,18 @@ def adopt_for_shadow(
         },
         "assessment": {
             "color": assessment.color,
+            "color_scope": TARGET_COLOR_SCOPE,
             "shadow_eligible": True,
             "target_reached": assessment.target_reached,
+            "target_evidence_budget_usdc": TARGET_EVIDENCE_BUDGET_USDC,
+            "deployment_budget_usdc": deployment_budget_usdc,
+            "deployment_target_usdc_per_day": (
+                portfolio_policy.target_guidance.desired_net_usdc_per_day
+            ),
+            "deployment_target_status": deployment_target_status,
+            "deployment_target_reached": deployment_target_status == "verified",
             "live_eligible": False,
-            "reason_codes": list(assessment.reason_codes),
+            "reason_codes": deployment_reason_codes,
         },
         "safety": shadow_safety_status(),
     }

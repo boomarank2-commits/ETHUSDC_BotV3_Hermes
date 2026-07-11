@@ -46,8 +46,14 @@ COST_MODEL_KEYS = {
 }
 ASSESSMENT_KEYS = {
     "color",
+    "color_scope",
     "shadow_eligible",
     "target_reached",
+    "target_evidence_budget_usdc",
+    "deployment_budget_usdc",
+    "deployment_target_usdc_per_day",
+    "deployment_target_status",
+    "deployment_target_reached",
     "live_eligible",
     "reason_codes",
 }
@@ -182,12 +188,59 @@ def validate_shadow_deployment(data: Mapping[str, Any]) -> None:
     color = assessment.get("color")
     if color not in {"green", "yellow"}:
         raise ShadowSchemaError("shadow_deployment.assessment.color must be green or yellow")
+    _literal(
+        assessment,
+        "color_scope",
+        "canonical_100_usdc_final_evaluation",
+        "shadow_deployment.assessment",
+    )
     _literal(assessment, "shadow_eligible", True, "shadow_deployment.assessment")
     _literal(assessment, "live_eligible", False, "shadow_deployment.assessment")
     _literal(assessment, "target_reached", color == "green", "shadow_deployment.assessment")
+    _literal(
+        assessment,
+        "target_evidence_budget_usdc",
+        100,
+        "shadow_deployment.assessment",
+    )
+    _literal(
+        assessment,
+        "deployment_budget_usdc",
+        policy.deployment_budget_usdc,
+        "shadow_deployment.assessment",
+    )
+    _literal(
+        assessment,
+        "deployment_target_usdc_per_day",
+        policy.target_guidance.desired_net_usdc_per_day,
+        "shadow_deployment.assessment",
+    )
+    if policy.deployment_budget_usdc == 100:
+        expected_target_status = "verified" if color == "green" else "below_target"
+    else:
+        expected_target_status = "unverified_scaling"
+    _literal(
+        assessment,
+        "deployment_target_status",
+        expected_target_status,
+        "shadow_deployment.assessment",
+    )
+    _literal(
+        assessment,
+        "deployment_target_reached",
+        expected_target_status == "verified",
+        "shadow_deployment.assessment",
+    )
     reasons = assessment.get("reason_codes")
     if not isinstance(reasons, list) or not reasons or any(not isinstance(item, str) or not item for item in reasons):
         raise ShadowSchemaError("shadow_deployment.assessment.reason_codes must be a non-empty string list")
+    if (
+        expected_target_status == "unverified_scaling"
+        and "deployment_budget_scaling_unverified" not in reasons
+    ):
+        raise ShadowSchemaError(
+            "shadow_deployment.assessment must disclose unverified budget scaling"
+        )
 
     _validate_safety(root["safety"], "shadow_deployment.safety")
     if not _json_identical(
