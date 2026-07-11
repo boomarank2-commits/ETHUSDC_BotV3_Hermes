@@ -1,5 +1,6 @@
 name: Apply context simulator core
 
+# One-shot workflow. Removed after the generated commit is verified.
 on:
   push:
     branches:
