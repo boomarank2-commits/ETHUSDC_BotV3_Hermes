@@ -1,5 +1,6 @@
 name: Apply selection evidence integration
 
+# One-shot integration workflow. Removed after the generated commit is verified.
 on:
   push:
     branches:
