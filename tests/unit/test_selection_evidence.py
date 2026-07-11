@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
+import pytest
+
 from ethusdc_bot.backtest.data_loader import Candle
 from ethusdc_bot.backtest.selection_evidence import (
     REGIME_DEFINITION,
@@ -68,10 +70,10 @@ def test_rolling_evidence_removes_exact_best_five_positive_trades() -> None:
 
     evidence = build_rolling_evidence(result)
 
-    assert evidence["top1_positive_pnl_share"] == 10.0 / 31.0
-    assert evidence["top5_positive_pnl_share"] == 30.0 / 31.0
+    assert evidence["top1_positive_pnl_share"] == pytest.approx(10.0 / 31.0)
+    assert evidence["top5_positive_pnl_share"] == pytest.approx(30.0 / 31.0)
     assert evidence["net_without_top5_usdc"] == -5.0
-    assert evidence["profit_factor_without_top5"] == 1.0 / 6.0
+    assert evidence["profit_factor_without_top5"] == pytest.approx(1.0 / 6.0)
     assert evidence["max_drawdown_usdc"] == 7.5
     assert evidence["max_underwater_days"] == 12
     assert evidence["drawdown_method"] == "mark_to_market"
@@ -116,7 +118,12 @@ def test_regime_evidence_is_training_thresholded_and_deterministic() -> None:
         [100 + index * 0.05 + (0.6 if index % 7 == 0 else 0.0) for index in range(180)]
     )
     evaluation = _candles(
-        [100 + (index * 0.08 if index < 90 else (180 - index) * 0.12) + (1.2 if index % 11 == 0 else 0.0) for index in range(180)],
+        [
+            100
+            + (index * 0.08 if index < 90 else (180 - index) * 0.12)
+            + (1.2 if index % 11 == 0 else 0.0)
+            for index in range(180)
+        ],
         start=datetime(2026, 2, 1, tzinfo=UTC),
     )
     trade_indices = [30, 70, 110, 160]
