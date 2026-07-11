@@ -57,15 +57,40 @@ jobs:
       - name: Compile source tree
         run: python -m compileall -q src
 
+      - name: Validate PowerShell script syntax
+        shell: pwsh
+        run: |
+          $files = @(Get-ChildItem -Path tools -Filter "*.ps1" -File -ErrorAction SilentlyContinue)
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $file.FullName,
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error "$($file.FullName): $($_.Message)" }
+              exit 1
+            }
+          }
+          Write-Host "Validated $($files.Count) PowerShell script(s)."
+
       - name: Check committed whitespace errors
         shell: bash
         run: |
           if [[ -n "${GITHUB_BASE_REF}" ]]; then
             base_ref="${GITHUB_BASE_REF}"
+          elif [[ "${GITHUB_REF_NAME}" == "review/windows-production-research-runner-v1" ]]; then
+            base_ref="review/search-frontier-v2"
+          elif [[ "${GITHUB_REF_NAME}" == "review/search-frontier-v2" ]]; then
+            base_ref="review/research-evidence-producers-v1"
           elif [[ "${GITHUB_REF_NAME}" == "review/research-evidence-producers-v1" ]]; then
             base_ref="review/pr4-final-alignment"
-          elif [[ "${GITHUB_REF_NAME}" == review/* ]]; then
+          elif [[ "${GITHUB_REF_NAME}" == "review/pr4-final-alignment" ]]; then
             base_ref="agent/portfolio-shadow-v1"
+          elif [[ "${GITHUB_REF_NAME}" == review/* ]]; then
+            base_ref="main"
           else
             base_ref="main"
           fi
