@@ -1,0 +1,36 @@
+name: Expose invalid selection evidence
+
+on:
+  push:
+    branches:
+      - "review/research-evidence-producers-v1"
+    paths:
+      - ".github/workflows/expose-invalid-selection-evidence.yml"
+      - "tools/expose_invalid_selection_evidence.py"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: review/research-evidence-producers-v1
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python tools/expose_invalid_selection_evidence.py
+      - run: python -m compileall -q tests && git diff --check
+      - name: Commit diagnostic assertion
+        shell: bash
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/integration/test_research_loop_protocol_v2_smoke.py
+          git commit -m "Expose invalid selection evidence paths"
+          git push origin HEAD:review/research-evidence-producers-v1
