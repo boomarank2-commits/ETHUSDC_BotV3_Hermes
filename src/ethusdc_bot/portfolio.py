@@ -35,7 +35,7 @@ TARGET_GUIDANCE_BY_BUDGET_USDC: Final[Mapping[int, DailyTargetGuidance]] = (
         {
             100: DailyTargetGuidance(3.0, 3.0),
             200: DailyTargetGuidance(5.0, 6.0),
-            500: DailyTargetGuidance(12.0, 13.0),
+            500: DailyTargetGuidance(12.0, 15.0),
             1000: DailyTargetGuidance(25.0, 30.0),
         }
     )

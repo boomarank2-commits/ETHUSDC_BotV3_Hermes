@@ -9,6 +9,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from ethusdc_bot.path_safety import is_path_within
 from ethusdc_bot.validation import SchemaValidationError
 
 
@@ -150,22 +151,7 @@ def _interval_label(interval_seconds: Any) -> str:
 
 
 def _is_inside_repository(path: str | Path, repository_root: str | Path) -> bool:
-    repo_text = str(repository_root).replace("\\", "/").rstrip("/").lower()
-    path_text = str(path).replace("\\", "/").rstrip("/").lower()
-    if path_text == repo_text or path_text.startswith(repo_text + "/"):
-        return True
-
-    try:
-        path_resolved = Path(path).resolve()
-        repo_resolved = Path(repository_root).resolve()
-    except (OSError, RuntimeError):
-        return False
-
-    try:
-        path_resolved.relative_to(repo_resolved)
-    except ValueError:
-        return False
-    return True
+    return is_path_within(path, repository_root)
 
 
 def _reject_forbidden_result_fields(data: Mapping[str, Any], path: str) -> None:

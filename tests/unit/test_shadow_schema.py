@@ -49,10 +49,19 @@ def _deployment() -> dict[str, object]:
         },
         "assessment": {
             "color": "green",
+            "color_scope": "canonical_100_usdc_final_evaluation",
             "shadow_eligible": True,
             "target_reached": True,
+            "target_evidence_budget_usdc": 100,
+            "deployment_budget_usdc": 500,
+            "deployment_target_usdc_per_day": 15.0,
+            "deployment_target_status": "unverified_scaling",
+            "deployment_target_reached": False,
             "live_eligible": False,
-            "reason_codes": ["all_quality_gates_passed"],
+            "reason_codes": [
+                "all_quality_gates_passed",
+                "deployment_budget_scaling_unverified",
+            ],
         },
         "safety": shadow_safety_status(),
     }

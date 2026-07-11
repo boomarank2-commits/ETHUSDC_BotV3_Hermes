@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from pathlib import Path, PureWindowsPath
 from typing import Any
 
+from ethusdc_bot.path_safety import is_path_within
 from ethusdc_bot.validation import (
     SchemaValidationError,
     require_exact_keys,
@@ -268,20 +269,5 @@ def _reject_repository_path(
 ) -> None:
     if repository_root is None:
         return
-
-    repo_text = str(repository_root).replace("\\", "/").rstrip("/").lower()
-    value_text = str(path_value).replace("\\", "/").rstrip("/").lower()
-    if value_text == repo_text or value_text.startswith(repo_text + "/"):
+    if is_path_within(path_value, repository_root):
         raise SchemaValidationError(f"{path_name} must be outside the repository")
-
-    try:
-        repo_resolved = Path(repository_root).resolve()
-        value_resolved = Path(path_value).resolve()
-    except (OSError, RuntimeError):
-        return
-
-    try:
-        value_resolved.relative_to(repo_resolved)
-    except ValueError:
-        return
-    raise SchemaValidationError(f"{path_name} must be outside the repository")

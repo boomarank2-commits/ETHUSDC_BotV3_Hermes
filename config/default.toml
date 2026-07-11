@@ -25,7 +25,7 @@ soft_drawdown_fraction = 0.15
 measurement = "net_usdc_per_calendar_day_after_costs"
 includes_zero_trade_days = true
 acceptable_by_budget_usdc = { "100" = 3, "200" = 5, "500" = 12, "1000" = 25 }
-desired_by_budget_usdc = { "100" = 3, "200" = 6, "500" = 13, "1000" = 30 }
+desired_by_budget_usdc = { "100" = 3, "200" = 6, "500" = 15, "1000" = 30 }
 used_for_candidate_search = false
 
 [shadow]

@@ -60,17 +60,23 @@ nicht als Suchparameter auf einen Holdout optimiert werden.
 |---:|---:|---:|
 | 100 USDC | 3 USDC/Tag | 3 USDC/Tag |
 | 200 USDC | 5 USDC/Tag | 6 USDC/Tag |
-| 500 USDC | 12 USDC/Tag | 13 USDC/Tag |
+| 500 USDC | 12 USDC/Tag | 15 USDC/Tag |
 | 1000 USDC | 25 USDC/Tag | 30 USDC/Tag |
 
 Reports muessen zusaetzlich den Nettoertrag je `100 USDC` Deployment-Budget
 ausweisen. Unterschiedliche Tagesergebnisse wie 0, 6, 3, 6, 0 sind zulaessig;
 massgeblich ist der ehrliche Durchschnitt ueber den festgelegten Zeitraum.
 
+Ein groesseres Budgetprofil darf nur dann als eigenes gruenes Ergebnis gelten,
+wenn genau dieses Profil mit seiner realen Lot-Auslastung und seinen Kosten
+separat geprueft wurde. Ein gruener 100-USDC-Nachweis darf nicht lediglich
+mathematisch auf 200, 500 oder 1000 USDC hochgerechnet werden.
+
 ## 5. Ergebnisampel und Uebernahme
 
-- **Gruen:** alle Robustheits- und Sicherheitspruefungen bestanden und der
-  3-USDC-Richtwert des kanonischen 100-USDC-Profils erreicht.
+- **Gruen:** alle Robustheits- und Sicherheitspruefungen bestanden und der fuer
+  das tatsaechlich bewertete Deployment-Budget geltende gewuenschte Richtwert
+  erreicht.
 - **Gelb:** alle Robustheits- und Sicherheitspruefungen bestanden, Ergebnis
   netto positiv, Richtwert aber verfehlt.
 - **Rot:** fehlende/ungueltige Evidenz, Identitaetsfehler, Safety- oder

@@ -74,10 +74,27 @@ def _deployment(
         },
         "assessment": {
             "color": "green",
+            "color_scope": "canonical_100_usdc_final_evaluation",
             "shadow_eligible": True,
             "target_reached": True,
+            "target_evidence_budget_usdc": 100,
+            "deployment_budget_usdc": budget,
+            "deployment_target_usdc_per_day": (
+                policy.target_guidance.desired_net_usdc_per_day
+            ),
+            "deployment_target_status": (
+                "verified" if budget == 100 else "unverified_scaling"
+            ),
+            "deployment_target_reached": budget == 100,
             "live_eligible": False,
-            "reason_codes": ["all_quality_gates_passed"],
+            "reason_codes": (
+                ["all_quality_gates_passed"]
+                if budget == 100
+                else [
+                    "all_quality_gates_passed",
+                    "deployment_budget_scaling_unverified",
+                ]
+            ),
         },
         "safety": shadow_safety_status(),
     }
