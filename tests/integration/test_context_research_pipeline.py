@@ -123,7 +123,7 @@ def test_context_wrapper_preserves_nested_base_family_in_real_simulation() -> No
 
 
 def test_walk_forward_context_uses_exact_fold_slices() -> None:
-    context = _aligned(days=8, candles_per_day=12)
+    context = _aligned(days=8, candles_per_day=1440)
     candidate = wrap_candidate_with_context(
         StrategyCandidate(
             "always_long",
