@@ -1,8 +1,8 @@
 """Pure dashboard state helpers for the local control UI.
 
-These helpers inspect paths and constants only. They do not create data folders,
-read market data contents, download files, start UI processes, execute backtests,
-create reports, or unlock live/paper/testtrade.
+These helpers inspect paths and validated local status artifacts only. They do
+not create folders, download data, execute research, adopt candidates, append
+Shadow events, or unlock live/paper/testtrade.
 """
 
 from __future__ import annotations
@@ -15,14 +15,25 @@ from ethusdc_bot.data_pipeline.data_readiness import build_backtest_start_data_g
 from ethusdc_bot.data_pipeline.kline_zip_audit import build_kline_audit_summary
 from ethusdc_bot.data_pipeline.inventory_status import build_inventory_status
 from ethusdc_bot.data_pipeline.public_kline_downloader import DEFAULT_RAW_ROOT
+from ethusdc_bot.portfolio import PortfolioPolicy
+from ethusdc_bot.shadow.adoption import assess_final_report
+from ethusdc_bot.shadow.store import (
+    load_deployment,
+    load_shadow_state,
+    verify_event_log,
+)
+from ethusdc_bot.ui.backtest_controller import build_initial_training_research_status
 from ethusdc_bot.ui.data_update_controller import (
     build_data_update_plan,
     build_initial_data_prep_last_run_status,
     build_initial_data_prep_status,
 )
 
-BACKTEST_DISABLED_HINT = "Backtest waits for data readiness and real engine implementation. No fake result."
-BACKTEST_START_HINT = "Research Protocol v2 is not wired to the dashboard. Engine locked; data preparation only."
+BACKTEST_DISABLED_HINT = "Training/WFV research waits for the complete data gate. No fake result."
+BACKTEST_START_HINT = (
+    "Starts Protocol-v2 training/validation/WFV only. The sealed final holdout "
+    "is a separate one-shot step and is never opened by this button."
+)
 EXPECTED_UTC_DAYS = 1095
 
 
@@ -36,12 +47,13 @@ def collect_project_status() -> dict[str, Any]:
         "market_type": "Spot",
         "position_mode": "LONG-only",
         "start_capital_usdc": 100,
+        "fixed_lot_notional_usdc": 100,
         "risk_profile": "mittel",
         "training_days": 730,
         "blindtest_days": 365,
         "required_utc_days": EXPECTED_UTC_DAYS,
         "context_symbols": ["BTCUSDC", "ETHBTC"],
-        "future_goal": ">= 3 USDC/day after realistic blindtest",
+        "future_goal": "about 3 USDC/day after costs as a guideline, not a guarantee",
     }
 
 
@@ -55,6 +67,117 @@ def collect_safety_status() -> dict[str, str]:
         "shorts_margin_futures_leverage": "forbidden",
         "binance_trading_api": "forbidden",
         "api_keys": "not_used",
+    }
+
+
+def collect_portfolio_status(deployment_budget_usdc: int = 100) -> dict[str, Any]:
+    """Return the validated fixed-lot policy selected by the operator."""
+
+    policy = PortfolioPolicy(deployment_budget_usdc=deployment_budget_usdc)
+    return policy.to_dict()
+
+
+def collect_final_evaluation_status(final_reports_root: str | Path) -> dict[str, Any]:
+    """Inspect the newest final report without changing it or adopting it."""
+
+    root = Path(final_reports_root)
+    reports = sorted(path for path in root.glob("*.json") if path.is_file()) if root.exists() else []
+    if not reports:
+        return {
+            "status": "not_found",
+            "report_path": None,
+            "color": "none",
+            "shadow_eligible": False,
+            "target_reached": False,
+            "live_eligible": False,
+            "final_net_usdc_per_day": None,
+            "reason_codes": ["no_final_evaluation_report"],
+        }
+    report_path = reports[-1]
+    assessment = assess_final_report(report_path)
+    return {
+        "status": "verified" if assessment.color in {"green", "yellow"} else "blocked",
+        "report_path": str(report_path),
+        "color": assessment.color,
+        "shadow_eligible": assessment.shadow_eligible,
+        "target_reached": assessment.target_reached,
+        "live_eligible": False,
+        "final_net_usdc_per_day": assessment.final_net_usdc_per_day,
+        "reason_codes": list(assessment.reason_codes),
+        "final_evaluation_id": assessment.final_evaluation_id,
+        "candidate_id": assessment.candidate_id,
+    }
+
+
+def collect_shadow_runtime_status(shadow_root: str | Path) -> dict[str, Any]:
+    """Read and cross-check the newest persisted order-free Shadow state."""
+
+    root = Path(shadow_root)
+    deployments = (
+        sorted(path for path in root.iterdir() if path.is_dir() and not path.name.startswith("."))
+        if root.exists()
+        else []
+    )
+    if not deployments:
+        return {
+            "status": "not_adopted",
+            "deployment_id": None,
+            "phase": "not_started",
+            "deployment_budget_usdc": None,
+            "lot_notional_usdc": 100.0,
+            "open_lots": 0,
+            "max_open_lots": 0,
+            "realized_net_usdc": 0.0,
+            "unrealized_net_usdc": 0.0,
+            "event_count": 0,
+            "error": None,
+            "orders_enabled": False,
+            "trading_api_enabled": False,
+            "api_keys_used": False,
+        }
+    deployment_dir = deployments[-1]
+    try:
+        deployment = load_deployment(deployment_dir / "deployment.json")
+        state = load_shadow_state(deployment_dir / "state.json")
+        event_status = verify_event_log(deployment_dir / "events.jsonl")
+        if deployment["deployment_id"] != state["deployment_id"]:
+            raise ValueError("deployment/state id mismatch")
+        if state["event_count"] != event_status["event_count"]:
+            raise ValueError("state/event count mismatch")
+        if state["last_event_hash"] != event_status["last_event_hash"]:
+            raise ValueError("state/event hash mismatch")
+    except (OSError, ValueError) as exc:
+        return {
+            "status": "integrity_error",
+            "deployment_id": deployment_dir.name,
+            "phase": "error",
+            "deployment_budget_usdc": None,
+            "lot_notional_usdc": 100.0,
+            "open_lots": 0,
+            "max_open_lots": 0,
+            "realized_net_usdc": 0.0,
+            "unrealized_net_usdc": 0.0,
+            "event_count": 0,
+            "error": str(exc),
+            "orders_enabled": False,
+            "trading_api_enabled": False,
+            "api_keys_used": False,
+        }
+    return {
+        "status": "valid",
+        "deployment_id": state["deployment_id"],
+        "phase": state["phase"],
+        "deployment_budget_usdc": state["deployment_budget_usdc"],
+        "lot_notional_usdc": state["lot_notional_usdc"],
+        "open_lots": len(state["open_lots"]),
+        "max_open_lots": state["max_open_lots"],
+        "realized_net_usdc": state["realized_net_usdc"],
+        "unrealized_net_usdc": state["unrealized_net_usdc"],
+        "event_count": state["event_count"],
+        "error": state["error"],
+        "orders_enabled": False,
+        "trading_api_enabled": False,
+        "api_keys_used": False,
     }
 
 
@@ -147,6 +270,11 @@ def build_dashboard_snapshot(
     repository_root: str | Path,
     local_root: str | Path = DEFAULT_RAW_ROOT,
     data_prep_last_run_status: Mapping[str, Any] | None = None,
+    *,
+    deployment_budget_usdc: int = 100,
+    training_research_status: Mapping[str, Any] | None = None,
+    final_reports_root: str | Path | None = None,
+    shadow_root: str | Path | None = None,
 ) -> dict[str, Any]:
     """Build the complete status-only dashboard snapshot."""
 
@@ -164,6 +292,23 @@ def build_dashboard_snapshot(
     )
     backtest_blocker_summary = _build_backtest_blocker_summary(data_readiness_report)
     last_run_status = dict(data_prep_last_run_status or build_initial_data_prep_last_run_status())
+    training_status = dict(
+        training_research_status or build_initial_training_research_status()
+    )
+    local_path = Path(local_root)
+    final_root = (
+        Path(final_reports_root)
+        if final_reports_root is not None
+        else local_path / "runtime" / "reports" / "sealed_holdout_final"
+    )
+    shadow_state_root = Path(shadow_root) if shadow_root is not None else local_path / "runtime" / "shadow"
+    portfolio_status = collect_portfolio_status(deployment_budget_usdc)
+    final_status = collect_final_evaluation_status(final_root)
+    shadow_status = collect_shadow_runtime_status(shadow_state_root)
+    data_ready = bool(data_readiness_report.get("data_gate_ready"))
+    research_running = bool(training_status.get("running"))
+    can_start_training = data_ready and not research_running
+    can_adopt_shadow = bool(final_status["shadow_eligible"])
     return {
         "schema_version": 1,
         "project_status": collect_project_status(),
@@ -174,6 +319,12 @@ def build_dashboard_snapshot(
         "data_readiness_report": data_readiness_report,
         "data_prep_runtime_status": runtime_status,
         "data_prep_last_run_status": last_run_status,
+        "portfolio_status": portfolio_status,
+        "training_research_status": training_status,
+        "final_evaluation_status": final_status,
+        "shadow_runtime_status": shadow_status,
+        "final_reports_root": str(final_root),
+        "shadow_root": str(shadow_state_root),
         "operator_data_status_rows": build_operator_data_status_rows(data_readiness_report),
         "overall_data_progress_pct": overall_progress["overall_data_progress_pct"],
         "overall_data_progress": overall_progress,
@@ -183,12 +334,14 @@ def build_dashboard_snapshot(
         "data_prep_mode": runtime_status["mode"],
         "bot_current_status_text": _build_bot_status_text(data_readiness_report, runtime_status),
         "can_start_data_prep": True,
-        "can_start_backtest_engine": False,
-        "backtest_status": build_initial_backtest_status(data_readiness_report),
+        "can_start_backtest_engine": can_start_training,
+        "backtest_status": build_initial_backtest_status(
+            data_readiness_report, training_status
+        ),
         "backtest_blocker_summary": backtest_blocker_summary,
         "data_prep_status": {
             "status": "idle",
-            "engine_start_locked": True,
+            "engine_start_locked": not data_ready,
             "last_data_update_plan_summary": data_update_plan["summary"],
             "supported_download_task_count": data_update_plan["supported_download_task_count"],
             "unsupported_task_count": data_update_plan["unsupported_task_count"],
@@ -203,34 +356,65 @@ def build_dashboard_snapshot(
             },
             "backtest_start_button": {
                 "visible": True,
-                "enabled": False,
-                "action": "research_protocol_v2_not_wired",
-                "engine_locked": True,
+                "enabled": can_start_training,
+                "action": "training_validation_wfv_protocol_v2",
+                "engine_locked": not data_ready,
+                "final_holdout_evaluated": False,
                 "uses_trading_api": False,
                 "live_paper_testtrade_locked": True,
                 "hint": BACKTEST_START_HINT,
+            },
+            "shadow_adopt_button": {
+                "visible": True,
+                "enabled": can_adopt_shadow,
+                "action": "adopt_verified_final_report_to_order_free_shadow",
+                "report_path": final_status["report_path"],
+                "assessment_color": final_status["color"],
+                "orders_enabled": False,
+                "trading_api_enabled": False,
+                "live_enabled": False,
+                "hint": (
+                    "Only a freshly re-verified green/yellow final evaluation can be adopted. "
+                    "Adoption creates no real order."
+                ),
             },
             "live_paper_testtrade": "locked",
         },
     }
 
 
-def build_initial_backtest_status(readiness: Mapping[str, Any]) -> dict[str, Any]:
+def build_initial_backtest_status(
+    readiness: Mapping[str, Any],
+    training_status: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     """Return the UI model for backtest mode without fake results."""
 
     data_ready = bool(readiness.get("data_gate_ready"))
+    run = dict(training_status or build_initial_training_research_status())
+    running = bool(run.get("running"))
+    phase = str(run.get("phase", "initial"))
     return {
         "mode": "backtest",
-        "phase": "idle",
-        "enabled": False,
-        "stages": ["data_gate", "research_protocol_v2", "engine_locked"],
+        "phase": "running" if running else "idle" if phase == "initial" else phase,
+        "enabled": data_ready and not running,
+        "stages": [
+            "data_gate",
+            "training_validation",
+            "walk_forward",
+            "quality_gates",
+            "sealed_holdout_separate",
+        ],
         "status_text": (
-            "Data Gate bereit; Research Protocol v2 ist im Dashboard noch nicht verdrahtet."
+            "Training/WFV-Forschung laeuft; der versiegelte Final-Holdout bleibt geschlossen."
+            if running
+            else "Data Gate bereit; Training/Validation/WFV kann gestartet werden. Final-Holdout separat."
             if data_ready
-            else "Backtest wartet auf Data Gate. Keine Ergebnisse vorhanden."
+            else "Training/WFV wartet auf das Data Gate. Keine Ergebnisse erfunden."
         ),
         "target_usdc_per_day": 3.0,
-        "result_status": "not_run",
+        "result_status": str(run.get("freeze_status", "not_run")),
+        "final_holdout_evaluated": False,
+        "shadow_eligible": False,
         "live_paper_testtrade": "locked",
     }
 
@@ -310,6 +494,10 @@ def format_operator_summary_for_display(snapshot: Mapping[str, Any]) -> str:
     progress = runtime.get("progress_pct", 0)
     overall_progress = snapshot.get("overall_data_progress_pct", 0)
     data_rows = snapshot.get("operator_data_status_rows", [])
+    portfolio = snapshot["portfolio_status"]
+    final = snapshot["final_evaluation_status"]
+    shadow = snapshot["shadow_runtime_status"]
+    research = snapshot["training_research_status"]
     lines = [
         "ETHUSDC Bot V3 Hermes",
         "",
@@ -329,6 +517,27 @@ def format_operator_summary_for_display(snapshot: Mapping[str, Any]) -> str:
         f"Letzter Lauf: {last_run['last_run_status']} / {last_run['last_run_mode']} - {last_run['last_run_summary_text']}",
         f"Nächster Blocker: {last_run['last_run_next_blocker'] or snapshot['backtest_blocker_summary']}",
         f"Backtest: {snapshot['backtest_status']['status_text']}",
+        (
+            "Research-Status: "
+            f"{research.get('phase')} / {research.get('freeze_status')}"
+        ),
+        (
+            "Portfolio: "
+            f"{portfolio['deployment_budget_usdc']} USDC Budget, "
+            f"{portfolio['lot_notional_usdc']} USDC/Lot, "
+            f"max. {portfolio['max_concurrent_lots']} Lots, kein Compounding"
+        ),
+        (
+            "Final-Ampel: "
+            f"{final['color']} / Shadow-uebernehmbar={final['shadow_eligible']} / "
+            f"Netto pro Tag={final['final_net_usdc_per_day']}"
+        ),
+        (
+            "Shadow: "
+            f"{shadow['status']} / {shadow['phase']} / "
+            f"Lots {shadow['open_lots']}/{shadow['max_open_lots']} / "
+            "Orders=false, Trading-API=false"
+        ),
         "",
         "Datenstatus:",
     ]
@@ -478,7 +687,7 @@ def format_snapshot_for_display(snapshot: Mapping[str, Any]) -> str:
         f"- Current task: {runtime['current_task_id'] or 'none'}",
         f"- Tasks completed/total: {runtime['completed_tasks']}/{runtime['total_tasks']}",
         f"- Backtest blocker: {snapshot['backtest_blocker_summary']}",
-        "- Backtest engine is locked; Research Protocol v2 is not wired to the dashboard.",
+        "- Protocol-v2 training/validation/WFV is wired; sealed final evaluation remains separate.",
         f"- data_prep_status: {prep['status']}",
         f"- engine_start_locked: {prep['engine_start_locked']}",
         f"- last_data_update_plan_summary: {prep['last_data_update_plan_summary']}",
@@ -492,6 +701,12 @@ def format_snapshot_for_display(snapshot: Mapping[str, Any]) -> str:
         f"- Button action: {backtest['action']}",
         f"- Engine locked: {backtest['engine_locked']}",
         f"- Hint: {backtest['hint']}",
+        "",
+        "Portfolio / Final / Shadow:",
+        f"- Portfolio: {snapshot['portfolio_status']}",
+        f"- Training research: {snapshot['training_research_status']}",
+        f"- Final evaluation: {snapshot['final_evaluation_status']}",
+        f"- Shadow runtime: {snapshot['shadow_runtime_status']}",
     ]
     return "\n".join(lines) + "\n"
 
@@ -500,7 +715,10 @@ def _build_backtest_blocker_summary(readiness: Mapping[str, Any]) -> str:
     blockers = []
     if not readiness.get("data_gate_ready"):
         blockers.append(str(readiness.get("backtest_button_reason", "Data readiness is blocked.")))
-    blockers.append("Research Protocol v2 dashboard execution is not wired; engine remains locked.")
+    if readiness.get("data_gate_ready"):
+        blockers.append(
+            "Training/validation/WFV is available; final holdout remains a separate sealed one-shot step."
+        )
     return " ".join(blockers)
 
 
@@ -508,7 +726,7 @@ def _build_bot_status_text(readiness: Mapping[str, Any], runtime_status: Mapping
     if runtime_status.get("phase") not in {"idle", "finished"}:
         return f"Data preparation running: {runtime_status.get('phase')}"
     if readiness.get("data_gate_ready"):
-        return "Data readiness is complete; dashboard engine remains locked. Use Research Protocol v2 by CLI only after review."
+        return "Data readiness is complete; Protocol-v2 training/validation/WFV can be started. Final holdout remains sealed."
     return "Data readiness is blocked; run dry-run or data loading to inspect missing tasks."
 
 

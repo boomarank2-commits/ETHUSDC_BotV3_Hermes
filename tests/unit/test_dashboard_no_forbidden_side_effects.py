@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import importlib
+from types import SimpleNamespace
 
 from ethusdc_bot.ui import dashboard_state
 
@@ -25,7 +26,7 @@ def test_dashboard_module_is_importable():
     module = importlib.import_module("ethusdc_bot.ui.dashboard")
 
     assert module.BACKTEST_DISABLED_HINT == (
-        "Backtest waits for data readiness and real engine implementation. No fake result."
+        "Training/WFV research waits for the complete data gate. No fake result."
     )
 
 
@@ -49,6 +50,91 @@ def test_secondary_check_button_starts_dry_run_mode():
     app.start_check_without_download()
 
     assert calls == [False]
+
+
+def test_training_button_starts_only_the_injected_training_wfv_controller(monkeypatch, tmp_path):
+    module = importlib.import_module("ethusdc_bot.ui.dashboard")
+    app = module.DashboardApp.__new__(module.DashboardApp)
+    calls = []
+
+    class Controller:
+        is_running = False
+
+        def start(self, raw_root, reports_root, status_callback=None):
+            calls.append((raw_root, reports_root, status_callback))
+            return object(), {"status": {"phase": "running", "running": True}}
+
+    app.active_data_thread = None
+    app.training_research_controller = Controller()
+    app.repository_root = ROOT
+    app.local_root = tmp_path
+    app.last_run_status = {}
+    app.training_research_status = {"phase": "initial", "running": False}
+    app.training_reports_root = tmp_path / "runtime/reports/research_loop"
+    app.final_reports_root = tmp_path / "runtime/reports/sealed_holdout_final"
+    app.shadow_root = tmp_path / "runtime/shadow"
+    app.log_queue = SimpleNamespace(put=lambda value: None)
+    app._log = lambda value: None
+    app._apply_training_research_status = lambda value: None
+    app._set_data_buttons_enabled = lambda value: None
+    app._selected_deployment_budget = lambda: 100
+    monkeypatch.setattr(
+        module,
+        "build_dashboard_snapshot",
+        lambda *args, **kwargs: {
+            "ui_status": {"backtest_start_button": {"enabled": True}},
+            "backtest_blocker_summary": "",
+        },
+    )
+
+    app.start_training_research()
+
+    assert len(calls) == 1
+    assert calls[0][0] == tmp_path
+    assert calls[0][1] == app.training_reports_root
+
+
+def test_shadow_adoption_button_requires_confirmation_and_stays_order_free(monkeypatch, tmp_path):
+    module = importlib.import_module("ethusdc_bot.ui.dashboard")
+    app = module.DashboardApp.__new__(module.DashboardApp)
+    report_path = tmp_path / "final.json"
+    calls = []
+    app.repository_root = ROOT
+    app.local_root = tmp_path
+    app.last_run_status = {}
+    app.training_research_status = {"phase": "completed", "running": False}
+    app.final_reports_root = tmp_path
+    app.shadow_root = tmp_path / "runtime/shadow"
+    app._selected_deployment_budget = lambda: 500
+    app._log = lambda value: None
+    app.refresh_status = lambda: calls.append("refresh")
+    monkeypatch.setattr(
+        module,
+        "build_dashboard_snapshot",
+        lambda *args, **kwargs: {
+            "ui_status": {
+                "shadow_adopt_button": {
+                    "enabled": True,
+                    "report_path": str(report_path),
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(module.messagebox, "askyesno", lambda *args: True)
+    monkeypatch.setattr(module.messagebox, "showinfo", lambda *args: None)
+    monkeypatch.setattr(
+        module,
+        "adopt_for_shadow",
+        lambda report, budget, root: (
+            calls.append((report, budget, root))
+            or SimpleNamespace(deployment={"deployment_id": "shadow_test"})
+        ),
+    )
+
+    app.adopt_verified_final_to_shadow()
+
+    assert calls[0] == (str(report_path), 500, app.shadow_root)
+    assert calls[1] == "refresh"
 
 
 def test_operator_runtime_text_shows_running_file_progress():
@@ -102,16 +188,17 @@ def test_operator_runtime_text_shows_failed_error():
     assert text["activity_note"] == "Fehler: boom"
 
 
-def test_backtest_start_button_model_runs_data_preparation_only():
+def test_backtest_start_button_model_is_training_wfv_only_and_missing_data_blocks():
     snapshot = dashboard_state.build_dashboard_snapshot(ROOT, ROOT.parent / "data")
 
     button = snapshot["ui_status"]["backtest_start_button"]
     assert button["visible"] is True
-    assert button["action"] == "research_protocol_v2_not_wired"
+    assert button["action"] == "training_validation_wfv_protocol_v2"
     assert button["enabled"] is False
     assert button["engine_locked"] is True
     assert button["uses_trading_api"] is False
     assert button["live_paper_testtrade_locked"] is True
+    assert button["final_holdout_evaluated"] is False
     assert snapshot["data_prep_status"]["engine_start_locked"] is True
 
 
