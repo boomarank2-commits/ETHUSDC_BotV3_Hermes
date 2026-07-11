@@ -1,44 +1,34 @@
-# Backtest Engine and Strategy Search
+# Legacy Backtest Engine and Strategy Search (Disabled)
 
-This phase adds the first real, reproducible ETHUSDC backtest foundation.
+This document records the status of the first backtest/search path. It is retained for history, but its execution workflow is no longer valid under Research Protocol v2.
 
-Scope:
-- ETHUSDC only for trade signals.
-- Binance Spot LONG-only simulation.
-- 100 USDC trade notional.
-- Conservative fee and slippage model.
-- No shorts, margin, futures, leverage, API keys, Binance Trading API, paper, testtrade, or live orders.
-- BTCUSDC and ETHBTC remain context-only data sources and must never trigger orders.
+## Why it is disabled
 
-Data:
-- Raw public data stays outside the repository under `C:/TradingBot/data/ETHUSDC_BotV3_Hermes`.
-- Loader reads ETHUSDC 1m ZIP/CHECKSUM pairs read-only.
-- Loader validates ETHUSDC naming, UTC order, 1m spacing, duplicates, and gaps.
-- Loader returns only no-lookahead candle fields: open_time, open, high, low, close, volume.
+The legacy flow selected a candidate from training/validation and then evaluated the same 365-day blindtest whenever the command or helper was called. That window was viewed repeatedly and is now permanently classified as consumed for selection purposes.
 
-Split:
-- Required full window: 1095 UTC days.
-- First 730 UTC days: training/validation selection only.
-- Last 365 UTC days: blindtest.
-- No overlap; blindtest is evaluated once after candidate selection.
+The following APIs fail closed before loading, simulating, or writing:
 
-Implemented first strategy families:
-- Momentum.
-- Mean-reversion.
-- Breakout.
+- `ethusdc_bot.backtest.runner.run_backtest`;
+- `ethusdc_bot.backtest.research_runner.run_research`;
+- `ethusdc_bot.backtest.strategy_search.run_strategy_search`;
+- `ethusdc_bot.backtest.strategy_search.evaluate_blindtest_once`.
 
-Search discipline:
-- Small deterministic candidate grid.
-- Training is internally split into subtrain/validation.
-- Candidate selection uses training/validation only.
-- The target of 3 USDC/day is a reporting threshold, not a parameter used to optimize candidates.
+`--fixture-smoke` and `required_days=None` do not bypass the legacy guards.
 
-Run command:
+## Active research path
 
-`PYTHONPATH=src python -m ethusdc_bot.backtest.runner --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes`
+The only active strategy-research entrypoint is:
 
-Reports:
-- Real completed runs write JSON and TXT under `reports/backtests/`.
-- Reports include training and blindtest metrics separately.
-- Reports state honestly whether the 3 USDC/day blindtest target was reached.
-- Reports never unlock live/paper/testtrade.
+```powershell
+$env:PYTHONPATH='src'
+python -m ethusdc_bot.backtest.research_loop_runner `
+  --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes
+```
+
+Protocol v2 uses dynamic, complete UTC windows and training-only subtrain, validation, and WFV evidence. It records final-holdout metadata but never passes those candles to the simulator.
+
+The dashboard does not yet start Protocol v2. Its engine button remains disabled and labelled `research_protocol_v2_not_wired`; dashboard work is a later ticket.
+
+## Historical reports
+
+Existing schema-v1 backtest reports remain append-only historical artifacts. They must not be used for candidate selection, ranking, parameter changes, freeze, or target claims. The live, Paper, and Testtrade locks remain unchanged.

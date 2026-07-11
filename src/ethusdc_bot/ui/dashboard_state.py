@@ -22,7 +22,7 @@ from ethusdc_bot.ui.data_update_controller import (
 )
 
 BACKTEST_DISABLED_HINT = "Backtest waits for data readiness and real engine implementation. No fake result."
-BACKTEST_START_HINT = "Starts local backtest / strategy search only. No API, no orders, live/paper/testtrade locked."
+BACKTEST_START_HINT = "Research Protocol v2 is not wired to the dashboard. Engine locked; data preparation only."
 EXPECTED_UTC_DAYS = 1095
 
 
@@ -183,7 +183,7 @@ def build_dashboard_snapshot(
         "data_prep_mode": runtime_status["mode"],
         "bot_current_status_text": _build_bot_status_text(data_readiness_report, runtime_status),
         "can_start_data_prep": True,
-        "can_start_backtest_engine": data_readiness_report["data_gate_ready"],
+        "can_start_backtest_engine": False,
         "backtest_status": build_initial_backtest_status(data_readiness_report),
         "backtest_blocker_summary": backtest_blocker_summary,
         "data_prep_status": {
@@ -203,9 +203,9 @@ def build_dashboard_snapshot(
             },
             "backtest_start_button": {
                 "visible": True,
-                "enabled": bool(data_readiness_report["data_gate_ready"]),
-                "action": "local_backtest_strategy_search",
-                "engine_locked": False,
+                "enabled": False,
+                "action": "research_protocol_v2_not_wired",
+                "engine_locked": True,
                 "uses_trading_api": False,
                 "live_paper_testtrade_locked": True,
                 "hint": BACKTEST_START_HINT,
@@ -218,15 +218,15 @@ def build_dashboard_snapshot(
 def build_initial_backtest_status(readiness: Mapping[str, Any]) -> dict[str, Any]:
     """Return the UI model for backtest mode without fake results."""
 
-    ready = bool(readiness.get("data_gate_ready"))
+    data_ready = bool(readiness.get("data_gate_ready"))
     return {
         "mode": "backtest",
         "phase": "idle",
-        "enabled": ready,
-        "stages": ["data_gate", "load_data", "training", "strategy_search", "blindtest", "result"],
+        "enabled": False,
+        "stages": ["data_gate", "research_protocol_v2", "engine_locked"],
         "status_text": (
-            "Backtest bereit: lokaler Strategie-Suchlauf kann gestartet werden."
-            if ready
+            "Data Gate bereit; Research Protocol v2 ist im Dashboard noch nicht verdrahtet."
+            if data_ready
             else "Backtest wartet auf Data Gate. Keine Ergebnisse vorhanden."
         ),
         "target_usdc_per_day": 3.0,
@@ -478,7 +478,7 @@ def format_snapshot_for_display(snapshot: Mapping[str, Any]) -> str:
         f"- Current task: {runtime['current_task_id'] or 'none'}",
         f"- Tasks completed/total: {runtime['completed_tasks']}/{runtime['total_tasks']}",
         f"- Backtest blocker: {snapshot['backtest_blocker_summary']}",
-        "- Backtest start runs local backtest / strategy search only. No orders or Trading API.",
+        "- Backtest engine is locked; Research Protocol v2 is not wired to the dashboard.",
         f"- data_prep_status: {prep['status']}",
         f"- engine_start_locked: {prep['engine_start_locked']}",
         f"- last_data_update_plan_summary: {prep['last_data_update_plan_summary']}",
@@ -500,14 +500,15 @@ def _build_backtest_blocker_summary(readiness: Mapping[str, Any]) -> str:
     blockers = []
     if not readiness.get("data_gate_ready"):
         blockers.append(str(readiness.get("backtest_button_reason", "Data readiness is blocked.")))
-    return " ".join(blockers) or "Local backtest engine can run; live/paper/testtrade remain locked."
+    blockers.append("Research Protocol v2 dashboard execution is not wired; engine remains locked.")
+    return " ".join(blockers)
 
 
 def _build_bot_status_text(readiness: Mapping[str, Any], runtime_status: Mapping[str, Any]) -> str:
     if runtime_status.get("phase") not in {"idle", "finished"}:
         return f"Data preparation running: {runtime_status.get('phase')}"
     if readiness.get("data_gate_ready"):
-        return "Data readiness is complete; local backtest strategy search can run. Live/paper/testtrade remain locked."
+        return "Data readiness is complete; dashboard engine remains locked. Use Research Protocol v2 by CLI only after review."
     return "Data readiness is blocked; run dry-run or data loading to inspect missing tasks."
 
 
