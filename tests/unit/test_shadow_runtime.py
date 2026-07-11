@@ -15,6 +15,10 @@ from ethusdc_bot.backtest.portfolio_simulator import simulate_portfolio_strategy
 from ethusdc_bot.backtest.simulator import StrategyCandidate
 from ethusdc_bot.portfolio import PortfolioPolicy, canonical_portfolio_signature
 from ethusdc_bot.shadow import runtime as runtime_module
+from ethusdc_bot.shadow.public_feed import (
+    PublicKlineContinuityError,
+    PublicKlineNetworkError,
+)
 from ethusdc_bot.shadow.runtime import (
     ShadowRuntime,
     ShadowRuntimeIntegrityError,
@@ -398,6 +402,82 @@ def test_invalid_initial_poller_cursor_is_rejected_before_runtime_start(tmp_path
         event["event_type"]
         for event in read_event_log(deployment_dir / "events.jsonl")
     ] == ["deployment_adopted"]
+
+
+def test_direct_pre_adoption_candle_durably_pauses_without_fill(tmp_path):
+    deployment_dir, _, _ = _adopted_dir(tmp_path)
+    runtime = ShadowRuntime.open(deployment_dir)
+    runtime.start()
+
+    result = runtime.process_closed_candles(_candles([100], start_minute=-1))
+
+    assert result.phase == "paused"
+    assert result.processed_candles == 0
+    assert result.trades_emitted == ()
+    assert runtime.state["error"] == "pre_adoption_candle"
+    assert runtime.state["last_processed_candle_open_time_ms"] is None
+    assert read_event_log(deployment_dir / "events.jsonl")[-1]["event_type"] == "shadow_paused"
+
+
+def test_second_stale_runtime_is_rejected_before_append_and_log_remains_valid(
+    tmp_path,
+):
+    deployment_dir, _, _ = _adopted_dir(tmp_path)
+    first = ShadowRuntime.open(deployment_dir)
+    stale = ShadowRuntime.open(deployment_dir)
+    first.start()
+    before = (deployment_dir / "events.jsonl").read_bytes()
+
+    with pytest.raises(ShadowRuntimeStateError, match="snapshot changed"):
+        stale.start()
+
+    assert (deployment_dir / "events.jsonl").read_bytes() == before
+    reopened = ShadowRuntime.open(deployment_dir)
+    assert reopened.state["phase"] == "running"
+    assert reopened.state["event_count"] == 2
+
+
+def test_real_poller_gap_is_durably_paused_and_not_disguised_as_stop(tmp_path):
+    deployment_dir, _, _ = _adopted_dir(tmp_path)
+    runtime = ShadowRuntime.open(deployment_dir)
+    late = _candles([100], start_minute=1)
+
+    with pytest.raises(PublicKlineContinuityError, match="missing minute"):
+        runtime.run_poller(
+            _Stop(),
+            fetcher=lambda **_kwargs: late,
+            sleeper=lambda _seconds: None,
+            clock=lambda: late[-1].open_time + 120_000,
+        )
+
+    assert runtime.state["phase"] == "paused"
+    assert runtime.state["error"] == "public_feed_continuity_error"
+    assert runtime.state["last_processed_candle_open_time_ms"] is None
+    assert read_event_log(deployment_dir / "events.jsonl")[-1]["event_type"] == (
+        "shadow_feed_continuity_paused"
+    )
+    assert ShadowRuntime.open(deployment_dir).state == runtime.state
+
+
+def test_network_failure_is_audited_as_restartable_interruption(tmp_path):
+    deployment_dir, _, _ = _adopted_dir(tmp_path)
+    runtime = ShadowRuntime.open(deployment_dir)
+
+    def unavailable(**_kwargs):
+        raise PublicKlineNetworkError("offline")
+
+    with pytest.raises(PublicKlineNetworkError, match="offline"):
+        runtime.run_poller(_Stop(), fetcher=unavailable)
+
+    assert runtime.state["phase"] == "stopped"
+    assert runtime.state["error"] == "public_feed_network_error"
+    assert read_event_log(deployment_dir / "events.jsonl")[-1]["event_type"] == (
+        "shadow_feed_interrupted"
+    )
+    restarted = ShadowRuntime.open(deployment_dir)
+    restarted.start()
+    assert restarted.state["phase"] == "running"
+    assert restarted.state["error"] is None
 
 
 def _rewrite_valid_hash_chain(path, records):

@@ -47,7 +47,7 @@ def _deployment(
     return {
         "schema_version": 1,
         "deployment_id": "shadow_final_001_replay",
-        "created_at_utc": "2026-07-11T08:00:00Z",
+        "created_at_utc": "2026-01-01T00:00:00Z",
         "mode": "public_data_shadow",
         "status": "adopted",
         "source_report": {
@@ -89,8 +89,8 @@ def _state(*, budget: int = 500) -> dict[str, object]:
         "schema_version": 1,
         "deployment_id": "shadow_final_001_replay",
         "phase": "adopted_stopped",
-        "created_at_utc": "2026-07-11T08:00:00Z",
-        "updated_at_utc": "2026-07-11T08:00:00Z",
+        "created_at_utc": "2026-01-01T00:00:00Z",
+        "updated_at_utc": "2026-01-01T00:00:00Z",
         "deployment_budget_usdc": budget,
         "lot_notional_usdc": 100.0,
         "max_open_lots": policy.max_concurrent_lots,
@@ -180,6 +180,27 @@ def test_off_grid_shadow_timestamp_pauses_before_processing():
     assert result.state.phase == "paused"
     assert result.state.paused_reason == "invalid_candle:open_time_grid"
     assert result.processed_candles == 0
+
+
+@pytest.mark.parametrize(
+    ("start_minute", "reason"),
+    [(-1, "pre_adoption_candle"), (1, "initial_candle_gap")],
+)
+def test_first_shadow_candle_must_match_forward_adoption_cursor(
+    start_minute, reason
+):
+    deployment = _deployment({"max_hold_minutes": 99}, family="always_long")
+
+    result = replay_closed_candles(
+        deployment,
+        start_shadow_replay(deployment, _state()),
+        _candles([100], start_minute=start_minute),
+    )
+
+    assert result.state.phase == "paused"
+    assert result.state.paused_reason == reason
+    assert result.processed_candles == 0
+    assert result.events[-1].event_type == "replay_paused"
 
 
 def test_stop_never_artificially_closes_an_open_hypothetical_lot():

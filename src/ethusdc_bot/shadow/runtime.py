@@ -14,14 +14,15 @@ integration.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
+from contextlib import contextmanager
 from copy import deepcopy
-from dataclasses import asdict, dataclass
-from datetime import datetime
+from dataclasses import asdict, dataclass, replace
 from hashlib import sha256
 import json
+import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from ethusdc_bot.backtest.data_loader import Candle, EXPECTED_STEP_MS
 from ethusdc_bot.backtest.portfolio_simulator import PortfolioTrade
@@ -35,24 +36,31 @@ from ethusdc_bot.shadow.engine import (
 )
 from ethusdc_bot.shadow.public_feed import (
     DEFAULT_POLL_INTERVAL_SECONDS,
+    PublicKlineContinuityError,
+    PublicKlineNetworkError,
+    PublicKlineValidationError,
     run_public_kline_poller,
 )
 from ethusdc_bot.shadow.schema import shadow_safety_status, validate_shadow_state
 from ethusdc_bot.shadow.store import (
     ShadowIntegrityError,
-    append_event,
+    append_event_at_expected_head,
     canonical_json_bytes,
+    iter_verified_events,
     load_deployment,
     load_shadow_state,
-    read_event_log,
     utc_now,
+    verify_event_log,
     write_state_atomic,
 )
+from ethusdc_bot.shadow.timeline import first_shadow_candle_open_time_ms
 
 
 DEPLOYMENT_FILE = "deployment.json"
 STATE_FILE = "state.json"
 EVENTS_FILE = "events.jsonl"
+WRITER_LOCK_FILE = ".writer.lock"
+FULL_CHAIN_VERIFY_INTERVAL = 1_440
 
 _CANDLE_KEYS = {"open_time_ms", "open", "high", "low", "close", "volume"}
 _ADOPTION_EVENT_KEYS = {
@@ -97,7 +105,9 @@ class ShadowProcessResult:
 @dataclass(frozen=True)
 class _RebuiltRuntime:
     replay_state: ShadowReplayState
-    snapshots: tuple[dict[str, Any], ...]
+    current_snapshot: dict[str, Any]
+    claimed_prefix_snapshot: dict[str, Any] | None
+    event_count: int
 
 
 class ShadowRuntime:
@@ -139,27 +149,32 @@ class ShadowRuntime:
         try:
             deployment = load_deployment(deployment_path)
             _verify_bound_source_report(deployment)
-            records = read_event_log(events_path)
             loaded_state = load_shadow_state(state_path)
-            rebuilt = _rebuild_from_events(deployment, records)
+            rebuilt = _rebuild_from_events(
+                deployment,
+                iter_verified_events(events_path),
+                claimed_prefix_event_count=loaded_state["event_count"],
+            )
         except (OSError, ValueError, ShadowIntegrityError) as exc:
             raise ShadowRuntimeIntegrityError(str(exc)) from exc
 
-        current = rebuilt.snapshots[-1]
+        current = rebuilt.current_snapshot
         recovered = False
         if not _json_equal(loaded_state, current):
             event_count = loaded_state.get("event_count")
             if (
                 type(event_count) is not int
                 or event_count < 1
-                or event_count > len(rebuilt.snapshots)
+                or event_count > rebuilt.event_count
             ):
                 raise ShadowRuntimeIntegrityError(
                     "Shadow snapshot event_count is not a valid event prefix"
                 )
-            expected_prefix = rebuilt.snapshots[event_count - 1]
-            if event_count == len(rebuilt.snapshots) or not _json_equal(
-                loaded_state, expected_prefix
+            expected_prefix = rebuilt.claimed_prefix_snapshot
+            if (
+                event_count == rebuilt.event_count
+                or expected_prefix is None
+                or not _json_equal(loaded_state, expected_prefix)
             ):
                 raise ShadowRuntimeIntegrityError(
                     "Shadow snapshot does not match its claimed event prefix"
@@ -348,9 +363,66 @@ class ShadowRuntime:
                 poll_interval_seconds,
                 **public_poller_dependencies,
             )
-        finally:
+        except PublicKlineContinuityError:
+            if self._replay_state.phase == "running":
+                self._record_feed_transition(
+                    "shadow_feed_continuity_paused",
+                    resulting_phase="paused",
+                    reason="public_feed_continuity_error",
+                )
+            raise
+        except PublicKlineValidationError:
+            if self._replay_state.phase == "running":
+                self._record_feed_transition(
+                    "shadow_feed_validation_paused",
+                    resulting_phase="paused",
+                    reason="public_feed_validation_error",
+                )
+            raise
+        except PublicKlineNetworkError:
+            if self._replay_state.phase == "running":
+                self._record_feed_transition(
+                    "shadow_feed_interrupted",
+                    resulting_phase="stopped",
+                    reason="public_feed_network_error",
+                )
+            raise
+        except Exception:
+            if self._replay_state.phase == "running":
+                self._record_feed_transition(
+                    "shadow_feed_error",
+                    resulting_phase="error",
+                    reason="public_feed_poller_error",
+                )
+            raise
+        else:
             if self._replay_state.phase == "running":
                 self.stop()
+
+    def _record_feed_transition(
+        self,
+        event_type: str,
+        *,
+        resulting_phase: str,
+        reason: str,
+    ) -> None:
+        prior_phase = self._replay_state.phase
+        if prior_phase != "running":
+            return
+        next_state = replace(
+            self._replay_state,
+            phase=resulting_phase,
+            paused_reason=reason,
+        )
+        payload = _feed_transition_payload(
+            self.deployment,
+            self._deployment_digest,
+            prior_phase=prior_phase,
+            resulting_phase=resulting_phase,
+            reason=reason,
+            resulting_state_digest=_state_digest(next_state),
+        )
+        self._commit_event(event_type, payload, next_state)
 
     def _event_context(self) -> dict[str, Any]:
         return {
@@ -414,54 +486,100 @@ class ShadowRuntime:
         replay_state: ShadowReplayState,
     ) -> None:
         timestamp = utc_now()
-        try:
-            record = append_event(
-                self.events_path,
-                event_type,
-                payload,
-                timestamp_utc=timestamp,
-            )
-        except (OSError, ValueError) as exc:
-            raise ShadowRuntimeIntegrityError(
-                f"could not durably append Shadow event: {exc}"
-            ) from exc
+        with _exclusive_writer_lock(self.deployment_dir / WRITER_LOCK_FILE):
+            self._assert_current_writer_projection(event_type)
+            try:
+                record = append_event_at_expected_head(
+                    self.events_path,
+                    event_type,
+                    payload,
+                    expected_sequence=self._state["event_count"] + 1,
+                    expected_previous_hash=self._state["last_event_hash"],
+                    timestamp_utc=timestamp,
+                )
+            except (OSError, ValueError) as exc:
+                raise ShadowRuntimeIntegrityError(
+                    f"could not durably append Shadow event: {exc}"
+                ) from exc
 
-        # The fsynced event is now authoritative even if the atomic snapshot
-        # replacement below fails.  Keep the in-memory object aligned with it;
-        # the next explicit open can prove and repair a stale prior snapshot.
-        self._replay_state = replay_state
-        next_snapshot = _snapshot_from_replay(
-            self.deployment,
-            replay_state,
-            event_count=record["sequence"],
-            last_event_hash=record["event_hash"],
-            updated_at_utc=record["timestamp_utc"],
-        )
-        self._state = next_snapshot
+            # The fsynced event is now authoritative even if the atomic
+            # snapshot replacement below fails.  Keep memory aligned so the
+            # next explicit open can prove and repair the earlier snapshot.
+            self._replay_state = replay_state
+            next_snapshot = _snapshot_from_replay(
+                self.deployment,
+                replay_state,
+                event_count=record["sequence"],
+                last_event_hash=record["event_hash"],
+                updated_at_utc=record["timestamp_utc"],
+            )
+            self._state = next_snapshot
+            try:
+                write_state_atomic(self.state_path, next_snapshot)
+            except (OSError, ValueError) as exc:
+                raise ShadowRuntimeIntegrityError(
+                    f"Shadow event is durable but snapshot update failed: {exc}"
+                ) from exc
+
+    def _assert_current_writer_projection(self, event_type: str) -> None:
+        """Reject stale instances and periodically re-audit the full chain."""
+
         try:
-            write_state_atomic(self.state_path, next_snapshot)
-        except (OSError, ValueError) as exc:
+            persisted = load_shadow_state(self.state_path)
+        except (OSError, ValueError, ShadowIntegrityError) as exc:
             raise ShadowRuntimeIntegrityError(
-                f"Shadow event is durable but snapshot update failed: {exc}"
+                f"could not verify current Shadow snapshot before append: {exc}"
             ) from exc
+        if not _json_equal(persisted, self._state):
+            raise ShadowRuntimeStateError(
+                "Shadow writer snapshot changed; reopen before mutating"
+            )
+        next_sequence = self._state["event_count"] + 1
+        full_verify = (
+            event_type != "candle_reduced"
+            or next_sequence % FULL_CHAIN_VERIFY_INTERVAL == 0
+        )
+        if not full_verify:
+            return
+        try:
+            head = verify_event_log(self.events_path)
+        except (OSError, ValueError, ShadowIntegrityError) as exc:
+            raise ShadowRuntimeIntegrityError(
+                f"Shadow event-chain audit failed before append: {exc}"
+            ) from exc
+        if (
+            head["event_count"] != self._state["event_count"]
+            or head["last_event_hash"] != self._state["last_event_hash"]
+        ):
+            raise ShadowRuntimeStateError(
+                "Shadow event head changed; reopen before mutating"
+            )
 
 
 def _rebuild_from_events(
-    deployment: Mapping[str, Any], records: list[dict[str, Any]]
+    deployment: Mapping[str, Any],
+    records: Iterable[dict[str, Any]],
+    *,
+    claimed_prefix_event_count: int,
 ) -> _RebuiltRuntime:
-    if not records:
+    iterator = iter(records)
+    genesis = next(iterator, None)
+    if genesis is None:
         raise ShadowRuntimeIntegrityError("Shadow event log has no adoption event")
-    genesis = records[0]
     _verify_adoption_event(deployment, genesis)
     initial_snapshot = _initial_snapshot(deployment, genesis)
     try:
         replay_state = initialize_shadow_replay(deployment, initial_snapshot)
     except ValueError as exc:
         raise ShadowRuntimeIntegrityError(str(exc)) from exc
-    snapshots: list[dict[str, Any]] = [initial_snapshot]
+    current_snapshot = initial_snapshot
+    claimed_prefix_snapshot = (
+        initial_snapshot if claimed_prefix_event_count == 1 else None
+    )
+    event_count = 1
     deployment_digest = sha256(canonical_json_bytes(deployment)).hexdigest()
 
-    for record in records[1:]:
+    for record in iterator:
         event_type = record["event_type"]
         payload = record["payload"]
         if event_type == "shadow_started":
@@ -523,6 +641,25 @@ def _rebuild_from_events(
                 expected = _paused_payload(
                     deployment, deployment_digest, candle, reduction
                 )
+        elif event_type in _FEED_TRANSITIONS:
+            if replay_state.phase != "running":
+                raise ShadowRuntimeIntegrityError(
+                    f"{event_type} event is invalid outside running phase"
+                )
+            resulting_phase, reason = _FEED_TRANSITIONS[event_type]
+            next_state = replace(
+                replay_state,
+                phase=resulting_phase,
+                paused_reason=reason,
+            )
+            expected = _feed_transition_payload(
+                deployment,
+                deployment_digest,
+                prior_phase="running",
+                resulting_phase=resulting_phase,
+                reason=reason,
+                resulting_state_digest=_state_digest(next_state),
+            )
         else:
             raise ShadowRuntimeIntegrityError(
                 f"unsupported Shadow runtime event type: {event_type!r}"
@@ -533,16 +670,22 @@ def _rebuild_from_events(
                 f"Shadow event {record['sequence']} payload disagrees with deterministic replay"
             )
         replay_state = next_state
-        snapshots.append(
-            _snapshot_from_replay(
-                deployment,
-                replay_state,
-                event_count=record["sequence"],
-                last_event_hash=record["event_hash"],
-                updated_at_utc=record["timestamp_utc"],
-            )
+        event_count = record["sequence"]
+        current_snapshot = _snapshot_from_replay(
+            deployment,
+            replay_state,
+            event_count=event_count,
+            last_event_hash=record["event_hash"],
+            updated_at_utc=record["timestamp_utc"],
         )
-    return _RebuiltRuntime(replay_state, tuple(snapshots))
+        if event_count == claimed_prefix_event_count:
+            claimed_prefix_snapshot = current_snapshot
+    return _RebuiltRuntime(
+        replay_state,
+        current_snapshot,
+        claimed_prefix_snapshot,
+        event_count,
+    )
 
 
 def _verify_bound_source_report(deployment: Mapping[str, Any]) -> None:
@@ -680,11 +823,7 @@ def _snapshot_from_replay(
         else realized
     )
     policy = deployment["portfolio_policy"]["policy"]
-    error = (
-        replay_state.paused_reason
-        if replay_state.phase in {"paused", "error"}
-        else None
-    )
+    error = replay_state.paused_reason
     state = {
         "schema_version": 1,
         "deployment_id": deployment["deployment_id"],
@@ -710,6 +849,7 @@ def _snapshot_from_replay(
 
 
 def _state_digest(state: ShadowReplayState) -> str:
+    engine = state.engine_state
     payload = {
         "schema_version": 1,
         "deployment_id": state.deployment_id,
@@ -717,13 +857,89 @@ def _state_digest(state: ShadowReplayState) -> str:
         "paused_reason": state.paused_reason,
         "strategy": asdict(state.strategy),
         "portfolio_policy": state.policy.to_dict(),
-        "engine_state": asdict(state.engine_state),
+        # The append-only event chain already binds every historical candle.
+        # Keep this per-event reducer digest bounded while committing all
+        # forward-relevant state and cumulative counters.
+        "engine_state": {
+            "candle_count": len(engine.candles),
+            "last_candle": asdict(engine.candles[-1]) if engine.candles else None,
+            "open_lots": [asdict(lot) for lot in engine.open_lots],
+            "pending_entry": (
+                asdict(engine.pending_entry)
+                if engine.pending_entry is not None
+                else None
+            ),
+            "cooldown_until_index": engine.cooldown_until_index,
+            "realized_net_usdc": engine.realized_net_usdc,
+            "trade_count": len(engine.trades),
+            "last_trade": asdict(engine.trades[-1]) if engine.trades else None,
+            "capacity_rejection_count": len(engine.capacity_rejections),
+            "last_capacity_rejection": (
+                asdict(engine.capacity_rejections[-1])
+                if engine.capacity_rejections
+                else None
+            ),
+            "equity_point_count": len(engine.equity_curve),
+            "last_equity_point": (
+                asdict(engine.equity_curve[-1]) if engine.equity_curve else None
+            ),
+            "next_lot_sequence": engine.next_lot_sequence,
+            "max_concurrent_lots": engine.max_concurrent_lots,
+            "max_open_entry_exposure_usdc": engine.max_open_entry_exposure_usdc,
+            "max_reserved_notional_usdc": engine.max_reserved_notional_usdc,
+        },
         "next_event_sequence": state.next_event_sequence,
         "hypothetical": True,
         "orders_enabled": False,
         "trading_api_enabled": False,
     }
     return sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+@contextmanager
+def _exclusive_writer_lock(path: Path) -> Iterator[None]:
+    """Hold a cross-process byte lock for one append/snapshot transaction."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = path.open("a+b")
+    locked = False
+    try:
+        handle.seek(0, os.SEEK_END)
+        if handle.tell() == 0:
+            handle.write(b"\0")
+            handle.flush()
+            os.fsync(handle.fileno())
+        handle.seek(0)
+        try:
+            if os.name == "nt":
+                import msvcrt
+
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            locked = True
+        except OSError as exc:
+            raise ShadowRuntimeStateError(
+                "another Shadow writer currently owns this deployment"
+            ) from exc
+        yield
+    finally:
+        if locked:
+            handle.seek(0)
+            try:
+                if os.name == "nt":
+                    import msvcrt
+
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                pass
+        handle.close()
 
 
 def _event_context(
@@ -756,6 +972,32 @@ def _lifecycle_payload(
         "context": _event_context(deployment, deployment_digest),
         "prior_phase": prior_phase,
         "resulting_phase": resulting_phase,
+        "resulting_state_digest": resulting_state_digest,
+    }
+
+
+_FEED_TRANSITIONS = {
+    "shadow_feed_continuity_paused": ("paused", "public_feed_continuity_error"),
+    "shadow_feed_validation_paused": ("paused", "public_feed_validation_error"),
+    "shadow_feed_interrupted": ("stopped", "public_feed_network_error"),
+    "shadow_feed_error": ("error", "public_feed_poller_error"),
+}
+
+
+def _feed_transition_payload(
+    deployment: Mapping[str, Any],
+    deployment_digest: str,
+    *,
+    prior_phase: str,
+    resulting_phase: str,
+    reason: str,
+    resulting_state_digest: str,
+) -> dict[str, Any]:
+    return {
+        "context": _event_context(deployment, deployment_digest),
+        "prior_phase": prior_phase,
+        "resulting_phase": resulting_phase,
+        "reason": reason,
         "resulting_state_digest": resulting_state_digest,
     }
 
@@ -833,18 +1075,12 @@ def _json_equal(left: object, right: object) -> bool:
 
 
 def _first_post_adoption_minute(value: object) -> int:
-    if not isinstance(value, str) or not value.endswith("Z"):
-        raise ShadowRuntimeStateError("deployment creation timestamp is invalid")
     try:
-        timestamp_ms = int(
-            datetime.fromisoformat(value[:-1] + "+00:00").timestamp() * 1000
-        )
+        return first_shadow_candle_open_time_ms(value)
     except ValueError as exc:
         raise ShadowRuntimeStateError(
             "deployment creation timestamp is invalid"
         ) from exc
-    quotient, remainder = divmod(timestamp_ms, EXPECTED_STEP_MS)
-    return (quotient + (1 if remainder else 0)) * EXPECTED_STEP_MS
 
 
 def _reject_json_constant(value: str) -> None:

@@ -72,6 +72,7 @@ def test_training_button_starts_only_the_injected_training_wfv_controller(monkey
     app.last_run_status = {}
     app.training_research_status = {"phase": "initial", "running": False}
     app.final_evaluation_runtime_status = {"phase": "initial", "running": False}
+    app.shadow_controller_status = {"phase": "initial", "running": False}
     app.training_reports_root = tmp_path / "runtime/reports/research_loop"
     app.final_reports_root = tmp_path / "runtime/reports/sealed_holdout_final"
     app.shadow_root = tmp_path / "runtime/shadow"
@@ -106,6 +107,7 @@ def test_shadow_adoption_button_requires_confirmation_and_stays_order_free(monke
     app.last_run_status = {}
     app.training_research_status = {"phase": "completed", "running": False}
     app.final_evaluation_runtime_status = {"phase": "completed", "running": False}
+    app.shadow_controller_status = {"phase": "initial", "running": False}
     app.training_reports_root = tmp_path / "runtime/reports/research_loop"
     app.final_reports_root = tmp_path
     app.shadow_root = tmp_path / "runtime/shadow"
@@ -167,6 +169,7 @@ def test_final_button_requires_confirmation_and_starts_one_shot_controller(monke
     app.final_evaluation_controller = FinalController()
     app.training_research_status = {"phase": "completed", "running": False}
     app.final_evaluation_runtime_status = {"phase": "initial", "running": False}
+    app.shadow_controller_status = {"phase": "initial", "running": False}
     app.training_reports_root = tmp_path / "reports/research_loop"
     app.final_reports_root = tmp_path / "reports/sealed_holdout_final"
     app.reports_root = tmp_path / "reports"
@@ -194,6 +197,87 @@ def test_final_button_requires_confirmation_and_starts_one_shot_controller(monke
 
     assert len(calls) == 1
     assert calls[0][:3] == (str(source), app.local_root, app.reports_root)
+
+
+def test_shadow_start_button_uses_only_explicit_injected_controller(monkeypatch, tmp_path):
+    module = importlib.import_module("ethusdc_bot.ui.dashboard")
+    app = module.DashboardApp.__new__(module.DashboardApp)
+    deployment_dir = tmp_path / "runtime/shadow/shadow_test"
+    calls = []
+
+    class Controller:
+        is_running = False
+
+        def start(self, path, status_callback=None):
+            calls.append((path, status_callback))
+            return object(), {
+                "status": {
+                    "phase": "running",
+                    "running": True,
+                    "completed": False,
+                    "error": None,
+                    "may_trigger_orders": False,
+                    "may_submit_orders": False,
+                    "live_enabled": False,
+                }
+            }
+
+    app.repository_root = ROOT
+    app.local_root = tmp_path
+    app.last_run_status = {}
+    app.training_research_status = {"phase": "completed", "running": False}
+    app.final_evaluation_runtime_status = {"phase": "completed", "running": False}
+    app.shadow_controller = Controller()
+    app.shadow_controller_status = {"phase": "initial", "running": False}
+    app.training_reports_root = tmp_path / "runtime/reports/research_loop"
+    app.final_reports_root = tmp_path / "runtime/reports/sealed_holdout_final"
+    app.shadow_root = tmp_path / "runtime/shadow"
+    app.log_queue = SimpleNamespace(put=lambda value: None)
+    app._selected_deployment_budget = lambda: 100
+    app._apply_shadow_controller_status = lambda status: None
+    app.refresh_status = lambda: calls.append("refresh")
+    app._log = lambda value: None
+    monkeypatch.setattr(
+        module,
+        "build_dashboard_snapshot",
+        lambda *args, **kwargs: {
+            "ui_status": {
+                "shadow_start_button": {
+                    "enabled": True,
+                    "deployment_dir": str(deployment_dir),
+                }
+            }
+        },
+    )
+
+    app.start_shadow_runtime()
+
+    assert calls[0][0] == str(deployment_dir)
+    assert callable(calls[0][1])
+    assert calls[1] == "refresh"
+    assert app.shadow_controller_status["may_trigger_orders"] is False
+    assert app.shadow_controller_status["may_submit_orders"] is False
+    assert app.shadow_controller_status["live_enabled"] is False
+
+
+def test_shadow_stop_button_is_cooperative_and_does_not_touch_orders():
+    module = importlib.import_module("ethusdc_bot.ui.dashboard")
+    app = module.DashboardApp.__new__(module.DashboardApp)
+    status = {
+        "phase": "stopping",
+        "running": True,
+        "stop_requested": True,
+        "may_trigger_orders": False,
+        "may_submit_orders": False,
+        "live_enabled": False,
+    }
+    app.shadow_controller = SimpleNamespace(stop=lambda: dict(status))
+    app._apply_shadow_controller_status = lambda value: None
+    app.refresh_status = lambda: None
+
+    app.stop_shadow_runtime()
+
+    assert app.shadow_controller_status == status
 
 
 def test_operator_runtime_text_shows_running_file_progress():

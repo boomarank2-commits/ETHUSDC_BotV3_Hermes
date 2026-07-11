@@ -10,7 +10,10 @@ from ethusdc_bot.shadow.store import (
     GENESIS_HASH,
     ShadowIntegrityError,
     append_event,
+    append_event_at_expected_head,
     canonical_json_bytes,
+    iter_verified_events,
+    read_event_tail,
     read_event_log,
     verify_event_log,
 )
@@ -83,4 +86,58 @@ def test_empty_or_missing_event_log_has_verified_genesis_state(tmp_path):
         "valid": True,
         "event_count": 0,
         "last_event_hash": GENESIS_HASH,
+    }
+
+
+def test_expected_head_append_rejects_stale_writer_without_touching_log(tmp_path):
+    path = tmp_path / "events.jsonl"
+    first = append_event(path, "deployment_adopted", {"budget": 100})
+    second = append_event_at_expected_head(
+        path,
+        "shadow_started",
+        {"public_data_only": True},
+        expected_sequence=2,
+        expected_previous_hash=first["event_hash"],
+    )
+    before = path.read_bytes()
+
+    with pytest.raises(ShadowIntegrityError, match="head changed"):
+        append_event_at_expected_head(
+            path,
+            "stale_writer",
+            {},
+            expected_sequence=2,
+            expected_previous_hash=first["event_hash"],
+        )
+
+    assert path.read_bytes() == before
+    assert read_event_log(path)[-1] == second
+
+
+def test_expected_head_append_rejects_partial_tail(tmp_path):
+    path = tmp_path / "events.jsonl"
+    first = append_event(path, "deployment_adopted", {"budget": 100})
+    with path.open("ab") as handle:
+        handle.write(b"partial")
+
+    with pytest.raises(ShadowIntegrityError, match="partial record"):
+        append_event_at_expected_head(
+            path,
+            "shadow_started",
+            {},
+            expected_sequence=2,
+            expected_previous_hash=first["event_hash"],
+        )
+
+
+def test_streaming_verifier_and_tail_cursor_match_full_read(tmp_path):
+    path = tmp_path / "events.jsonl"
+    first = append_event(path, "deployment_adopted", {"budget": 100})
+    second = append_event(path, "shadow_started", {"public_data_only": True})
+
+    assert list(iter_verified_events(path)) == [first, second]
+    assert read_event_tail(path) == {
+        "valid": True,
+        "event_count": 2,
+        "last_event_hash": second["event_hash"],
     }

@@ -20,12 +20,15 @@ from ethusdc_bot.shadow.adoption import assess_final_report
 from ethusdc_bot.shadow.store import (
     load_deployment,
     load_shadow_state,
-    verify_event_log,
+    read_event_tail,
 )
 from ethusdc_bot.ui.backtest_controller import build_initial_training_research_status
 from ethusdc_bot.ui.final_evaluation_controller import (
     build_initial_final_evaluation_status,
     discover_latest_frozen_research_report,
+)
+from ethusdc_bot.ui.shadow_controller import (
+    build_initial_shadow_status as build_initial_shadow_control_status,
 )
 from ethusdc_bot.ui.data_update_controller import (
     build_data_update_plan,
@@ -126,6 +129,7 @@ def collect_shadow_runtime_status(shadow_root: str | Path) -> dict[str, Any]:
         return {
             "status": "not_adopted",
             "deployment_id": None,
+            "deployment_dir": None,
             "phase": "not_started",
             "deployment_budget_usdc": None,
             "lot_notional_usdc": 100.0,
@@ -143,7 +147,7 @@ def collect_shadow_runtime_status(shadow_root: str | Path) -> dict[str, Any]:
     try:
         deployment = load_deployment(deployment_dir / "deployment.json")
         state = load_shadow_state(deployment_dir / "state.json")
-        event_status = verify_event_log(deployment_dir / "events.jsonl")
+        event_status = read_event_tail(deployment_dir / "events.jsonl")
         if deployment["deployment_id"] != state["deployment_id"]:
             raise ValueError("deployment/state id mismatch")
         if state["event_count"] != event_status["event_count"]:
@@ -154,6 +158,7 @@ def collect_shadow_runtime_status(shadow_root: str | Path) -> dict[str, Any]:
         return {
             "status": "integrity_error",
             "deployment_id": deployment_dir.name,
+            "deployment_dir": str(deployment_dir),
             "phase": "error",
             "deployment_budget_usdc": None,
             "lot_notional_usdc": 100.0,
@@ -170,6 +175,7 @@ def collect_shadow_runtime_status(shadow_root: str | Path) -> dict[str, Any]:
     return {
         "status": "valid",
         "deployment_id": state["deployment_id"],
+        "deployment_dir": str(deployment_dir),
         "phase": state["phase"],
         "deployment_budget_usdc": state["deployment_budget_usdc"],
         "lot_notional_usdc": state["lot_notional_usdc"],
@@ -278,6 +284,7 @@ def build_dashboard_snapshot(
     deployment_budget_usdc: int = 100,
     training_research_status: Mapping[str, Any] | None = None,
     final_evaluation_runtime_status: Mapping[str, Any] | None = None,
+    shadow_controller_status: Mapping[str, Any] | None = None,
     training_reports_root: str | Path | None = None,
     final_reports_root: str | Path | None = None,
     shadow_root: str | Path | None = None,
@@ -304,6 +311,9 @@ def build_dashboard_snapshot(
     final_runtime_status = dict(
         final_evaluation_runtime_status or build_initial_final_evaluation_status()
     )
+    shadow_control_status = dict(
+        shadow_controller_status or build_initial_shadow_control_status()
+    )
     local_path = Path(local_root)
     research_root = (
         Path(training_reports_root)
@@ -323,8 +333,17 @@ def build_dashboard_snapshot(
     data_ready = bool(data_readiness_report.get("data_gate_ready"))
     research_running = bool(training_status.get("running"))
     final_running = bool(final_runtime_status.get("running"))
+    shadow_running = bool(shadow_control_status.get("running"))
     can_start_training = data_ready and not research_running and not final_running
-    can_adopt_shadow = bool(final_status["shadow_eligible"])
+    can_adopt_shadow = bool(final_status["shadow_eligible"]) and not shadow_running
+    can_start_shadow = bool(
+        shadow_status["status"] == "valid"
+        and shadow_status["phase"] in {"adopted_stopped", "stopped", "running"}
+        and not shadow_running
+    )
+    can_stop_shadow = bool(
+        shadow_running and not shadow_control_status.get("stop_requested")
+    )
     can_run_final = bool(
         frozen_research_status["status"] == "ready_for_explicit_one_shot"
         and not research_running
@@ -347,6 +366,7 @@ def build_dashboard_snapshot(
         "frozen_research_status": frozen_research_status,
         "final_evaluation_status": final_status,
         "shadow_runtime_status": shadow_status,
+        "shadow_controller_status": shadow_control_status,
         "final_reports_root": str(final_root),
         "training_reports_root": str(research_root),
         "shadow_root": str(shadow_state_root),
@@ -414,6 +434,30 @@ def build_dashboard_snapshot(
                 "hint": (
                     "Irreversible one-shot final evaluation. A persistent claim is created "
                     "before the sealed candles are loaded; failures must not be retried."
+                ),
+            },
+            "shadow_start_button": {
+                "visible": True,
+                "enabled": can_start_shadow,
+                "action": "start_public_data_only_shadow_runtime",
+                "deployment_dir": shadow_status.get("deployment_dir"),
+                "orders_enabled": False,
+                "trading_api_enabled": False,
+                "live_enabled": False,
+                "hint": (
+                    "Explicitly starts or resumes hypothetical Shadow replay from "
+                    "the exact persisted public-data cursor. It never creates orders."
+                ),
+            },
+            "shadow_stop_button": {
+                "visible": True,
+                "enabled": can_stop_shadow,
+                "action": "cooperatively_stop_public_shadow_runtime",
+                "orders_enabled": False,
+                "trading_api_enabled": False,
+                "live_enabled": False,
+                "hint": (
+                    "Stops public candle consumption without closing hypothetical lots."
                 ),
             },
             "live_paper_testtrade": "locked",
@@ -535,6 +579,7 @@ def format_operator_summary_for_display(snapshot: Mapping[str, Any]) -> str:
     portfolio = snapshot["portfolio_status"]
     final = snapshot["final_evaluation_status"]
     shadow = snapshot["shadow_runtime_status"]
+    shadow_control = snapshot["shadow_controller_status"]
     research = snapshot["training_research_status"]
     frozen = snapshot["frozen_research_status"]
     final_runtime = snapshot["final_evaluation_runtime_status"]
@@ -587,6 +632,12 @@ def format_operator_summary_for_display(snapshot: Mapping[str, Any]) -> str:
             f"{shadow['status']} / {shadow['phase']} / "
             f"Lots {shadow['open_lots']}/{shadow['max_open_lots']} / "
             "Orders=false, Trading-API=false"
+        ),
+        (
+            "Shadow-Steuerung: "
+            f"{shadow_control.get('phase')} / "
+            f"aktiv={shadow_control.get('running')} / "
+            f"Fehler={shadow_control.get('error')}"
         ),
         "",
         "Datenstatus:",

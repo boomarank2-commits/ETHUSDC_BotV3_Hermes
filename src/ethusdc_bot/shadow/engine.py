@@ -29,6 +29,7 @@ from ethusdc_bot.shadow.schema import (
     validate_shadow_deployment,
     validate_shadow_state,
 )
+from ethusdc_bot.shadow.timeline import first_shadow_candle_open_time_ms
 
 
 class ShadowReplayError(ValueError):
@@ -249,7 +250,23 @@ def replay_closed_candles(
             break
 
         last_timestamp = current.last_processed_candle_open_time_ms
-        if last_timestamp is not None:
+        if last_timestamp is None:
+            try:
+                expected_first = first_shadow_candle_open_time_ms(
+                    deployment.get("created_at_utc")
+                )
+            except ValueError as exc:
+                raise ShadowReplayError(str(exc)) from exc
+            if timestamp != expected_first:
+                reason = (
+                    "pre_adoption_candle"
+                    if timestamp < expected_first
+                    else "initial_candle_gap"
+                )
+                current, pause_event = _pause(current, reason, timestamp)
+                events.append(pause_event)
+                break
+        else:
             if timestamp < last_timestamp:
                 current, pause_event = _pause(
                     current, "out_of_order_candle", timestamp

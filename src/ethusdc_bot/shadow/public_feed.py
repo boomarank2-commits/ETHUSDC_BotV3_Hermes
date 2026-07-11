@@ -50,6 +50,10 @@ class PublicKlinePollerError(PublicKlineFeedError):
     """Raised when a poller dependency or callback fails."""
 
 
+class PublicKlineContinuityError(PublicKlinePollerError):
+    """Raised when the public poller observes a missing forward minute."""
+
+
 class _StopEvent(Protocol):
     def is_set(self) -> bool: ...
 
@@ -210,7 +214,7 @@ def run_public_kline_poller(
                 else last_emitted_open + INTERVAL_MS
             )
             if new_candles[0].open_time != expected_open:
-                raise PublicKlinePollerError(
+                raise PublicKlineContinuityError(
                     "public kline poller detected a missing minute"
                 )
             callback_last_open = new_candles[-1].open_time

@@ -289,6 +289,8 @@ def test_snapshot_exposes_fixed_lot_budget_and_order_free_shadow_controls(tmp_pa
     portfolio = snapshot["portfolio_status"]
     adopt = snapshot["ui_status"]["shadow_adopt_button"]
     final_button = snapshot["ui_status"]["sealed_final_button"]
+    shadow_start = snapshot["ui_status"]["shadow_start_button"]
+    shadow_stop = snapshot["ui_status"]["shadow_stop_button"]
     shadow = snapshot["shadow_runtime_status"]
     assert portfolio["deployment_budget_usdc"] == 500
     assert portfolio["lot_notional_usdc"] == 100.0
@@ -302,8 +304,31 @@ def test_snapshot_exposes_fixed_lot_budget_and_order_free_shadow_controls(tmp_pa
     assert final_button["orders_enabled"] is False
     assert final_button["trading_api_enabled"] is False
     assert final_button["live_enabled"] is False
+    assert shadow_start["enabled"] is False
+    assert shadow_start["orders_enabled"] is False
+    assert shadow_start["trading_api_enabled"] is False
+    assert shadow_start["live_enabled"] is False
+    assert shadow_stop["enabled"] is False
+    assert shadow_stop["orders_enabled"] is False
     assert shadow["status"] == "not_adopted"
     assert shadow["orders_enabled"] is False
+
+
+def test_snapshot_exposes_cooperative_shadow_stop_only_while_worker_runs(tmp_path):
+    snapshot = dashboard_state.build_dashboard_snapshot(
+        Path.cwd(),
+        tmp_path,
+        shadow_controller_status={
+            "phase": "running",
+            "running": True,
+            "stop_requested": False,
+            "error": None,
+        },
+    )
+
+    assert snapshot["ui_status"]["shadow_start_button"]["enabled"] is False
+    assert snapshot["ui_status"]["shadow_stop_button"]["enabled"] is True
+    assert snapshot["shadow_controller_status"]["running"] is True
 
 
 def test_final_status_is_read_only_and_reports_no_final_evaluation(tmp_path):

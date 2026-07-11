@@ -26,6 +26,10 @@ from ethusdc_bot.ui.final_evaluation_controller import (
     FinalEvaluationController,
     build_initial_final_evaluation_status,
 )
+from ethusdc_bot.ui.shadow_controller import (
+    ShadowController,
+    build_initial_shadow_status,
+)
 from ethusdc_bot.ui.dashboard_state import (
     BACKTEST_DISABLED_HINT,
     build_dashboard_snapshot,
@@ -116,6 +120,8 @@ class DashboardApp:
         self.training_research_status = build_initial_training_research_status()
         self.final_evaluation_controller = FinalEvaluationController()
         self.final_evaluation_runtime_status = build_initial_final_evaluation_status()
+        self.shadow_controller = ShadowController()
+        self.shadow_controller_status = build_initial_shadow_status()
         self.current_snapshot: dict[str, object] | None = None
         self.training_reports_root = self.local_root / "runtime" / "reports" / "research_loop"
         self.reports_root = self.local_root / "runtime" / "reports"
@@ -126,6 +132,7 @@ class DashboardApp:
         self.root.geometry("1180x900")
 
         self._build_widgets()
+        self.root.protocol("WM_DELETE_WINDOW", self.close_dashboard)
         self.refresh_status()
         self._drain_log_queue()
         self._heartbeat_active_run()
@@ -192,6 +199,29 @@ class DashboardApp:
         )
         self.adopt_shadow_button.pack(side=tk.LEFT, padx=(16, 4))
 
+        shadow_action_bar = ttk.Frame(self.root, padding=(8, 0, 8, 8))
+        shadow_action_bar.pack(fill=tk.X)
+        ttk.Label(
+            shadow_action_bar,
+            text="Oeffentliche ETHUSDC-Daten / nur hypothetischer Shadow:",
+        ).pack(side=tk.LEFT, padx=4)
+        self.shadow_start_button = ttk.Button(
+            shadow_action_bar,
+            text="Shadow starten/fortsetzen",
+            command=self.start_shadow_runtime,
+        )
+        self.shadow_start_button.pack(side=tk.LEFT, padx=4)
+        self.shadow_stop_button = ttk.Button(
+            shadow_action_bar,
+            text="Shadow stoppen",
+            command=self.stop_shadow_runtime,
+        )
+        self.shadow_stop_button.pack(side=tk.LEFT, padx=4)
+        ttk.Label(
+            shadow_action_bar,
+            text="Keine Orders | keine API-Keys | kein Konto-Zugriff",
+        ).pack(side=tk.LEFT, padx=(16, 4))
+
         runtime_frame.pack(fill=tk.X, padx=8, pady=(0, 8))
         self.bot_state_var = tk.StringVar(value="Bot-Status: Bereit")
         self.phase_var = tk.StringVar(value="Datenstatus: wird ermittelt")
@@ -244,6 +274,7 @@ class DashboardApp:
                 deployment_budget_usdc=self._selected_deployment_budget(),
                 training_research_status=self.training_research_status,
                 final_evaluation_runtime_status=self.final_evaluation_runtime_status,
+                shadow_controller_status=self.shadow_controller_status,
                 training_reports_root=self.training_reports_root,
                 final_reports_root=self.final_reports_root,
                 shadow_root=self.shadow_root,
@@ -323,6 +354,7 @@ class DashboardApp:
             deployment_budget_usdc=self._selected_deployment_budget(),
             training_research_status=self.training_research_status,
             final_evaluation_runtime_status=self.final_evaluation_runtime_status,
+            shadow_controller_status=self.shadow_controller_status,
             training_reports_root=self.training_reports_root,
             final_reports_root=self.final_reports_root,
             shadow_root=self.shadow_root,
@@ -372,6 +404,7 @@ class DashboardApp:
             deployment_budget_usdc=self._selected_deployment_budget(),
             training_research_status=self.training_research_status,
             final_evaluation_runtime_status=self.final_evaluation_runtime_status,
+            shadow_controller_status=self.shadow_controller_status,
             training_reports_root=self.training_reports_root,
             final_reports_root=self.final_reports_root,
             shadow_root=self.shadow_root,
@@ -424,6 +457,7 @@ class DashboardApp:
             deployment_budget_usdc=self._selected_deployment_budget(),
             training_research_status=self.training_research_status,
             final_evaluation_runtime_status=self.final_evaluation_runtime_status,
+            shadow_controller_status=self.shadow_controller_status,
             training_reports_root=self.training_reports_root,
             final_reports_root=self.final_reports_root,
             shadow_root=self.shadow_root,
@@ -461,6 +495,73 @@ class DashboardApp:
             "Kandidat wurde orderfrei uebernommen und bleibt gestoppt. Keine echte Order wurde erzeugt.",
         )
         self.refresh_status()
+
+    def start_shadow_runtime(self) -> None:
+        """Explicitly start or resume public-data-only hypothetical replay."""
+
+        if self.shadow_controller.is_running:
+            self._log("Shadow public-data runtime is already running.")
+            return
+        snapshot = build_dashboard_snapshot(
+            self.repository_root,
+            self.local_root,
+            data_prep_last_run_status=self.last_run_status,
+            deployment_budget_usdc=self._selected_deployment_budget(),
+            training_research_status=self.training_research_status,
+            final_evaluation_runtime_status=self.final_evaluation_runtime_status,
+            shadow_controller_status=self.shadow_controller_status,
+            training_reports_root=self.training_reports_root,
+            final_reports_root=self.final_reports_root,
+            shadow_root=self.shadow_root,
+        )
+        button = snapshot["ui_status"]["shadow_start_button"]
+        deployment_dir = button.get("deployment_dir")
+        if not button.get("enabled") or not isinstance(deployment_dir, str):
+            messagebox.showwarning(
+                "Shadow-Start gesperrt",
+                (
+                    "Kein gueltiges gestopptes/fortsetzbares Shadow-Deployment. "
+                    "Bei Datenintegritaetsfehlern bleibt Shadow absichtlich pausiert."
+                ),
+            )
+            return
+        try:
+            _thread, container = self.shadow_controller.start(
+                deployment_dir,
+                status_callback=lambda status: self.log_queue.put(
+                    ("shadow_controller", status)
+                ),
+            )
+        except Exception as exc:
+            self._log(f"Could not start public Shadow runtime: {exc}")
+            messagebox.showerror("Shadow-Start fehlgeschlagen", str(exc))
+            return
+        self.shadow_controller_status = dict(container["status"])
+        self._apply_shadow_controller_status(self.shadow_controller_status)
+        self.refresh_status()
+
+    def stop_shadow_runtime(self) -> None:
+        """Cooperatively stop the poller without closing hypothetical lots."""
+
+        self.shadow_controller_status = self.shadow_controller.stop()
+        self._apply_shadow_controller_status(self.shadow_controller_status)
+        self.refresh_status()
+
+    def close_dashboard(self) -> None:
+        """Request an orderly Shadow stop before closing the local UI."""
+
+        if self.shadow_controller.is_running:
+            self.shadow_controller_status = self.shadow_controller.stop()
+            self._log("Dashboard closes after the public Shadow worker stops.")
+            self._wait_for_shadow_shutdown(0)
+            return
+        self.root.destroy()
+
+    def _wait_for_shadow_shutdown(self, attempt: int) -> None:
+        if not self.shadow_controller.is_running or attempt >= 120:
+            self.root.destroy()
+            return
+        self.root.after(100, lambda: self._wait_for_shadow_shutdown(attempt + 1))
 
     def _selected_deployment_budget(self) -> int:
         value = getattr(self, "deployment_budget_var", None)
@@ -520,6 +621,18 @@ class DashboardApp:
                 message = self.log_queue.get_nowait()
             except queue.Empty:
                 break
+            if (
+                isinstance(message, tuple)
+                and len(message) == 2
+                and message[0] == "shadow_controller"
+                and isinstance(message[1], dict)
+            ):
+                self.shadow_controller_status = dict(message[1])
+                self._apply_shadow_controller_status(
+                    self.shadow_controller_status
+                )
+                self.refresh_status()
+                continue
             if (
                 isinstance(message, tuple)
                 and len(message) == 2
@@ -661,13 +774,36 @@ class DashboardApp:
                 f"report={status.get('final_report_path')}, retry_allowed=false"
             )
 
+    def _apply_shadow_controller_status(self, status: dict[str, object]) -> None:
+        phase = str(status.get("phase", "initial"))
+        if status.get("running"):
+            self.bot_state_var.set("Bot-Status: Shadow beobachtet oeffentliche Daten")
+            self.shadow_var.set(
+                "Shadow: "
+                f"{phase} / nur hypothetisch / Orders aus / Trading-API aus"
+            )
+            return
+        if phase == "completed":
+            self._log(
+                "Shadow public-data runtime stopped cleanly; open hypothetical "
+                "lots were retained."
+            )
+        elif phase == "failed":
+            self._log(
+                "Shadow public-data runtime failed closed: "
+                f"{status.get('error')}"
+            )
+
     def _apply_product_status(self, snapshot: dict[str, object]) -> None:
         portfolio = snapshot["portfolio_status"]
         final = snapshot["final_evaluation_status"]
         shadow = snapshot["shadow_runtime_status"]
+        shadow_control = snapshot["shadow_controller_status"]
         backtest_button = snapshot["ui_status"]["backtest_start_button"]
         adopt_button = snapshot["ui_status"]["shadow_adopt_button"]
         final_button = snapshot["ui_status"]["sealed_final_button"]
+        shadow_start_button = snapshot["ui_status"]["shadow_start_button"]
+        shadow_stop_button = snapshot["ui_status"]["shadow_stop_button"]
         self.portfolio_var.set(
             "Portfolio: "
             f"{portfolio['deployment_budget_usdc']} USDC / "
@@ -684,6 +820,7 @@ class DashboardApp:
             "Shadow: "
             f"{shadow['status']} / {shadow['phase']} / "
             f"Lots {shadow['open_lots']}/{shadow['max_open_lots']} / "
+            f"Steuerung {shadow_control.get('phase')} / "
             "Orders aus / Trading-API aus"
         )
         data_running = self.active_data_thread is not None and self.active_data_thread.is_alive()
@@ -699,6 +836,12 @@ class DashboardApp:
         )
         self.adopt_shadow_button.configure(
             state=tk.NORMAL if adopt_button["enabled"] else tk.DISABLED
+        )
+        self.shadow_start_button.configure(
+            state=tk.NORMAL if shadow_start_button["enabled"] else tk.DISABLED
+        )
+        self.shadow_stop_button.configure(
+            state=tk.NORMAL if shadow_stop_button["enabled"] else tk.DISABLED
         )
         if (
             not self.training_research_status.get("running")
