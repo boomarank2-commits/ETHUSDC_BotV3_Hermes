@@ -20,6 +20,10 @@ from ethusdc_bot.backtest.walk_forward_evidence import (
     FoldSelectionObservation,
     build_walk_forward_selection_evidence,
 )
+from ethusdc_bot.backtest.walk_forward_evidence import (
+    FoldSelectionObservation,
+    build_walk_forward_selection_evidence,
+)
 from ethusdc_bot.backtest.split import SplitResult
 
 
@@ -92,6 +96,8 @@ def evaluate_walk_forward(
         or max_candles_per_fold <= 0
     ):
         raise ValueError("max_candles_per_fold must be a positive integer or None")
+    if fee_rate < 0 or slippage_bps < 0:
+        raise ValueError("fee_rate and slippage_bps must be non-negative")
     if fee_rate < 0 or slippage_bps < 0:
         raise ValueError("fee_rate and slippage_bps must be non-negative")
     folds = build_walk_forward_folds(

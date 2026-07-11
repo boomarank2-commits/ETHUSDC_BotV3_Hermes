@@ -31,6 +31,7 @@ from ethusdc_bot.backtest.research_runner import (
     rank_candidates,
 )
 from ethusdc_bot.backtest.selection_evidence import run_parameter_stability
+from ethusdc_bot.backtest.selection_evidence import run_parameter_stability
 from ethusdc_bot.backtest.search_space import (
     SearchSpaceState,
     canonical_candidate_signature,
@@ -51,8 +52,12 @@ from ethusdc_bot.backtest.strategy_search import TARGET_USDC_PER_DAY
 from ethusdc_bot.backtest.walk_forward import (
     evaluate_rolling_origins,
     evaluate_walk_forward,
+    evaluate_walk_forward,
     evaluate_walk_forward_frontier,
     rank_with_walk_forward,
+)
+from ethusdc_bot.backtest.walk_forward_evidence import (
+    build_walk_forward_stress_evidence,
 )
 from ethusdc_bot.backtest.walk_forward_evidence import (
     build_walk_forward_stress_evidence,
@@ -60,6 +65,10 @@ from ethusdc_bot.backtest.walk_forward_evidence import (
 from ethusdc_bot.data_pipeline.data_readiness import build_data_readiness_report
 
 
+MAX_PARAMETER_STABILITY_NUMERIC_PARAMETERS = 12
+PARAMETER_NEIGHBORS_PER_NUMERIC_PARAMETER = 2
+STRESS_PROFILES_BEYOND_BASELINE = 2
+INTERNAL_VALIDATION_DAYS = TRAINING_DAYS // 5
 MAX_PARAMETER_STABILITY_NUMERIC_PARAMETERS = 12
 PARAMETER_NEIGHBORS_PER_NUMERIC_PARAMETER = 2
 STRESS_PROFILES_BEYOND_BASELINE = 2
@@ -72,6 +81,15 @@ MAX_SELECTION_CANDIDATE_DAYS_PER_CYCLE = (
     )
     * TRAINING_DAYS
     + CANDIDATE_STAGE_BUDGETS["finalists"] * 3 * BLINDTEST_DAYS
+)
+MAX_SELECTION_EVIDENCE_CANDIDATE_DAYS_PER_CYCLE = (
+    CANDIDATE_STAGE_BUDGETS["finalists"]
+    * (
+        STRESS_PROFILES_BEYOND_BASELINE * TRAINING_DAYS
+        + PARAMETER_NEIGHBORS_PER_NUMERIC_PARAMETER
+        * MAX_PARAMETER_STABILITY_NUMERIC_PARAMETERS
+        * INTERNAL_VALIDATION_DAYS
+    )
 )
 MAX_SELECTION_EVIDENCE_CANDIDATE_DAYS_PER_CYCLE = (
     CANDIDATE_STAGE_BUDGETS["finalists"]
@@ -582,6 +600,7 @@ def _quality_evidence(record: dict[str, Any], full_training_result: Any) -> dict
             "full_training_net_usdc_per_day": full_training_result.metrics.net_usdc_per_day,
         }
     )
+    selection_evidence = record.get("selection_evidence", {})
     selection_evidence = record.get("selection_evidence", {})
     validation = record["validation_metrics"].to_dict()
     validation_result = record["validation_result"]
