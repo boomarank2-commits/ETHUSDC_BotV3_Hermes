@@ -6,7 +6,8 @@ Stand: 2026-07-11
 
 - Branch: `review/context-veto-engine-v1`
 - Base: `review/context-data-alignment-v1`
-- Pull request: to be created after this handoff commit
+- Pull request: `#10`
+- Status: offen, Draft, nicht gemergt
 
 ## Implementierter Umfang
 
@@ -46,11 +47,16 @@ Kontextfilter kann die zentrale Prüfung daher nicht umgehen.
 - `context_veto_btc_trend`;
 - `context_veto_btc_volatility`;
 - `context_veto_ethbtc_relative_strength`;
-- `context_recursive_base_forbidden`.
+- `context_recursive_base_forbidden`;
+- `context_symbol_not_tradeable`.
+
+Die bestehenden Simulatorergebnisse führen diese Werte weiterhin ausschließlich
+unter `SimulationResult.rejection_reasons`. Es wurde keine zweite Alias- oder
+Parallelstruktur eingeführt.
 
 ## Tests
 
-Bereits ergänzt sind Tests für:
+Ergänzt und geprüft sind Tests für:
 
 - Policy-Validierung und Unveränderlichkeit;
 - Warmup;
@@ -66,6 +72,34 @@ Bereits ergänzt sind Tests für:
 - nicht ausgerichteten Kontext;
 - identische Ergebnisse aller Nicht-Kontextstrategien mit und ohne Kontext;
 - weiterhin verbotene Nicht-ETHUSDC-Symbole.
+
+Finale GitHub-Action auf dem bereinigten Produktivstand:
+
+- `814` Tests bestanden;
+- Python-3.12-Kompilierung bestanden;
+- PowerShell-Syntaxprüfung bestanden;
+- Whitespace-Prüfung bestanden.
+
+Die sechs zunächst roten Tests waren reine Testvertragsfehler:
+
+- sie verwendeten das nicht vorhandene Feld `rejections` statt des bestehenden
+  Feldes `rejection_reasons`;
+- ein Test erwartete eine Exception für ein Nicht-ETHUSDC-Symbol, obwohl der
+  bestehende Simulatorvertrag fail-closed ein Nullergebnis mit
+  `context_symbol_not_tradeable` zurückgibt.
+
+Der Produktivvertrag wurde nicht für die Tests verbogen. Die Tests wurden an den
+bereits bestehenden sicheren Simulatorvertrag angepasst.
+
+## Repository-Hygiene
+
+Alle für die GitHub-Schreibphase einmalig benötigten Workflows und Patch-Helfer
+wurden wieder entfernt. Im PR verbleiben ausschließlich:
+
+- Produktivcode;
+- Unit-/Integrationstests;
+- Dokumentation;
+- dieser Handoff.
 
 ## Aktuelle Grenze
 
