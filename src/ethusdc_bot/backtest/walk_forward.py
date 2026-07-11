@@ -7,7 +7,8 @@ from datetime import UTC, date, datetime, timedelta
 from statistics import median, pstdev
 from typing import Any
 
-from ethusdc_bot.backtest.data_loader import Candle
+from ethusdc_bot.backtest.context_research import context_for_candidate
+from ethusdc_bot.backtest.data_loader import AlignedMarketCandles, Candle
 from ethusdc_bot.backtest.equity import (
     EquityPoint,
     chain_equity_curves,
@@ -85,6 +86,7 @@ def evaluate_walk_forward(
     fee_rate: float = 0.001,
     slippage_bps: float = 5.0,
     include_selection_evidence: bool = True,
+    market_context: AlignedMarketCandles | None = None,
 ) -> dict[str, Any]:
     if max_candles_per_fold is not None and (
         isinstance(max_candles_per_fold, bool)
@@ -118,6 +120,11 @@ def evaluate_walk_forward(
             blindtest_days=blindtest_days,
             fee_rate=fee_rate,
             slippage_bps=slippage_bps,
+            market_context=context_for_candidate(
+                market_context,
+                validation_window,
+                candidate,
+            ),
         )
         selection_observations.append(
             FoldSelectionObservation(
@@ -195,6 +202,7 @@ def evaluate_walk_forward_frontier(
     blindtest_days: int = 365,
     max_candles_per_fold: int | None = None,
     expected_candles_per_day: int | None = None,
+    market_context: AlignedMarketCandles | None = None,
 ) -> list[dict[str, Any]]:
     """Evaluate a deterministic validation-ranked frontier with WFV.
 
@@ -216,6 +224,7 @@ def evaluate_walk_forward_frontier(
             blindtest_days=blindtest_days,
             max_candles_per_fold=max_candles_per_fold,
             expected_candles_per_day=expected_candles_per_day,
+            market_context=market_context,
         )
         evaluated.append(row)
     return evaluated
@@ -226,6 +235,7 @@ def evaluate_rolling_origins(
     candidate: StrategyCandidate,
     *,
     origin_limit: int | None = None,
+    market_context: AlignedMarketCandles | None = None,
 ) -> dict[str, Any]:
     """Replay a fixed candidate on historical windows before the final holdout.
 
@@ -244,6 +254,11 @@ def evaluate_rolling_origins(
             days=origin.blindtest_days,
             training_days=origin.training_days,
             blindtest_days=origin.blindtest_days,
+            market_context=context_for_candidate(
+                market_context,
+                origin.blindtest,
+                candidate,
+            ),
         )
         rows.append(
             {

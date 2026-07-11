@@ -211,7 +211,7 @@ def test_production_orchestration_enforces_defaults_and_never_simulates_planned_
     assert cycle["search_frontier"]["generated_count"] == 40
     assert sum(cycle["search_frontier"]["family_counts"].values()) == 40
     assert cycle["search_frontier"]["context_disabled_reason"] == (
-        "real_context_market_data_not_integrated"
+        "context_research_must_be_explicitly_enabled"
     )
     assert cycle["resource_budget"]["tested_cap"] == 12
     assert cycle["resource_budget"]["walk_forward_cap"] == 3
@@ -219,8 +219,8 @@ def test_production_orchestration_enforces_defaults_and_never_simulates_planned_
     assert cycle["resource_budget"]["walk_forward_folds"] == 6
     assert cycle["resource_budget"]["rolling_origin_cap"] == 3
     assert cycle["resource_budget"]["stress_evidence_candidate_days_cap"] == 2920
-    assert cycle["resource_budget"]["parameter_evidence_candidate_days_cap"] == 7008
-    assert cycle["resource_budget"]["selection_total_candidate_days_cap"] == 24528
+    assert cycle["resource_budget"]["parameter_evidence_candidate_days_cap"] == 10512
+    assert cycle["resource_budget"]["selection_total_candidate_days_cap"] == 28032
     assert cycle["walk_forward_candidates"] == 3
     assert cycle["finalists"] == 2
     assert report["freeze_status"] == "blocked_by_quality_gates"

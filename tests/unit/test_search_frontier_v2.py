@@ -54,7 +54,7 @@ def test_context_candidates_are_excluded_until_real_context_data_is_integrated()
     )
 
     assert CONTEXT_CANDIDATES_ENABLED is False
-    assert CONTEXT_DISABLED_REASON == "real_context_market_data_not_integrated"
+    assert CONTEXT_DISABLED_REASON == "context_research_must_be_explicitly_enabled"
     assert all(candidate.family != "context_filter" for candidate in candidates)
     assert "BTCUSDC" not in payload
     assert "ETHBTC" not in payload

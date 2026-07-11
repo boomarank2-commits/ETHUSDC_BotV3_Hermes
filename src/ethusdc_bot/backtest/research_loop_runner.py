@@ -11,7 +11,18 @@ from pathlib import Path
 import subprocess
 from typing import Any, Callable
 
-from ethusdc_bot.backtest.data_loader import DEFAULT_RAW_ROOT, Candle, load_ethusdc_1m_candles
+from ethusdc_bot.backtest.context_research import (
+    context_for_candidate,
+    context_research_provenance,
+    slice_aligned_context,
+)
+from ethusdc_bot.backtest.data_loader import (
+    DEFAULT_RAW_ROOT,
+    AlignedMarketCandles,
+    Candle,
+    load_aligned_market_candles,
+    load_ethusdc_1m_candles,
+)
 from ethusdc_bot.backtest.exit_reason_analysis import analyze_exit_reasons
 from ethusdc_bot.backtest.experiment_registry import ExperimentPaths
 from ethusdc_bot.backtest.features import build_feature_rows
@@ -61,7 +72,7 @@ from ethusdc_bot.backtest.walk_forward_evidence import (
 from ethusdc_bot.data_pipeline.data_readiness import build_data_readiness_report
 
 
-MAX_PARAMETER_STABILITY_NUMERIC_PARAMETERS = 12
+MAX_PARAMETER_STABILITY_NUMERIC_PARAMETERS = 18
 PARAMETER_NEIGHBORS_PER_NUMERIC_PARAMETER = 2
 STRESS_PROFILES_BEYOND_BASELINE = 2
 INTERNAL_VALIDATION_DAYS = TRAINING_DAYS // 5
@@ -100,8 +111,11 @@ class LoopConfig:
     min_cycles: int = 3
     stagnation_cycles: int = 3
     required_days: int | None = REQUIRED_DAYS
+    enable_context: bool = False
 
     def __post_init__(self) -> None:
+        if not isinstance(self.enable_context, bool):
+            raise ValueError("enable_context must be bool")
         integer_controls = (
             self.max_cycles,
             self.min_cycles,
@@ -248,20 +262,46 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
         readiness = build_data_readiness_report(raw_root)
         if not readiness["data_gate_ready"]:
             raise RuntimeError(f"Data gate blocked: {readiness['overall_status']}")
-    candles = load_ethusdc_1m_candles(raw_root)
+    market_context: AlignedMarketCandles | None
+    if config.enable_context:
+        market_context = load_aligned_market_candles(raw_root)
+        candles = list(market_context.ethusdc)
+    else:
+        market_context = None
+        candles = load_ethusdc_1m_candles(raw_root)
     plan = _build_window_plan(candles, config)
     split = plan.final_window
     build_feature_rows(split.training[: min(len(split.training), 5000)])
     subtrain, validation = _split_subtrain_validation_on_utc_days(split.training)
     subtrain_days = _calendar_day_count(subtrain)
     validation_days = _calendar_day_count(validation)
+    training_context = (
+        slice_aligned_context(market_context, split.training)
+        if market_context is not None
+        else None
+    )
+    subtrain_context = (
+        slice_aligned_context(market_context, subtrain)
+        if market_context is not None
+        else None
+    )
+    validation_context = (
+        slice_aligned_context(market_context, validation)
+        if market_context is not None
+        else None
+    )
 
     def runner(cycle_index: int, state: SearchSpaceState) -> dict[str, Any]:
-        generated = generate_search_space(state, max_candidates=config.max_candidates_per_cycle)
+        generated = generate_search_space(
+            state,
+            max_candidates=config.max_candidates_per_cycle,
+            context_enabled=config.enable_context,
+        )
         frontier_summary = search_frontier_summary(
             generated,
             state,
             requested_cap=config.max_candidates_per_cycle,
+            context_enabled=config.enable_context,
         )
         generated_rows = [
             {
@@ -291,6 +331,11 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
                 days=subtrain_days,
                 training_days=split.training_days,
                 blindtest_days=split.blindtest_days,
+                market_context=context_for_candidate(
+                    subtrain_context,
+                    subtrain,
+                    candidate,
+                ),
             )
             validation_result = simulate_strategy(
                 validation,
@@ -298,6 +343,11 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
                 days=validation_days,
                 training_days=split.training_days,
                 blindtest_days=split.blindtest_days,
+                market_context=context_for_candidate(
+                    validation_context,
+                    validation,
+                    candidate,
+                ),
             )
             records.append(
                 {
@@ -322,6 +372,7 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
             training_days=split.training_days,
             blindtest_days=split.blindtest_days,
             expected_candles_per_day=1440,
+            market_context=training_context,
         )
         wfv_ranked = rank_with_walk_forward(wfv_records)
         finalist_records = wfv_ranked[: config.finalists_per_cycle]
@@ -332,12 +383,18 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
                 days=split.training_days,
                 training_days=split.training_days,
                 blindtest_days=split.blindtest_days,
+                market_context=context_for_candidate(
+                    training_context,
+                    split.training,
+                    record["candidate"],
+                ),
             )
             record["full_training_result"] = full_training_result
             record["rolling_origin_summary"] = evaluate_rolling_origins(
                 list(plan.historical_origins),
                 record["candidate"],
                 origin_limit=config.rolling_origin_limit,
+                market_context=market_context,
             )
             joint_stress_wfv = evaluate_walk_forward(
                 split.training,
@@ -349,6 +406,7 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
                 fee_rate=QUALITY_GATE_V1.joint_stress_fee_bps_per_side / 10_000,
                 slippage_bps=QUALITY_GATE_V1.joint_stress_slippage_bps_per_side,
                 include_selection_evidence=False,
+                market_context=training_context,
             )
             slippage_stress_wfv = evaluate_walk_forward(
                 split.training,
@@ -360,6 +418,7 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
                 fee_rate=QUALITY_GATE_V1.slippage_stress_fee_bps_per_side / 10_000,
                 slippage_bps=QUALITY_GATE_V1.slippage_stress_slippage_bps_per_side,
                 include_selection_evidence=False,
+                market_context=training_context,
             )
             baseline_selection = record["walk_forward_summary"].get(
                 "selection_evidence", {}
@@ -395,6 +454,11 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
                     baseline_result=record["validation_result"],
                     max_numeric_parameters=(
                         MAX_PARAMETER_STABILITY_NUMERIC_PARAMETERS
+                    ),
+                    market_context=context_for_candidate(
+                        validation_context,
+                        validation,
+                        record["candidate"],
                     ),
                 ),
                 "provenance": {
@@ -506,6 +570,16 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
             },
             "generated_candidate_inventory": generated_inventory,
             "search_frontier": frontier_summary,
+            "context_research": (
+                context_research_provenance(market_context, generated)
+                if market_context is not None
+                else {
+                    "enabled": False,
+                    "reason": "context_research_not_enabled",
+                    "uses_audit_or_holdout": False,
+                    "target_used_as_parameter": False,
+                }
+            ),
             "resource_budget": _resource_budget(config),
             "not_tested_candidates": not_tested,
             "best_training_candidate": _best_metric_row(records, "training_metrics"),
@@ -1403,6 +1477,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--walk-forward-folds", type=int, default=6)
     parser.add_argument("--rolling-origin-limit", type=int, default=3)
     parser.add_argument("--fixture-smoke", action="store_true")
+    parser.add_argument("--enable-context", action="store_true")
     return parser
 
 
@@ -1419,6 +1494,7 @@ def main(argv: list[str] | None = None) -> int:
         walk_forward_fold_count=args.walk_forward_folds,
         rolling_origin_limit=args.rolling_origin_limit,
         required_days=None if args.fixture_smoke else REQUIRED_DAYS,
+        enable_context=args.enable_context,
     )
     result = run_research_loop(config)
     print(f"Research loop run_id: {result.loop_run_id}")

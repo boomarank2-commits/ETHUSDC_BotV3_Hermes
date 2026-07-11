@@ -275,13 +275,18 @@ def _entry_decision(
     if strategy.family != "context_filter":
         return _signal(candles, index, strategy), None
 
-    base_family = str(strategy.params.get("base_family", "momentum"))
+    base_family = str(
+        strategy.params.get(
+            "context_base_family",
+            strategy.params.get("base_family", "momentum"),
+        )
+    )
     if base_family == "context_filter":
         return False, "context_recursive_base_forbidden"
     base_params = {
         key: value
         for key, value in strategy.params.items()
-        if key != "base_family" and not key.startswith("context_")
+        if key != "context_base_family" and not key.startswith("context_")
     }
     if not _signal(candles, index, StrategyCandidate(base_family, base_params)):
         return False, None
