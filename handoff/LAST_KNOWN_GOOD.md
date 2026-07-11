@@ -1,56 +1,48 @@
 # Last Known Good
 
-Code baseline:
+Repository baseline:
 
-- Local safe commit: `03e9db0 Fix backtest execution cost accounting`.
-- Parent remote baseline before synchronization: `8ac7003 Add multi-cycle offline research loop runner`.
-- The Slippage commit changes only:
-  - `src/ethusdc_bot/backtest/simulator.py`,
-  - `tests/unit/test_backtest_simulator.py`,
-  - `docs/29_BACKTEST_EXECUTION_COST_AUDIT.md`.
-- Post-fix full test verification: 412 tests passed.
+- Synchronized `main` before Protocol v2: `c73c71d Clarify control audit and Paper lock`.
+- Active implementation branch: `agent/research-protocol-v2`.
+- Branch verification: 505 collected tests, 505 passed with `py -3.12 -m pytest -q`.
+- `git diff --check`: clean.
+- No production research run was executed on the branch.
+
+Protocol-v2 guarantees covered by tests:
+
+- Exact complete-day validation for ETHUSDC 1-minute data.
+- Dynamic latest 730+365 windows and 1,095/1,096-day consumed-ledger boundaries.
+- No overlap between consumed dates and selection-bearing windows.
+- Complete-day WFV folds and sampling.
+- Day-weighted WFV aggregate/ranking consistency.
+- Honest candidate stage subsets, counts, and hard caps.
+- Candidate identity and quality-gate binding before freeze.
+- Strict JSON handling of non-finite diagnostics.
+- Fixture simulator spy proving no final-holdout candle is evaluated.
+- Synthetic production-orchestration wiring test proving canonical 40/12/3/2 budgets, six WFV folds, three origin slots, and no planned-holdout simulation.
+- Fail-closed legacy backtest/research entrypoints.
+- Full canonical safety contract, including forbidden short/margin/futures/leverage and `candidate_adoptable=false`.
 
 Execution-cost baseline:
 
-- Fixed notional: 100 USDC per trade.
-- At most one ETHUSDC LONG position.
-- No compounding.
+- Fixed 100 USDC entry execution notional.
+- At most one ETHUSDC LONG position; no compounding.
 - Fee: 0.1% per side.
 - Slippage: 5 bps per side.
-- No BNB discount in the binding baseline.
+- No BNB discount.
 - Entry quantity uses entry execution price.
-- Net P&L equals execution gross P&L minus entry and exit fees.
-- Slippage is embedded in execution prices and is reported diagnostically, not deducted twice.
+- Net P&L equals execution-price gross P&L minus entry and exit fees.
+- Slippage is embedded in execution prices and reported diagnostically, not deducted twice.
 
-Data baseline:
+Historical evidence policy:
 
-- Public local data root: `C:/TradingBot/data/ETHUSDC_BotV3_Hermes`.
-- Total files at the last data-gate verification: 6,589.
-- `.tmp/.part`: 0; zero-byte files: 0.
-- ETHUSDC 1m: 1,095 ZIP/checksum pairs.
-- BTCUSDC 1m: 1,095 ZIP/checksum pairs.
-- ETHBTC 1m: 1,096 ZIP/checksum pairs.
-- ETHUSDC aggTrades: 7 ZIP/checksum pairs.
-- ETHUSDC trades: 1 ZIP/checksum pair.
-
-Latest post-fix control research:
-
-- Report: `reports/research_loop/research_loop_20260710T054549Z.json` and `.txt`.
-- Index: `reports/research_loop/index.jsonl`.
-- Cycles: 4; stop reason: `validation_stagnation_3_cycles`.
-- Generated/tested per cycle: 11/4.
-- Best validation: `-0.0086568356 USDC/day`, PF `0.4915795763`, 17 trades.
-- Best consumed audit result: `-0.0012839958 USDC/day`, PF `0.9423532464`, 14 trades.
-- Target: not reached.
-
-Historical-report policy:
-
-- The viewed 365-day audit window is consumed and cannot be called an untouched final blindtest.
+- Post-fix control report: `reports/research_loop/research_loop_20260710T054549Z.json` and `.txt`.
+- The viewed `2025-07-08` through `2026-07-07` audit window is permanently consumed for selection purposes.
 - Pre-`03e9db0` slippage-derived rankings and cost diagnoses are obsolete.
 - Historical reports remain append-only and are not deleted or rewritten.
 
 Safety:
 
 - ETHUSDC/USDC Spot LONG-only simulation.
-- BTCUSDC/ETHBTC context may never trigger trades.
-- No Live, Paper, or Testtrade unlock, Trading API, API keys, account data, or orders. Public-data-only hypothetical Shadow mode remains a separate future scope.
+- BTCUSDC/ETHBTC cannot trigger trades.
+- No Live, Paper, Testtrade, Trading API, API keys, account data, or orders.

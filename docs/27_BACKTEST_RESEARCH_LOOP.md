@@ -1,53 +1,57 @@
-# Backtest Research Loop
+# Backtest Research Loop v2
 
-This repository now has a reproducible offline research loop runner for ETHUSDC Binance Spot LONG-only strategy experiments.
+The Protocol-v2 runner is the only active strategy-research entrypoint. It performs bounded, deterministic selection using training-only evidence and never evaluates the current final holdout.
 
-Command:
+## Reported stages
 
-```bash
-PYTHONPATH=src python -m ethusdc_bot.backtest.research_loop_runner --raw-root C:/TradingBot/data/ETHUSDC_BotV3_Hermes --max-cycles 8 --max-candidates-per-cycle 40
-```
+Every cycle records:
 
-Safety scope:
+- actual and configured generated-candidate counts;
+- tested candidates and any explicit non-testing reason;
+- WFV candidates and all fold boundaries;
+- finalists;
+- exact candidate IDs at every nested stage;
+- validation, WFV, historical-window, exit-reason, family, and fail-closed quality-gate summaries.
 
-- ETHUSDC is the only tradeable symbol.
-- Quote/capital basis remains USDC.
-- The simulator is Binance Spot LONG-only.
-- Trade notional remains 100 USDC per simulated trade.
-- No shorts, margin, futures, leverage, Binance Trading API, API keys, orders, live mode, paper mode, or testtrade mode are created or unlocked.
-- BTCUSDC and ETHBTC are allowed only as context-filter metadata and cannot trigger trades.
-- Raw public data stays outside the repository under `C:/TradingBot/data/ETHUSDC_BotV3_Hermes`.
+Default caps are 40 generated, 12 tested, 3 WFV, and 2 finalists. The current generator normally emits fewer than 40, so the report states the actual generated count. Supported candidates within the tested cap are all evaluated.
 
-Loop architecture:
+## Holdout policy
 
-1. Check the local data gate.
-2. Load ETHUSDC 1m candles from the external raw-data root.
-3. Build the existing 730-day training / 365-day blindtest split.
-4. Split training internally into subtrain/validation.
-5. Generate a deterministic bounded candidate search space from validation-only diagnosis.
-6. Evaluate a bounded deterministic frontier of generated candidates on subtrain and validation.
-7. Run walk-forward validation inside training for the validation leader.
-8. Rank candidates without blindtest metrics.
-9. Store leaderboard summaries, family aggregates, WFV summaries, and exit-reason analysis.
-10. Blindtest-audit only the selected top candidate and mark the audit as repeated audit-only.
-11. Derive the next search-space state from training/validation/WFV/exit evidence only.
-12. Continue until target reached, max cycles, stagnation, safety violation, or test/runtime failure.
+- The previously viewed 365-day window is consumed.
+- Holdout candles are never passed to `simulate_strategy` by this runner.
+- Holdout metadata may be recorded to prove boundaries and consumed/sealed status.
+- No cycle contains `blindtest_audit`, `blindtest_metrics`, `audit_result`, or holdout-result payloads.
+- A report cannot claim `+3 USDC/day` or `target_reached=true` without a separate future sealed-holdout workflow.
 
-Stop criteria:
+## Stops
 
-- `target_reached_clean_validation_candidate`: validation candidate and blindtest audit both meet the +3 USDC/day target after the minimum cycle count.
-- `max_cycles_reached`: configured cycle cap reached.
-- `validation_stagnation_3_cycles`: no validation improvement for the configured stagnation window after the minimum cycle count.
-- `safety_violation`: any safety lock deviates from locked/not-used/not-created.
+- `max_cycles_reached`;
+- `selection_stagnation_3_cycles`;
+- `safety_violation`;
+- explicit runtime/test failure.
 
-Blindtest discipline:
+There is no target-based stop inside research because the target is a final sealed-holdout criterion.
 
-Blindtest results are audit-only. They are recorded as `repeated_blindtest_audit` and are not used by the search-space generator or ranking inputs.
+## Reproducibility and safety
 
-Reports:
+- Window endpoint: latest complete UTC day, never a fixed year.
+- Production completeness: exactly 1,440 contiguous one-minute candles per accepted UTC day.
+- Consumed ledger: every selection-bearing window is checked before simulation and overlap fails closed.
+- Candidate preselection: deterministic family round-robin only when a cap is necessary.
+- WFV: six chronological folds using actual simulated calendar days.
+- Historical origins: fully before the latest holdout; zero reported honestly when history is insufficient.
+- Quality gate: immutable `quality_gate_v1`, missing evidence fails closed.
+- Candidate identity: any passing gate is bound to the selected finalist ID and canonical parameter signature before freeze.
+- Resource ceiling: configured stage caps plus an explicit candidate-day/candle-evaluation cap are enforced before work starts.
+- Total adaptation ceiling: no more than eight cycles; production uses exactly 40/12/3/2 configured stage budgets, six WFV folds, and up to three 365-day historical origins.
+- Trade model: ETHUSDC/USDC Spot LONG-only, fixed 100 USDC notional, one position, no compounding.
+- Costs: 0.1% fee and 5 bps slippage per side.
+- Live, Paper, and Testtrade stay locked; no orders, APIs, keys, account access, margin, futures, leverage, or shorts.
 
-- JSON/TXT loop reports: `reports/research_loop/`
-- Append-only index: `reports/research_loop/index.jsonl`
+Reports remain under `reports/research_loop/` with append-only `index.jsonl`. Historical schema-v1 reports are retained and not rewritten.
 
-If a report says the target is reached, it still states: `Ziel im Backtest erreicht, keine Live-Freigabe.`
-If the target is not reached, it states: `Ziel nicht erreicht.`
+`--fixture-smoke` reports are labelled `fixture_smoke_non_production`; their intentionally small split can verify the execution path but is never quality-gate or production evidence.
+
+Custom cycle runners are accepted only in the fixture/test profile. Fixture reports always use `fixture_nonproduction_no_freeze`, even if synthetic evidence satisfies numerical gates.
+
+The current simulator exposes closed-trade drawdown only. Because `quality_gate_v1` requires mark-to-market drawdown plus additional robustness producers, real selection reports remain fail-closed and cannot freeze a candidate until those evidence producers exist.

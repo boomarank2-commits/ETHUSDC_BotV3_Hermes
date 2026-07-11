@@ -239,12 +239,12 @@ def test_build_snapshot_contains_runtime_data_prep_status_and_blockers(tmp_path)
     assert snapshot["data_prep_current_task"] is None
     assert snapshot["data_prep_mode"] == "dry_run"
     assert snapshot["can_start_data_prep"] is True
-    assert snapshot["can_start_backtest_engine"] in {False, True}
+    assert snapshot["can_start_backtest_engine"] is False
     assert "backtest_status" in snapshot
     assert "bot_current_status_text" in snapshot
 
 
-def test_build_snapshot_contains_data_prep_and_clickable_backtest_start_button(tmp_path):
+def test_build_snapshot_contains_data_prep_and_locked_protocol_v2_button(tmp_path):
     snapshot = dashboard_state.build_dashboard_snapshot(Path.cwd(), tmp_path)
     prep = snapshot["data_prep_status"]
     button = snapshot["ui_status"]["backtest_start_button"]
@@ -254,7 +254,9 @@ def test_build_snapshot_contains_data_prep_and_clickable_backtest_start_button(t
     assert prep["unsupported_task_count"] >= 1
     assert prep["live_collector_task_count"] >= 2
     assert button["visible"] is True
-    assert button["action"] == "local_backtest_strategy_search"
+    assert button["action"] == "research_protocol_v2_not_wired"
+    assert button["enabled"] is False
+    assert button["engine_locked"] is True
     assert button["uses_trading_api"] is False
     assert button["live_paper_testtrade_locked"] is True
 
@@ -266,8 +268,8 @@ def test_format_snapshot_for_display_contains_status_without_backtest_claims(tmp
     assert "ETHUSDC" in text
     assert "Live: locked" in text
     assert "Backtest Data Readiness:" in text
-    assert "Backtest start runs local backtest / strategy search only. No orders or Trading API." in text
-    assert "Starts local backtest / strategy search only" in text
+    assert "Backtest engine is locked; Research Protocol v2 is not wired" in text
+    assert "Research Protocol v2 is not wired to the dashboard" in text
     assert "Data Audit Status:" in text
     assert "Audit status: not_audited" in text
     assert "not_audited" in text

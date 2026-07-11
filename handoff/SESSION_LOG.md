@@ -426,3 +426,55 @@ Methodological decision:
 Safety:
 - No strategy changes in this work block.
 - No live/paper/testtrade unlock, orders, API keys, account data, shorts, margin, futures, or leverage.
+
+## 2026-07-11 - Implement and verify Research Protocol v2
+
+Goal:
+
+- Replace the leakage-prone research paths with one bounded, dynamic, training-only protocol.
+- Preserve the consumed-audit decision and all trading safety locks.
+
+Branch and baseline:
+
+- Started branch `agent/research-protocol-v2` from synchronized `main` at `c73c71d`.
+- Existing Slippage fix, control reports, and append-only historical reports were preserved.
+
+Implementation:
+
+- Added exact latest-complete-UTC-day planning for dynamic 730-day training plus 365-day final-holdout metadata.
+- Added exact 1,440-candle UTC-day raster validation; partial and gap-compensated days fail closed.
+- Added consumed-ledger exclusion for every selection-bearing training, validation, WFV, and historical-origin slice.
+- Removed final-holdout evaluation from the research loop.
+- Added honest generated/tested/WFV/finalist IDs and caps of 40/12/3/2.
+- Replaced the fixed-prefix candidate frontier with deterministic family-balanced selection.
+- Added multi-candidate, six-fold, complete-day WFV using day-weighted aggregate metrics.
+- Labelled fixed-candidate historical replay as diagnostic and ineligible for selection/gates.
+- Added immutable `quality_gate_v1`, fold/aggregate consistency checks, mark-to-market drawdown requirements, and fail-closed missing/invalid evidence.
+- Bound passing gates to finalist IDs and canonical parameter signatures before freeze.
+- Added explicit candidate-day and candle-evaluation work caps.
+- Disabled both legacy execution paths that repeatedly evaluated holdout data.
+
+Verification:
+
+- Independent review found and drove fixes for partial days, consumed training overlap, mismatched freeze candidates, forged gates, WFV aggregate poisoning, incomplete safety payloads, inconsistent ranking, and active legacy bypasses.
+- A six-day non-production fixture exercised the real Protocol-v2 runner path.
+- A separate synthetic production-orchestration wiring test exercised canonical 40/12/3/2 budgets, six WFV folds, and three origin slots.
+- Simulator spies confirmed neither path evaluated a planned final-holdout candle.
+- Full collection: 505 tests.
+- Full result: 505 passed with Python 3.12.
+- `git diff --check` passed.
+- No production historical research loop and no sealed-holdout evaluation were run.
+
+Gate outcome:
+
+- No candidate frozen or adopted.
+- Current closed-trade drawdown is explicitly rejected where mark-to-market drawdown is required.
+- Missing rolling-refit, concentration, parameter-stability, stress, temporal, and regime evidence blocks freeze.
+- `+3 USDC/day` was not evaluated under Protocol v2.
+
+Safety:
+
+- Live, Paper, and Testtrade remained locked.
+- No Trading API, API keys, account data, or orders.
+- ETHUSDC Spot LONG-only, fixed 100 USDC notional, no compounding, one position maximum.
+- No shorts, margin, futures, or leverage.

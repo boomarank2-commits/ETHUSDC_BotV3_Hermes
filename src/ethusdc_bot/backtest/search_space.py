@@ -13,7 +13,61 @@ class SearchSpaceState:
     cycle_index: int
     diagnosis: dict[str, Any] = field(default_factory=dict)
     previous_best_validation: float | None = None
-    blindtest_metrics: dict[str, Any] | None = None
+
+
+CandidateSignature = tuple[str, tuple[tuple[str, float | int | str], ...]]
+
+
+def canonical_candidate_signature(candidate: StrategyCandidate) -> CandidateSignature:
+    """Return a stable, hashable identity for a candidate.
+
+    ETHUSDC is the only tradable symbol, so an omitted symbol and an explicit
+    ``symbol=ETHUSDC`` represent the same candidate.
+    """
+
+    params = dict(candidate.params)
+    params.setdefault("symbol", "ETHUSDC")
+    return candidate.family, tuple(sorted(params.items()))
+
+
+def select_candidates_for_testing(candidates: list[StrategyCandidate], limit: int) -> list[StrategyCandidate]:
+    """Select a deterministic family-balanced testing frontier.
+
+    A candidate list that already fits the budget is returned unchanged. When
+    it exceeds the budget, families retain first-seen order and contribute one
+    candidate per round until the limit is reached.
+    """
+
+    if limit <= 0:
+        return []
+    if len(candidates) <= limit:
+        return list(candidates)
+
+    family_order: list[str] = []
+    candidates_by_family: dict[str, list[StrategyCandidate]] = {}
+    for candidate in candidates:
+        if candidate.family not in candidates_by_family:
+            family_order.append(candidate.family)
+            candidates_by_family[candidate.family] = []
+        candidates_by_family[candidate.family].append(candidate)
+
+    selected: list[StrategyCandidate] = []
+    family_offsets = {family: 0 for family in family_order}
+    while len(selected) < limit:
+        added_in_round = False
+        for family in family_order:
+            offset = family_offsets[family]
+            family_candidates = candidates_by_family[family]
+            if offset >= len(family_candidates):
+                continue
+            selected.append(family_candidates[offset])
+            family_offsets[family] = offset + 1
+            added_in_round = True
+            if len(selected) >= limit:
+                break
+        if not added_in_round:
+            break
+    return selected
 
 
 def generate_search_space(state: SearchSpaceState, *, max_candidates: int = 40) -> list[StrategyCandidate]:
@@ -36,14 +90,19 @@ def generate_search_space(state: SearchSpaceState, *, max_candidates: int = 40) 
         candidates.extend(_strict_candidates(pressure))
     candidates.extend(_context_candidates(pressure))
     unique: list[StrategyCandidate] = []
-    seen: set[tuple[str, tuple[tuple[str, float | int | str], ...]]] = set()
+    seen: set[CandidateSignature] = set()
     for candidate in candidates:
-        params = {key: value for key, value in candidate.params.items() if "blindtest" not in key and key != "target_usdc_per_day"}
+        params = {
+            key: value
+            for key, value in candidate.params.items()
+            if "blindtest" not in key and key != "target_usdc_per_day"
+        }
         params.setdefault("symbol", "ETHUSDC")
-        signature = (candidate.family, tuple(sorted(params.items())))
+        normalized_candidate = StrategyCandidate(candidate.family, params)
+        signature = canonical_candidate_signature(normalized_candidate)
         if signature not in seen:
             seen.add(signature)
-            unique.append(StrategyCandidate(candidate.family, params))
+            unique.append(normalized_candidate)
         if len(unique) >= max_candidates:
             break
     return unique

@@ -1,29 +1,128 @@
-"""Tests for multi-cycle offline research loop runner."""
+"""Tests for multi-cycle offline Research Protocol v2."""
 
 import json
 
+import pytest
+
 from ethusdc_bot.backtest.metrics import BacktestMetrics
+from ethusdc_bot.backtest.quality_gates import evaluate_quality_gates
 from ethusdc_bot.backtest.research_loop_runner import LoopConfig, run_research_loop
+from ethusdc_bot.backtest.research_protocol import safety_status
 from ethusdc_bot.backtest.simulator import StrategyCandidate
 
 
-def _cycle(candidate_id: str, validation: float, blindtest: float = -1.0, safety=None):
+def _signature(params=None):
+    normalized = dict(params or {})
+    normalized.setdefault("symbol", "ETHUSDC")
+    return json.dumps(
+        {"family": "breakout_volatility_filter", "params": normalized},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def _cycle(candidate_id: str, validation: float, safety=None):
+    selected_id = f"{candidate_id}_a"
+    signature = _signature()
+    gate = evaluate_quality_gates({}, stage="selection").to_dict()
+    gate["candidate_id"] = selected_id
+    gate["candidate_signature"] = signature
     return {
         "cycle_id": 1,
         "generated_candidates": 2,
         "tested_candidates": 2,
-        "selected_candidate": {"candidate_id": candidate_id, "family": "breakout_volatility_filter", "params": {}},
+        "walk_forward_candidates": 1,
+        "finalists": 1,
+        "candidate_stage_ids": {
+            "generated": [f"{candidate_id}_a", f"{candidate_id}_b"],
+            "tested": [f"{candidate_id}_a", f"{candidate_id}_b"],
+            "walk_forward": [f"{candidate_id}_a"],
+            "finalists": [f"{candidate_id}_a"],
+        },
+        "generated_candidate_inventory": [
+            {
+                "candidate_id": f"{candidate_id}_a",
+                "family": "breakout_volatility_filter",
+                "params": {},
+                "candidate_signature": signature,
+                "tested": True,
+                "not_tested_reason": None,
+            },
+            {
+                "candidate_id": f"{candidate_id}_b",
+                "family": "breakout_volatility_filter",
+                "params": {"lookback": 1},
+                "candidate_signature": _signature({"lookback": 1}),
+                "tested": True,
+                "not_tested_reason": None,
+            },
+        ],
+        "resource_budget": {
+            "generated_cap": 4,
+            "tested_cap": 2,
+            "walk_forward_cap": 1,
+            "finalists_cap": 1,
+            "walk_forward_folds": 6,
+            "rolling_origin_cap": 3,
+            "selection_candidate_days_cap": 4015,
+            "selection_candle_evaluations_cap": 5_781_600,
+        },
+        "selected_candidate": {
+            "candidate_id": selected_id,
+            "family": "breakout_volatility_filter",
+            "params": {},
+            "candidate_signature": signature,
+        },
+        "selected_candidate_score": {
+            "candidate_id": selected_id,
+            "candidate_signature": signature,
+            "ranking_rule": "quality_gate_then_wfv_aggregate_pf_drawdown_then_fold_tiebreakers",
+            "quality_gate_passed": False,
+            "wfv_net_usdc_per_day": validation,
+            "wfv_profit_factor": 1.2,
+            "wfv_max_drawdown_usdc": 1.0,
+            "worst_fold_net_usdc_per_day": validation,
+            "positive_fold_count": 1,
+            "validation_net_usdc_per_day": validation,
+            "wfv_cost_load": 1.0,
+        },
         "best_training_candidate": {"candidate_id": candidate_id},
         "best_validation_candidate": {"candidate_id": candidate_id, "net_usdc_per_day": validation},
         "best_validation_metrics": BacktestMetrics(validation, validation, 10, 0.5, 1, 1.2, validation / 10, 1, 1, 1, 1),
-        "blindtest_audit": {"net_usdc_per_day": blindtest, "repeated_blindtest_audit": True},
         "candidate_leaderboard_summary": [],
+        "walk_forward_summaries": [],
         "family_aggregate_summary": [],
         "exit_reason_summary": {},
-        "wfv_summary": {},
+        "wfv_summary": {"ranking_uses_blindtest": False},
+        "rolling_origin_summary": {"uses_final_audit": False, "origin_count": 0},
+        "quality_gate": gate,
+        "quality_gate_evidence": {},
+        "finalist_summaries": [
+            {
+                "candidate_id": selected_id,
+                "quality_gate_evidence": {},
+                "quality_gate": gate,
+            }
+        ],
         "next_search_space_adjustment": "continue",
-        "safety": safety or {"live": "locked", "paper": "locked", "testtrade": "locked", "orders": "not_created", "binance_trading_api": "not_used", "api_keys": "not_used"},
+        "safety": safety or safety_status(),
     }
+
+
+def _config(tmp_path, **overrides):
+    values = {
+        "raw_root": "C:/TradingBot/data/ETHUSDC_BotV3_Hermes",
+        "reports_root": tmp_path,
+        "max_cycles": 3,
+        "max_candidates_per_cycle": 4,
+        "tested_candidates_per_cycle": 2,
+        "walk_forward_candidates_per_cycle": 1,
+        "finalists_per_cycle": 1,
+        "min_cycles": 3,
+        "required_days": None,
+    }
+    values.update(overrides)
+    return LoopConfig(**values)
 
 
 def test_research_loop_runner_executes_multiple_cycles(tmp_path):
@@ -33,10 +132,7 @@ def test_research_loop_runner_executes_multiple_cycles(tmp_path):
         calls.append(cycle_index)
         return _cycle(f"candidate_{cycle_index}", validation=-1.0 + cycle_index * 0.1)
 
-    result = run_research_loop(
-        LoopConfig(raw_root="C:/TradingBot/data/ETHUSDC_BotV3_Hermes", reports_root=tmp_path, max_cycles=3, max_candidates_per_cycle=4, min_cycles=3),
-        cycle_runner=cycle_runner,
-    )
+    result = run_research_loop(_config(tmp_path), cycle_runner=cycle_runner)
 
     assert calls == [1, 2, 3]
     assert result.cycles_executed == 3
@@ -44,18 +140,79 @@ def test_research_loop_runner_executes_multiple_cycles(tmp_path):
     assert result.report_paths.json_path.exists()
 
 
-def test_research_loop_stops_at_target_reached_after_min_cycles(tmp_path):
-    def cycle_runner(cycle_index, state):
-        return _cycle(f"candidate_{cycle_index}", validation=3.5 if cycle_index == 3 else 1.0, blindtest=3.2 if cycle_index == 3 else -1)
-
+def test_research_loop_never_claims_target_without_separate_frozen_holdout(tmp_path):
     result = run_research_loop(
-        LoopConfig(raw_root="C:/TradingBot/data/ETHUSDC_BotV3_Hermes", reports_root=tmp_path, max_cycles=8, max_candidates_per_cycle=4, min_cycles=3),
-        cycle_runner=cycle_runner,
+        _config(tmp_path),
+        cycle_runner=lambda cycle_index, state: _cycle(f"candidate_{cycle_index}", validation=9.0),
     )
 
     assert result.cycles_executed == 3
-    assert result.stop_reason == "target_reached_clean_validation_candidate"
-    assert result.target_reached is True
+    assert result.stop_reason == "max_cycles_reached"
+    assert result.target_reached is False
+
+
+def test_research_loop_rejects_any_cycle_audit_payload(tmp_path):
+    def poisoned_cycle(cycle_index, state):
+        cycle = _cycle(f"candidate_{cycle_index}", validation=-1.0)
+        cycle["blindtest_audit"] = {"net_usdc_per_day": 9999.0}
+        return cycle
+
+    with pytest.raises(ValueError, match="audit|blindtest|holdout"):
+        run_research_loop(_config(tmp_path), cycle_runner=poisoned_cycle)
+
+
+def test_research_loop_rejects_nested_audit_metrics(tmp_path):
+    def poisoned_cycle(cycle_index, state):
+        cycle = _cycle(f"candidate_{cycle_index}", validation=-1.0)
+        cycle["candidate_leaderboard_summary"] = [{"blindtest_metrics": {"net_usdc_per_day": 9999.0}}]
+        return cycle
+
+    with pytest.raises(ValueError, match="audit|blindtest|holdout"):
+        run_research_loop(_config(tmp_path), cycle_runner=poisoned_cycle)
+
+
+@pytest.mark.parametrize(
+    "forbidden_key",
+    [
+        "blindtest_result",
+        "audit_metrics",
+        "holdout_performance",
+        "blindtest_data",
+        "holdout_evaluation",
+        "blindtest_outcome",
+        "audit_stats",
+    ],
+)
+def test_research_loop_rejects_variant_audit_result_keys(tmp_path, forbidden_key):
+    def poisoned_cycle(cycle_index, state):
+        cycle = _cycle(f"candidate_{cycle_index}", validation=-1.0)
+        cycle["diagnostic"] = {forbidden_key: {"net_usdc_per_day": 9999.0}}
+        return cycle
+
+    with pytest.raises(ValueError, match="audit|blindtest|holdout"):
+        run_research_loop(_config(tmp_path), cycle_runner=poisoned_cycle)
+
+
+def test_research_loop_rejects_inconsistent_candidate_stage_counts(tmp_path):
+    def invalid_cycle(cycle_index, state):
+        cycle = _cycle(f"candidate_{cycle_index}", validation=-1.0)
+        cycle["finalists"] = 2
+        return cycle
+
+    with pytest.raises(ValueError, match="candidate stage"):
+        run_research_loop(_config(tmp_path), cycle_runner=invalid_cycle)
+
+
+def test_selected_candidate_identity_must_match_its_generated_inventory_row(tmp_path):
+    def invalid_cycle(cycle_index, state):
+        cycle = _cycle(f"candidate_{cycle_index}", validation=-1.0)
+        cycle["selected_candidate"]["params"] = {"lookback": 999}
+        cycle["selected_candidate"]["candidate_signature"] = _signature({"lookback": 999})
+        cycle["selected_candidate_score"]["candidate_signature"] = _signature({"lookback": 999})
+        return cycle
+
+    with pytest.raises(ValueError, match="generated inventory"):
+        run_research_loop(_config(tmp_path), cycle_runner=invalid_cycle)
 
 
 def test_research_loop_stops_on_stagnation_after_three_non_improving_cycles(tmp_path):
@@ -65,44 +222,249 @@ def test_research_loop_stops_on_stagnation_after_three_non_improving_cycles(tmp_
         return _cycle(f"candidate_{cycle_index}", validation=values[cycle_index])
 
     result = run_research_loop(
-        LoopConfig(raw_root="C:/TradingBot/data/ETHUSDC_BotV3_Hermes", reports_root=tmp_path, max_cycles=8, max_candidates_per_cycle=4, min_cycles=3, stagnation_cycles=3),
+        _config(tmp_path, max_cycles=8, stagnation_cycles=3),
         cycle_runner=cycle_runner,
     )
 
     assert result.cycles_executed == 4
-    assert result.stop_reason == "validation_stagnation_3_cycles"
+    assert result.stop_reason == "selection_stagnation_3_cycles"
 
 
-def test_loop_report_contains_cycles_stop_reason_target_and_safety_locks(tmp_path):
+def test_loop_report_schema_v2_contains_honest_stages_and_consumed_audit_policy(tmp_path):
     result = run_research_loop(
-        LoopConfig(raw_root="C:/TradingBot/data/ETHUSDC_BotV3_Hermes", reports_root=tmp_path, max_cycles=3, max_candidates_per_cycle=4, min_cycles=3),
+        _config(tmp_path),
         cycle_runner=lambda cycle_index, state: _cycle(f"candidate_{cycle_index}", validation=-0.1),
     )
 
     data = json.loads(result.report_paths.json_path.read_text(encoding="utf-8"))
 
-    assert len(data["cycles"]) == 3
-    assert data["stop_reason"]
+    assert data["schema_version"] == 2
+    assert data["candidate_stage_totals"] == {
+        "generated": 6,
+        "tested": 6,
+        "walk_forward": 3,
+        "finalists": 3,
+    }
+    assert data["audit_policy"]["consumed_audit_window"] is True
+    assert data["audit_policy"]["evaluated_in_research_loop"] is False
+    assert data["audit_policy"]["affects_selection"] is False
     assert data["target_reached"] is False
-    assert data["safety"]["live"] == "locked"
-    assert data["safety"]["paper"] == "locked"
-    assert data["safety"]["testtrade"] == "locked"
-    assert data["safety"]["orders"] == "not_created"
-    assert data["safety"]["binance_trading_api"] == "not_used"
-    assert data["safety"]["api_keys"] == "not_used"
-    assert "Live/Paper/Testtrade locked" in result.report_paths.txt_path.read_text(encoding="utf-8")
+    assert "best_blindtest_audit_result" not in data
+    text = result.report_paths.txt_path.read_text(encoding="utf-8")
+    assert "Holdout evaluated: False" in text
+    assert "Live/Paper/Testtrade locked" in text
+
+
+def test_loop_report_serializes_nonfinite_diagnostics_as_strict_json(tmp_path):
+    def nonfinite_cycle(cycle_index, state):
+        cycle = _cycle(f"candidate_{cycle_index}", validation=-0.1)
+        cycle["diagnostic"] = {"profit_factor": float("inf")}
+        return cycle
+
+    result = run_research_loop(_config(tmp_path), cycle_runner=nonfinite_cycle)
+    raw = result.report_paths.json_path.read_text(encoding="utf-8")
+
+    assert "Infinity" not in raw
+    assert json.loads(raw)["cycles"][0]["diagnostic"]["profit_factor"] == "inf"
+
+
+def test_loop_report_recursively_serializes_nonfinite_metric_objects_as_strict_json(tmp_path):
+    def nonfinite_cycle(cycle_index, state):
+        cycle = _cycle(f"candidate_{cycle_index}", validation=-0.1)
+        cycle["best_validation_metrics"] = BacktestMetrics(
+            -0.1, -0.1, 1, 1.0, 0.0, float("inf"), -0.1, 0.1, 0.1, 1, 1
+        )
+        return cycle
+
+    result = run_research_loop(_config(tmp_path), cycle_runner=nonfinite_cycle)
+    raw = result.report_paths.json_path.read_text(encoding="utf-8")
+
+    assert "Infinity" not in raw
+    assert json.loads(raw)["cycles"][0]["best_validation_metrics"]["profit_factor"] == "inf"
 
 
 def test_loop_stops_on_safety_violation(tmp_path):
-    unsafe = {"live": "unlocked", "paper": "locked", "testtrade": "locked", "orders": "not_created", "binance_trading_api": "not_used", "api_keys": "not_used"}
+    unsafe = {**safety_status(), "live": "unlocked"}
 
     result = run_research_loop(
-        LoopConfig(raw_root="C:/TradingBot/data/ETHUSDC_BotV3_Hermes", reports_root=tmp_path, max_cycles=8, max_candidates_per_cycle=4, min_cycles=3),
+        _config(tmp_path, max_cycles=8),
         cycle_runner=lambda cycle_index, state: _cycle(f"candidate_{cycle_index}", validation=-0.1, safety=unsafe),
     )
 
     assert result.stop_reason == "safety_violation"
     assert result.cycles_executed == 1
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda value: value.pop("short_margin_futures_leverage"),
+        lambda value: value.update(candidate_adoptable=True),
+    ],
+)
+def test_loop_safety_requires_the_complete_canonical_contract(tmp_path, mutate):
+    unsafe = safety_status()
+    mutate(unsafe)
+
+    result = run_research_loop(
+        _config(tmp_path, max_cycles=8),
+        cycle_runner=lambda cycle_index, state: _cycle(
+            f"candidate_{cycle_index}", validation=-0.1, safety=unsafe
+        ),
+    )
+
+    assert result.stop_reason == "safety_violation"
+    assert result.cycles_executed == 1
+
+
+def test_config_rejects_stage_caps_above_the_protocol_hard_caps(tmp_path):
+    with pytest.raises(ValueError, match="hard cap"):
+        _config(tmp_path, max_candidates_per_cycle=41)
+
+
+def test_config_rejects_candidate_day_budget_above_the_protocol_hard_cap(tmp_path):
+    with pytest.raises(ValueError, match="candidate-day hard cap"):
+        _config(tmp_path, rolling_origin_limit=40)
+
+
+def test_config_rejects_more_than_eight_research_cycles(tmp_path):
+    with pytest.raises(ValueError, match="hard cap of 8"):
+        _config(tmp_path, max_cycles=9)
+
+
+def test_config_accepts_only_production_or_explicit_fixture_window_policy(tmp_path):
+    with pytest.raises(ValueError, match="1095.*fixture"):
+        _config(tmp_path, required_days=30)
+
+
+def test_production_config_requires_exact_six_folds_and_canonical_origins(tmp_path):
+    with pytest.raises(ValueError, match="exactly six"):
+        LoopConfig(reports_root=tmp_path, walk_forward_fold_count=5)
+    with pytest.raises(ValueError, match="three 365-day"):
+        LoopConfig(reports_root=tmp_path, rolling_origin_limit=0)
+
+
+def test_custom_cycle_runner_cannot_create_a_production_report(tmp_path):
+    with pytest.raises(ValueError, match="fixture/test-only"):
+        run_research_loop(
+            LoopConfig(reports_root=tmp_path, max_cycles=1, min_cycles=1),
+            cycle_runner=lambda cycle_index, state: _cycle("forged", validation=99.0),
+        )
+
+
+def test_best_candidate_uses_the_selected_finalist_score_not_an_unrelated_validation_leader(tmp_path):
+    def cycle_runner(cycle_index, state):
+        cycle = _cycle(f"candidate_{cycle_index}", validation=float(cycle_index))
+        cycle["best_validation_candidate"]["net_usdc_per_day"] = 100.0 if cycle_index == 1 else -100.0
+        return cycle
+
+    result = run_research_loop(
+        _config(tmp_path, max_cycles=2, min_cycles=2),
+        cycle_runner=cycle_runner,
+    )
+
+    assert result.best_candidate["candidate_id"] == "candidate_2_a"
+
+
+def test_forged_unbound_passed_gate_is_rejected_before_freeze(tmp_path):
+    def cycle_runner(cycle_index, state):
+        cycle = _cycle(f"candidate_{cycle_index}", validation=1.0)
+        cycle["quality_gate"] = {
+            "schema_version": 1,
+            "gate_version": "quality_gate_v1",
+            "stage": "selection",
+            "status": "pass",
+            "passed": True,
+            "missing_evidence": [],
+            "invalid_evidence": [],
+            "stage_readiness": {
+                "research_evidence_complete": True,
+                "sealed_holdout_ready": True,
+                "candidate_adoption_ready": False,
+                "live_ready": False,
+            },
+            "safety": {
+                "candidate_adoptable": False,
+                "live": "locked",
+                "paper": "locked",
+                "testtrade": "locked",
+            },
+            "checks": [{"passed": True}],
+            "candidate_id": "different_candidate",
+            "candidate_signature": "forged",
+        }
+        cycle["selected_candidate_score"]["quality_gate_passed"] = True
+        return cycle
+
+    with pytest.raises(ValueError, match="canonical re-evaluation"):
+        run_research_loop(_config(tmp_path), cycle_runner=cycle_runner)
+
+
+def test_bound_but_structurally_incomplete_passed_gate_is_rejected(tmp_path):
+    def cycle_runner(cycle_index, state):
+        cycle = _cycle(f"candidate_{cycle_index}", validation=1.0)
+        selected = cycle["selected_candidate"]
+        gate = {
+            "schema_version": 1,
+            "gate_version": "quality_gate_v1",
+            "stage": "selection",
+            "status": "pass",
+            "passed": True,
+            "missing_evidence": [],
+            "invalid_evidence": [],
+            "stage_readiness": {
+                "research_evidence_complete": True,
+                "sealed_holdout_ready": True,
+                "candidate_adoption_ready": False,
+                "live_ready": False,
+            },
+            "safety": {
+                "candidate_adoptable": False,
+                "live": "locked",
+                "paper": "locked",
+                "testtrade": "locked",
+            },
+            "checks": [{"code": "forged", "phase": "selection", "passed": True, "reason": "passed", "evidence_paths": ["fake"]}],
+            "candidate_id": selected["candidate_id"],
+            "candidate_signature": selected["candidate_signature"],
+        }
+        cycle["quality_gate"] = gate
+        cycle["selected_candidate_score"]["quality_gate_passed"] = True
+        cycle["finalist_summaries"] = [
+            {"candidate_id": selected["candidate_id"], "quality_gate": gate}
+        ]
+        return cycle
+
+    with pytest.raises(ValueError, match="canonical re-evaluation"):
+        run_research_loop(_config(tmp_path), cycle_runner=cycle_runner)
+
+
+def test_flipping_every_canonical_check_to_pass_cannot_forge_a_freeze(tmp_path):
+    def cycle_runner(cycle_index, state):
+        cycle = _cycle(f"candidate_{cycle_index}", validation=1.0)
+        gate = cycle["quality_gate"]
+        gate.update(
+            {
+                "status": "pass",
+                "passed": True,
+                "missing_evidence": [],
+                "invalid_evidence": [],
+                "stage_readiness": {
+                    "research_evidence_complete": True,
+                    "sealed_holdout_ready": True,
+                    "candidate_adoption_ready": False,
+                    "live_ready": False,
+                },
+            }
+        )
+        for check in gate["checks"]:
+            check["passed"] = True
+            check["reason"] = "passed"
+        cycle["selected_candidate_score"]["quality_gate_passed"] = True
+        return cycle
+
+    with pytest.raises(ValueError, match="canonical re-evaluation"):
+        run_research_loop(_config(tmp_path), cycle_runner=cycle_runner)
 
 
 def test_context_symbols_cannot_trigger_trades():

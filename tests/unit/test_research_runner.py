@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 import zipfile
 
+import pytest
+
 from ethusdc_bot.backtest.research_runner import (
     build_candidate_diagnosis,
     build_candidate_leaderboard,
@@ -41,12 +43,9 @@ def _fixture_root(tmp_path: Path) -> Path:
     return root
 
 
-def test_research_runner_uses_training_validation_for_selection(tmp_path):
-    result = run_research(raw_root=_fixture_root(tmp_path), reports_root=tmp_path / "research", required_days=None)
-
-    assert result.selection_source == "subtrain_validation_only"
-    assert result.event_log.index("candidate_selected") < result.event_log.index("blindtest_evaluated")
-    assert result.experiment_paths.json_path.exists()
+def test_legacy_single_run_research_is_fail_closed_under_protocol_v2(tmp_path):
+    with pytest.raises(RuntimeError, match="disabled by Research Protocol v2"):
+        run_research(raw_root=_fixture_root(tmp_path), reports_root=tmp_path / "research", required_days=None)
 
 
 def test_ranking_uses_not_blindtest_metrics():
@@ -66,70 +65,6 @@ def test_ranking_uses_not_blindtest_metrics():
     ranked = rank_candidates([strong_blind_bad_validation, weak_blind])
 
     assert ranked[0]["candidate"].family == "momentum_trend_filter"
-
-
-def test_research_report_contains_parameters_and_selection_reason(tmp_path):
-    result = run_research(raw_root=_fixture_root(tmp_path), reports_root=tmp_path / "research", required_days=None)
-    data = result.experiment_paths.json_path.read_text(encoding="utf-8")
-
-    assert "parameter_space" in data
-    assert "why_selected" in data
-    assert "target_usdc_per_day" in data
-    assert "api_keys" in data
-    assert "not_used" in data
-
-
-def test_research_report_contains_complete_candidate_leaderboard(tmp_path):
-    result = run_research(raw_root=_fixture_root(tmp_path), reports_root=tmp_path / "research", required_days=None)
-    data = json.loads(result.experiment_paths.json_path.read_text(encoding="utf-8"))
-
-    leaderboard = data["candidate_leaderboard"]
-    assert len(leaderboard) == data["parameter_counts"]["total_candidates"]
-    assert [row["rank_position"] for row in leaderboard] == list(range(1, len(leaderboard) + 1))
-    assert all("candidate_id" in row for row in leaderboard)
-    assert all("training_metrics" in row and "validation_metrics" in row for row in leaderboard)
-
-
-def test_leaderboard_ranking_uses_no_blindtest_metrics_except_selected(tmp_path):
-    result = run_research(raw_root=_fixture_root(tmp_path), reports_root=tmp_path / "research", required_days=None)
-    data = json.loads(result.experiment_paths.json_path.read_text(encoding="utf-8"))
-
-    selected_ids = [row["candidate_id"] for row in data["candidate_leaderboard"] if "blindtest_metrics" in row]
-    assert selected_ids == [data["selected_candidate"]["candidate_id"]]
-    assert data["candidate_diagnosis"]["ranking_uses_blindtest"] is False
-
-
-def test_research_report_contains_family_aggregates_for_all_families(tmp_path):
-    result = run_research(raw_root=_fixture_root(tmp_path), reports_root=tmp_path / "research", required_days=None)
-    data = json.loads(result.experiment_paths.json_path.read_text(encoding="utf-8"))
-
-    aggregates = data["family_aggregates"]
-    assert {row["family"] for row in aggregates} == set(data["strategy_families"])
-    for row in aggregates:
-        for key in [
-            "candidate_count",
-            "best_validation_candidate_id",
-            "best_validation_net_usdc_per_day",
-            "average_validation_net_usdc_per_day",
-            "best_training_net_usdc_per_day",
-            "average_training_net_usdc_per_day",
-            "average_trade_count",
-            "min_trade_count",
-            "max_trade_count",
-            "average_fees_usdc",
-            "average_slippage_usdc",
-            "average_cost_load",
-            "best_profit_factor",
-            "average_profit_factor",
-            "best_drawdown",
-            "worst_drawdown",
-            "overtrading_count",
-            "too_few_trades_count",
-            "negative_validation_count",
-            "high_cost_count",
-        ]:
-            assert key in row
-        assert "blindtest" not in json.dumps(row).lower()
 
 
 def test_family_diagnosis_uses_validation_and_costs_without_blindtest():
@@ -224,3 +159,19 @@ def test_controlled_cost_filter_improvement_is_deterministic_and_not_target_hard
     assert strict_cost_filters
     assert len(candidates) <= 30
     assert all("target_usdc_per_day" not in candidate.params for candidate in strict_cost_filters)
+
+
+def test_candidate_leaderboard_can_be_built_without_any_audit_metrics():
+    records = [
+        {
+            "candidate": StrategyCandidate("alpha", {}),
+            "candidate_id": "alpha_001",
+            "training_metrics": BacktestMetrics(1, 1, 30, 0.5, 1, 1.2, 0.1, 1, 1, 1, 0),
+            "validation_metrics": BacktestMetrics(1, 1, 30, 0.5, 1, 1.2, 0.1, 1, 1, 1, 0),
+        }
+    ]
+
+    leaderboard = build_candidate_leaderboard(records, selected_candidate_id="alpha_001")
+
+    assert "blindtest_metrics" not in leaderboard[0]
+    assert "audit" not in json.dumps(leaderboard).lower()
