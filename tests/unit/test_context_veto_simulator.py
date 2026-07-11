@@ -36,7 +36,10 @@ def _context(
     ratio_closes: list[float] | None = None,
 ) -> AlignedMarketCandles:
     origin = datetime.fromtimestamp(eth[0].open_time / 1000, tz=UTC)
-    btc = _candles(btc_closes or [100 + index * 0.1 for index in range(len(eth))], start=origin)
+    btc = _candles(
+        btc_closes or [100 + index * 0.1 for index in range(len(eth))],
+        start=origin,
+    )
     ratio = _candles(
         ratio_closes or [1 + index * 0.001 for index in range(len(eth))],
         start=origin,
@@ -48,7 +51,9 @@ def _context(
     )
 
 
-def _context_candidate(base_family: str = "always_long", **overrides: object) -> StrategyCandidate:
+def _context_candidate(
+    base_family: str = "always_long", **overrides: object
+) -> StrategyCandidate:
     params: dict[str, object] = {
         "symbol": "ETHUSDC",
         "base_family": base_family,
@@ -72,8 +77,8 @@ def test_missing_context_fails_closed_and_never_replays_base_strategy() -> None:
     result = simulate_strategy(eth, _context_candidate(), days=1)
 
     assert result.trade_count == 0
-    assert result.rejections["context_data_missing"] > 0
-    assert result.rejections.get("context_allowed", 0) == 0
+    assert result.rejection_reasons["context_data_missing"] > 0
+    assert result.rejection_reasons.get("context_allowed", 0) == 0
 
 
 def test_favorable_context_confirms_existing_ethusdc_base_signals() -> None:
@@ -89,7 +94,7 @@ def test_favorable_context_confirms_existing_ethusdc_base_signals() -> None:
     assert result.trade_count > 0
     assert all(trade.symbol == "ETHUSDC" for trade in result.trades)
     assert all(trade.side == "LONG" for trade in result.trades)
-    assert result.rejections.get("context_data_missing", 0) == 0
+    assert result.rejection_reasons.get("context_data_missing", 0) == 0
 
 
 def test_btc_downtrend_veto_blocks_base_signals_and_is_reported() -> None:
@@ -104,7 +109,7 @@ def test_btc_downtrend_veto_blocks_base_signals_and_is_reported() -> None:
     )
 
     assert result.trade_count == 0
-    assert result.rejections["context_veto_btc_trend"] > 0
+    assert result.rejection_reasons["context_veto_btc_trend"] > 0
 
 
 def test_context_never_creates_a_trade_without_a_base_signal() -> None:
@@ -123,10 +128,13 @@ def test_context_never_creates_a_trade_without_a_base_signal() -> None:
     )
 
     assert result.trade_count == 0
-    assert result.rejections.get("context_data_missing", 0) == 0
-    assert result.rejections.get("context_veto_btc_trend", 0) == 0
-    assert result.rejections.get("context_veto_btc_volatility", 0) == 0
-    assert result.rejections.get("context_veto_ethbtc_relative_strength", 0) == 0
+    assert result.rejection_reasons.get("context_data_missing", 0) == 0
+    assert result.rejection_reasons.get("context_veto_btc_trend", 0) == 0
+    assert result.rejection_reasons.get("context_veto_btc_volatility", 0) == 0
+    assert (
+        result.rejection_reasons.get("context_veto_ethbtc_relative_strength", 0)
+        == 0
+    )
 
 
 def test_recursive_context_base_is_rejected_without_recursion() -> None:
@@ -140,7 +148,7 @@ def test_recursive_context_base_is_rejected_without_recursion() -> None:
     )
 
     assert result.trade_count == 0
-    assert result.rejections["context_recursive_base_forbidden"] > 0
+    assert result.rejection_reasons["context_recursive_base_forbidden"] > 0
 
 
 def test_misaligned_context_is_rejected_before_simulation() -> None:
@@ -200,10 +208,12 @@ def test_non_context_strategy_is_identical_with_or_without_market_context() -> N
 def test_non_ethusdc_symbol_remains_forbidden_even_with_context() -> None:
     eth = _candles([100 + index * 0.1 for index in range(12)])
 
-    with pytest.raises(ValueError, match="Only ETHUSDC"):
-        simulate_strategy(
-            eth,
-            _context_candidate(symbol="BTCUSDC"),
-            days=1,
-            market_context=_context(eth),
-        )
+    result = simulate_strategy(
+        eth,
+        _context_candidate(symbol="BTCUSDC"),
+        days=1,
+        market_context=_context(eth),
+    )
+
+    assert result.trade_count == 0
+    assert result.rejection_reasons["context_symbol_not_tradeable"] == 1
