@@ -2,12 +2,12 @@
 
 Immediate sequence for branch `codex/ui-responsiveness-and-next-iteration`:
 
-1. Preserve the completed UI responsiveness fix and its focused/full regression coverage.
-2. Add bounded signal-funnel attribution to the existing simulator/search report only: eligible observations, raw entry signals, and rejection counts by existing entry/filter/cooldown/context reason.
-3. Do not change strategy parameters, costs, gates, candidate budgets, family definitions, or ranking in that instrumentation block.
-4. Use a small deterministic simulation test to prove counters reconcile and do not affect trades or PnL.
-5. Commit, push, and update the stacked draft PR/handoff.
-6. Only then prepare the next canonical UI run and verify 40/12/3/2, context 6/2, six folds, audit false, final holdout false, and all trading locks.
+1. Relaunch the existing dashboard only through `START_DASHBOARD.bat` so the committed asynchronous refresh code is active.
+2. Verify the completed run appears without UI blocking and no second supervisor starts automatically.
+3. Use the existing data-check button, wait for the Data Gate, then start the next canonical Training/WFV run through the UI button only.
+4. Verify 40/12/3/2, context 6/2, six folds, audit false, final holdout false, and all trading locks after cycle 1.
+5. Let the run complete without code or parameter changes.
+6. Use the new validation/WFV signal funnels to decide whether inactivity is dominated by threshold, volatility, cooldown, position occupancy, session, or context veto.
 
 Evidence to preserve:
 

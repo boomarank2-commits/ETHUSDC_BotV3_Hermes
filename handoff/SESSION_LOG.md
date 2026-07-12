@@ -554,3 +554,13 @@ Verification:
 - Full suite: 854 tests passed.
 - Python compile and `git diff --check`: passed.
 - No final holdout, Live, Paper, Testtrade, order, account, API key, or Trading API action occurred.
+
+## 2026-07-12 - Add behavior-neutral signal-funnel attribution
+
+- Commit `5870eca47a294768f80851183fe056d0a55c90e6` instruments the existing simulator entry boundary without changing any trading decision.
+- Counters cover total observations, position occupancy, cooldown, end-of-data, entry evaluations, raw signals, accepted signals, and exact existing filter/context rejection reasons.
+- Walk-forward output includes each fold's funnel and a summed aggregate. The selected research cycle exposes training, validation, and WFV funnels.
+- Reconciliation tests prove every observation has one scheduling state and every entry evaluation is accepted or rejected exactly once.
+- Focused simulator/context/WFV/Protocol-v2 tests passed; full suite passed with 856 collected tests.
+- Python compile, PowerShell parse, and `git diff --check` passed.
+- Strategy parameters, candidate budgets, ranking, costs, Quality Gates, audit/holdout policy, and all external-action locks are unchanged.

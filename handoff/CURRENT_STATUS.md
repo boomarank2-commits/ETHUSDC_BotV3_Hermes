@@ -7,9 +7,10 @@ Repository state:
 - Active branch: `codex/ui-responsiveness-and-next-iteration`
 - Branch base: `08bd555ece20b472a72196844954be7360309207` (PR #15 head)
 - UI responsiveness implementation: `5ef7eb8c0283ab67f89b249a274637d465cea8a3`
+- Signal-funnel instrumentation: `5870eca47a294768f80851183fe056d0a55c90e6`
 - Draft PR #15 remains the completed profile-rotation block; the current branch is the next stacked block.
 - PR #14 CI run `29191047437`: successful, 846 tests on the PR14 head.
-- Current local verification: 854 tests passed; Python compile and `git diff --check` passed.
+- Current local verification: 856 tests passed; Python compile, PowerShell parse, and `git diff --check` passed.
 
 Canonical user path:
 
@@ -46,6 +47,14 @@ Measured patch effect and current bottleneck:
 - Activity did not materially improve: 28 versus 27 trades and 135 versus 136 no-trade days.
 - The best selected WFV candidate is positive after costs but remains far below +3 USDC/day (gap -2.987408158) and fails fold-trade, temporal-coverage, concentration, stress, and stability gates.
 - The next smallest evidence patch is signal-funnel/rejection attribution in the existing simulator/report. Entry/filter rejection cannot currently be separated well enough to justify another parameter or strategy change.
+
+Signal-funnel instrumentation now available for the next run:
+
+- Counts total observations, position-open blocks, cooldown blocks, end-of-data blocks, entry evaluations, raw entry signals, accepted signals, and one exact rejection reason per rejected evaluation.
+- Existing reasons distinguish warmup, threshold, trend, volatility, regime, session, expected-move, and context vetoes.
+- WFV reports contain per-fold counters plus a reconciled aggregate; the selected cycle contains full-training, validation, and WFV funnels.
+- Tests prove observation and entry-evaluation reconciliation. The report explicitly declares `changes_strategy_behavior=false` and `uses_audit_or_holdout=false`.
+- No signal condition, trade, PnL, fee, slippage, ranking, candidate, parameter, or Quality Gate was changed.
 
 Dashboard responsiveness fix:
 
