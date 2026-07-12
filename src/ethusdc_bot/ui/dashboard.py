@@ -18,6 +18,11 @@ from tkinter import messagebox, scrolledtext, ttk
 
 from ethusdc_bot.portfolio import ALLOWED_DEPLOYMENT_BUDGETS_USDC
 from ethusdc_bot.shadow.adoption import ShadowAdoptionError, adopt_for_shadow
+from ethusdc_bot.ui.backtest_display import (
+    collect_backtest_display_status,
+    format_backtest_log_for_display,
+    format_backtest_summary_for_display,
+)
 from ethusdc_bot.ui.backtest_controller import (
     TrainingResearchController,
     build_initial_training_research_status,
@@ -118,6 +123,7 @@ class DashboardApp:
         self.last_file_event_monotonic = time.monotonic()
         self.training_research_controller = TrainingResearchController()
         self.training_research_status = build_initial_training_research_status()
+        self.backtest_display_status: dict[str, object] | None = None
         self.final_evaluation_controller = FinalEvaluationController()
         self.final_evaluation_runtime_status = build_initial_final_evaluation_status()
         self.shadow_controller = ShadowController()
@@ -253,7 +259,10 @@ class DashboardApp:
             self.shadow_var,
         ):
             ttk.Label(runtime_frame, textvariable=variable).pack(anchor=tk.W)
-        ttk.Progressbar(runtime_frame, maximum=100, variable=self.progress_var).pack(fill=tk.X, pady=(6, 0))
+        self.progress_bar = ttk.Progressbar(
+            runtime_frame, maximum=100, variable=self.progress_var
+        )
+        self.progress_bar.pack(fill=tk.X, pady=(6, 0))
 
         status_frame = ttk.LabelFrame(self.root, text="Kurzübersicht", padding=8)
         status_frame.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
@@ -265,7 +274,10 @@ class DashboardApp:
         self.log_text = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD, height=6)
         self.log_text.pack(fill=tk.BOTH, expand=True)
 
-    def refresh_status(self) -> None:
+    def refresh_status(self, *, log_refresh: bool = True) -> None:
+        """Refresh the existing three display areas for data or backtest mode."""
+
+        show_backtest = False
         try:
             snapshot = build_dashboard_snapshot(
                 self.repository_root,
@@ -280,14 +292,31 @@ class DashboardApp:
                 shadow_root=self.shadow_root,
             )
             self.current_snapshot = snapshot
-            if self.active_data_thread is not None and self.active_data_thread.is_alive() and self.current_runtime_status:
-                self._apply_runtime_status(self.current_runtime_status)
-            else:
-                self._apply_runtime_status(snapshot["data_prep_runtime_status"])
-            self._apply_overall_data_status(snapshot)
-            self._apply_last_run_status(snapshot["data_prep_last_run_status"])
+            display = collect_backtest_display_status(
+                self.training_reports_root,
+                controller_status=self.training_research_status,
+            )
+            self.backtest_display_status = display
+            data_running = bool(
+                self.active_data_thread is not None
+                and self.active_data_thread.is_alive()
+            )
+            show_backtest = not data_running and display.get("mode") != "idle"
+
             self._apply_product_status(snapshot)
-            text = format_operator_summary_for_display(snapshot)
+            if show_backtest:
+                self._apply_backtest_display_status(display)
+                text = format_backtest_summary_for_display(display)
+                self._replace_log_text(format_backtest_log_for_display(display))
+            else:
+                if data_running and self.current_runtime_status:
+                    self._apply_runtime_status(self.current_runtime_status)
+                else:
+                    self._apply_runtime_status(snapshot["data_prep_runtime_status"])
+                self._apply_overall_data_status(snapshot)
+                self._apply_last_run_status(snapshot["data_prep_last_run_status"])
+                self._set_progress_visible(True)
+                text = format_operator_summary_for_display(snapshot)
         except Exception as exc:  # pragma: no cover - defensive UI reporting
             text = f"Failed to collect dashboard snapshot: {exc}\n"
             self._log(text)
@@ -295,7 +324,8 @@ class DashboardApp:
         self.status_text.delete("1.0", tk.END)
         self.status_text.insert(tk.END, text)
         self.status_text.configure(state=tk.DISABLED)
-        self._log("Refreshed status snapshot.")
+        if log_refresh and not show_backtest:
+            self._log("Refreshed status snapshot.")
 
     def open_data_folder(self) -> None:
         self._log(
@@ -680,16 +710,24 @@ class DashboardApp:
         self.root.after(250, self._drain_log_queue)
 
     def _heartbeat_active_run(self) -> None:
-        if (
+        data_running = bool(
             self.active_data_thread is not None
             and self.active_data_thread.is_alive()
             and self.current_runtime_status is not None
-        ):
+        )
+        if data_running:
             heartbeat = build_data_prep_heartbeat_status(self.current_runtime_status)
             self.current_runtime_status = heartbeat
             self._apply_runtime_status(heartbeat)
             self.last_run_status = build_running_data_prep_last_run_status(heartbeat)
             self._apply_last_run_status(self.last_run_status)
+        else:
+            display = self.backtest_display_status or {}
+            if (
+                self.training_research_controller.is_running
+                or display.get("mode") in {"starting", "running"}
+            ):
+                self.refresh_status(log_refresh=False)
         self.root.after(1000, self._heartbeat_active_run)
 
     def _finalize_active_data_run(self) -> None:
@@ -702,6 +740,149 @@ class DashboardApp:
         elif error is not None:
             self.last_run_status = build_failed_data_prep_last_run_status(self.last_run_status, error)
         self._apply_last_run_status(self.last_run_status)
+
+    def _apply_backtest_display_status(self, status: dict[str, object]) -> None:
+        """Switch the existing overview widgets to the current backtest."""
+
+        mode = str(status.get("mode", "idle"))
+        completed = int(status.get("completed_cycles", 0) or 0)
+        maximum = int(status.get("max_cycles", 8) or 8)
+        active_cycle = status.get("active_cycle")
+        progress = float(status.get("progress_pct", 0.0) or 0.0)
+        elapsed = int(status.get("elapsed_seconds", 0) or 0)
+        latest = status.get("latest_cycle")
+        latest_row = latest if isinstance(latest, dict) else {}
+        final = status.get("final_summary")
+        final_row = final if isinstance(final, dict) else {}
+
+        if mode in {"starting", "running"}:
+            self.bot_state_var.set("Bot-Status: Backtest läuft")
+            phase = (
+                f"Zyklus {active_cycle}/{maximum} läuft"
+                if active_cycle is not None
+                else f"{completed}/{maximum} Zyklen abgeschlossen"
+            )
+            self.phase_var.set(f"Backteststatus: {phase}")
+            self.mode_var.set("Modus: PR12 Protocol v2 / Kontext aktiv / kein V1")
+            self.count_var.set(
+                f"Backtestfortschritt: {progress:.1f}% ({completed}/{maximum} Zyklen vollständig)"
+            )
+            self.task_var.set(f"Aktueller Schritt: {phase}")
+            self.file_var.set(
+                "Kandidaten letzter Zyklus: "
+                f"{latest_row.get('generated', '–')} erzeugt / "
+                f"{latest_row.get('tested', '–')} getestet / "
+                f"{latest_row.get('walk_forward', '–')} WFV / "
+                f"{latest_row.get('finalists', '–')} Finalisten"
+            )
+            self.last_run_detail_var.set(
+                "Bester Zwischenstand: "
+                f"WFV {self._format_usdc(latest_row.get('wfv_net_usdc_per_day'))}/Tag / "
+                f"Validation {self._format_usdc(latest_row.get('validation_net_usdc_per_day'))}/Tag"
+            )
+        elif mode == "completed":
+            self.bot_state_var.set("Bot-Status: Backtest abgeschlossen")
+            self.phase_var.set("Backteststatus: vollständig abgeschlossen")
+            self.mode_var.set("Modus: Ergebnisansicht PR12 Protocol v2")
+            self.count_var.set(f"Backtest: {completed}/{maximum} Zyklen / 100% abgeschlossen")
+            self.task_var.set(
+                f"Stop-Grund: {final_row.get('stop_reason') or 'im Report dokumentiert'}"
+            )
+            selected = final_row.get("selected_candidate")
+            selected_row = selected if isinstance(selected, dict) else {}
+            self.file_var.set(
+                "Bestes Profil: "
+                f"{selected_row.get('candidate_id') or '–'} / "
+                f"{selected_row.get('family') or '–'}"
+            )
+            self.last_run_detail_var.set(
+                "Endergebnis: "
+                f"WFV {self._format_usdc(final_row.get('wfv_net_usdc_per_day'))}/Tag / "
+                f"Abstand zu 3 USDC {self._format_usdc(final_row.get('target_gap_usdc_per_day'))}/Tag"
+            )
+        else:
+            self.bot_state_var.set(f"Bot-Status: {status.get('status_text', 'Backtestfehler')}")
+            self.phase_var.set(f"Backteststatus: {mode}")
+            self.mode_var.set("Modus: PR12 Protocol v2 – fail-closed")
+            self.count_var.set(
+                f"Backtestfortschritt: {progress:.1f}% ({completed}/{maximum} Zyklen vollständig)"
+            )
+            self.task_var.set(f"Fehler/Unterbrechung: {status.get('error') or 'siehe Laufprotokoll'}")
+            self.file_var.set(f"Child-Exit-Code: {status.get('child_exit_code')}")
+
+        self.progress_var.set(int(progress))
+        self._set_progress_visible(bool(status.get("progress_visible")))
+        self.elapsed_var.set(f"Backtest-Laufzeit: {self._format_duration(elapsed)}")
+        self.last_run_var.set(
+            f"Backtest-Run: {status.get('run_id') or 'wird erstellt'} / "
+            f"Commit {status.get('git_commit') or 'wird ermittelt'}"
+        )
+        self.engine_var.set(
+            "Backtestpfad: UI → Produktionsstarter → Supervisor → PR12 Runner; "
+            "Audit und finaler Holdout geschlossen"
+        )
+        self.portfolio_var.set(
+            "Portfolio: 100 USDC / exakt 1 Lot / kein Compounding / ETHUSDC LONG-only"
+        )
+        if mode == "completed":
+            self.final_var.set(
+                "Research-Ergebnis: "
+                f"WFV {self._format_usdc(final_row.get('wfv_net_usdc_per_day'))}/Tag / "
+                f"PF {self._format_number(final_row.get('wfv_profit_factor'), 4)} / "
+                f"Trades/Tag {self._format_number(final_row.get('wfv_trades_per_day'), 4)}"
+            )
+        else:
+            self.final_var.set(
+                "Aktueller Research-Stand: "
+                f"WFV {self._format_usdc(latest_row.get('wfv_net_usdc_per_day'))}/Tag / "
+                f"PF {self._format_number(latest_row.get('wfv_profit_factor'), 4)}"
+            )
+        self.shadow_var.set(
+            "Sicherheit: Live/Paper/Testtrade gesperrt / Orders keine / "
+            "BTCUSDC und ETHBTC nur Kontext"
+        )
+
+        active = mode in {"starting", "running"}
+        if active:
+            self._set_data_buttons_enabled(False)
+            self.training_button.configure(state=tk.DISABLED)
+            self.final_evaluation_button.configure(state=tk.DISABLED)
+            self.adopt_shadow_button.configure(state=tk.DISABLED)
+            self.shadow_start_button.configure(state=tk.DISABLED)
+            self.shadow_stop_button.configure(state=tk.DISABLED)
+
+    def _set_progress_visible(self, visible: bool) -> None:
+        if visible:
+            if not self.progress_bar.winfo_manager():
+                self.progress_bar.pack(fill=tk.X, pady=(6, 0))
+            return
+        if self.progress_bar.winfo_manager():
+            self.progress_bar.pack_forget()
+
+    def _replace_log_text(self, text: str) -> None:
+        self.log_text.configure(state=tk.NORMAL)
+        self.log_text.delete("1.0", tk.END)
+        self.log_text.insert(tk.END, text)
+        self.log_text.see(tk.END)
+        self.log_text.configure(state=tk.DISABLED)
+
+    @staticmethod
+    def _format_number(value: object, digits: int) -> str:
+        try:
+            return f"{float(value):.{digits}f}"
+        except (TypeError, ValueError, OverflowError):
+            return "–"
+
+    @classmethod
+    def _format_usdc(cls, value: object) -> str:
+        number = cls._format_number(value, 6)
+        return "–" if number == "–" else f"{number} USDC"
+
+    @staticmethod
+    def _format_duration(seconds: int) -> str:
+        hours, remainder = divmod(max(0, seconds), 3600)
+        minutes, secs = divmod(remainder, 60)
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
     def _apply_runtime_status(self, status: dict[str, object]) -> None:
         seconds_since_file_event = int(time.monotonic() - self.last_file_event_monotonic)
