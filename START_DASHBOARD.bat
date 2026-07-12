@@ -36,7 +36,7 @@ echo Commit: %HERMES_GIT_COMMIT%
 echo This is the single user entry point. Trading actions remain unavailable.
 echo.
 
-py -3.12 -m ethusdc_bot.ui.dashboard
+py -3.12 -m ethusdc_bot.ui.operator_dashboard
 if errorlevel 1 (
   echo.
   echo Dashboard exited with an error. This window stays open so the message can be read.
