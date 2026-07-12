@@ -10,6 +10,7 @@ on:
       - main
       - "agent/**"
       - "review/**"
+      - "codex/**"
   workflow_dispatch:
 
 permissions:
