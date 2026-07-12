@@ -27,3 +27,7 @@ Hard safety boundaries:
 - No final holdout evaluation.
 - No Quality-Gate relaxation or cost reduction.
 - No Live, Paper, Testtrade, orders, API keys, account access, shorts, margin, futures, leverage, merge, force-push, or direct alternate production run.
+# Morgen zuerst: reboot-sicherer Resume-State und die dreistufige UI-Anzeige
+
+Die vollständige Agenda steht in `handoff/TOMORROW_AGENDA.md`. Der aktuelle
+Lauf darf nicht unterbrochen oder durch einen zweiten Runner ersetzt werden.
