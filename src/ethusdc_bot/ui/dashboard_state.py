@@ -38,8 +38,9 @@ from ethusdc_bot.ui.data_update_controller import (
 
 BACKTEST_DISABLED_HINT = "Training/WFV research waits for the complete data gate. No fake result."
 BACKTEST_START_HINT = (
-    "Starts Protocol-v2 training/validation/WFV only. The sealed final holdout "
-    "is a separate one-shot step and is never opened by this button."
+    "Starts the PR12 Windows production starter, supervised context-enabled "
+    "Protocol-v2 training/validation/WFV. The sealed final holdout is never "
+    "opened by this button."
 )
 EXPECTED_UTC_DAYS = 1095
 
@@ -425,7 +426,7 @@ def build_dashboard_snapshot(
             "backtest_start_button": {
                 "visible": True,
                 "enabled": can_start_training,
-                "action": "training_validation_wfv_protocol_v2",
+                "action": "pr12_production_starter_supervised_context_protocol_v2",
                 "engine_locked": not data_ready,
                 "final_holdout_evaluated": False,
                 "uses_trading_api": False,

@@ -257,7 +257,7 @@ def test_build_snapshot_contains_wired_training_wfv_button_but_missing_data_bloc
     assert prep["unsupported_task_count"] >= 1
     assert prep["live_collector_task_count"] >= 2
     assert button["visible"] is True
-    assert button["action"] == "training_validation_wfv_protocol_v2"
+    assert button["action"] == "pr12_production_starter_supervised_context_protocol_v2"
     assert button["enabled"] is False
     assert button["engine_locked"] is True
     assert button["final_holdout_evaluated"] is False

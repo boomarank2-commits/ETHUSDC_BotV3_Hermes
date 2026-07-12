@@ -9,7 +9,7 @@ runner JSON remains the sole performance and quality-gate truth.
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 import json
 from pathlib import Path
@@ -29,6 +29,29 @@ _CYCLE_COMPLETE = re.compile(
     r"selected_rank=(?P<selected_rank>.*)$"
 )
 _REPORT_JSON = re.compile(r"^Report JSON:\s+(?P<path>.+)$")
+_CYCLE_PROOF = re.compile(
+    r"^cycle (?P<cycle>\d+)/(?P<maximum>\d+) proof: "
+    r"context_research\.enabled=(?P<context_enabled>true|false) "
+    r"context_generated=(?P<context_generated>\d+) "
+    r"context_tested=(?P<context_tested>\d+) "
+    r"walk_forward_folds=(?P<walk_forward_folds>\d+) "
+    r"rolling_origin_limit=(?P<rolling_origin_limit>\d+) "
+    r"audit_evaluated=(?P<audit_evaluated>true|false) "
+    r"final_holdout_evaluated=(?P<final_holdout_evaluated>true|false)$"
+)
+
+
+@dataclass(frozen=True)
+class CycleRuntimeProof:
+    cycle: int
+    maximum: int
+    context_research_enabled: bool
+    context_generated: int
+    context_tested: int
+    walk_forward_folds: int
+    rolling_origin_limit: int
+    audit_evaluated: bool
+    final_holdout_evaluated: bool
 
 
 @dataclass(frozen=True)
@@ -40,6 +63,7 @@ class CycleProgress:
     walk_forward: int
     finalists: int
     selected_rank_text: str
+    runtime_proof: CycleRuntimeProof | None = None
 
 
 def parse_cycle_progress(line: str) -> CycleProgress | None:
@@ -62,6 +86,61 @@ def parse_cycle_progress(line: str) -> CycleProgress | None:
         finalists=int(values["finalists"]),
         selected_rank_text=values["selected_rank"],
     )
+
+
+def parse_cycle_runtime_proof(line: str) -> CycleRuntimeProof | None:
+    """Parse the fail-closed PR12 context proof emitted after one cycle."""
+
+    match = _CYCLE_PROOF.fullmatch(line.strip())
+    if match is None:
+        return None
+    values = match.groupdict()
+    cycle = int(values["cycle"])
+    maximum = int(values["maximum"])
+    if cycle < 1 or maximum < cycle:
+        raise ValueError("research cycle proof indexes are invalid")
+    return CycleRuntimeProof(
+        cycle=cycle,
+        maximum=maximum,
+        context_research_enabled=values["context_enabled"] == "true",
+        context_generated=int(values["context_generated"]),
+        context_tested=int(values["context_tested"]),
+        walk_forward_folds=int(values["walk_forward_folds"]),
+        rolling_origin_limit=int(values["rolling_origin_limit"]),
+        audit_evaluated=values["audit_evaluated"] == "true",
+        final_holdout_evaluated=values["final_holdout_evaluated"] == "true",
+    )
+
+
+def _canonical_context_proof(proof: CycleRuntimeProof) -> bool:
+    return bool(
+        proof.context_research_enabled
+        and proof.context_generated == 6
+        and proof.context_tested == 2
+        and proof.walk_forward_folds == 6
+        and proof.rolling_origin_limit == 3
+        and proof.audit_evaluated is False
+        and proof.final_holdout_evaluated is False
+    )
+
+
+def _checkpoint_cycle(progress: CycleProgress) -> dict[str, object]:
+    row = asdict(progress)
+    proof = progress.runtime_proof
+    row["runtime_proof"] = (
+        {
+            "context_research": {"enabled": proof.context_research_enabled},
+            "context_generated": proof.context_generated,
+            "context_tested": proof.context_tested,
+            "walk_forward_folds": proof.walk_forward_folds,
+            "rolling_origin_limit": proof.rolling_origin_limit,
+            "audit_evaluated": proof.audit_evaluated,
+            "final_holdout_evaluated": proof.final_holdout_evaluated,
+        }
+        if proof is not None
+        else None
+    )
+    return row
 
 
 def _parse_supervisor_arguments(argv: Sequence[str]) -> tuple[Path, int]:
@@ -114,7 +193,7 @@ def _checkpoint_payload(
         "max_cycles": max_cycles,
         "completed_cycle_count": len(completed_cycles),
         "active_cycle": active_cycle,
-        "cycles": [asdict(cycle) for cycle in completed_cycles],
+        "cycles": [_checkpoint_cycle(cycle) for cycle in completed_cycles],
         "child_exit_code": child_exit_code,
         "report_json": report_json,
         "resume_supported": False,
@@ -146,6 +225,7 @@ def write_checkpoint(path: Path, payload: dict[str, object]) -> None:
 
 def supervise(argv: Sequence[str]) -> int:
     reports_root, max_cycles = _parse_supervisor_arguments(argv)
+    context_required = "--enable-context" in argv
     started = datetime.now(UTC)
     run_id = started.strftime("production_research_supervisor_%Y%m%dT%H%M%SZ")
     checkpoint_path = reports_root / f"{run_id}.checkpoint.json"
@@ -201,8 +281,31 @@ def supervise(argv: Sequence[str]) -> int:
             if progress is not None:
                 if completed_cycles and progress.cycle <= completed_cycles[-1].cycle:
                     raise RuntimeError("research runner emitted non-monotone cycle progress")
+                if context_required and (
+                    progress.generated,
+                    progress.tested,
+                    progress.walk_forward,
+                    progress.finalists,
+                ) != (40, 12, 3, 2):
+                    raise RuntimeError("context production stage counts are not 40/12/3/2")
                 completed_cycles.append(progress)
                 active_cycle = None
+                persist("running")
+                print(f"Supervisor checkpoint: {checkpoint_path}", flush=True)
+                continue
+            proof = parse_cycle_runtime_proof(line)
+            if proof is not None:
+                if (
+                    not completed_cycles
+                    or completed_cycles[-1].cycle != proof.cycle
+                    or completed_cycles[-1].maximum != proof.maximum
+                ):
+                    raise RuntimeError("research cycle proof is not bound to the latest cycle")
+                if context_required and not _canonical_context_proof(proof):
+                    raise RuntimeError("research cycle context proof violates the production contract")
+                completed_cycles[-1] = replace(
+                    completed_cycles[-1], runtime_proof=proof
+                )
                 persist("running")
                 print(f"Supervisor checkpoint: {checkpoint_path}", flush=True)
                 continue
@@ -221,10 +324,15 @@ def supervise(argv: Sequence[str]) -> int:
         persist("failed", process.returncode)
         raise
 
-    status = "completed" if exit_code == 0 and report_json else "failed"
-    persist(status, exit_code)
+    missing_context_proof = context_required and (
+        not completed_cycles
+        or any(progress.runtime_proof is None for progress in completed_cycles)
+    )
+    supervisor_exit_code = 9 if exit_code == 0 and missing_context_proof else exit_code
+    status = "completed" if supervisor_exit_code == 0 and report_json else "failed"
+    persist(status, supervisor_exit_code)
     print(f"Supervisor checkpoint: {checkpoint_path}", flush=True)
-    return exit_code
+    return supervisor_exit_code
 
 
 def main(argv: Iterable[str] | None = None) -> int:

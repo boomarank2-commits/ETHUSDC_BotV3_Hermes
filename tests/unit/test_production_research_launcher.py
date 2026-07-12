@@ -30,6 +30,10 @@ def test_launcher_refuses_dirty_worktree_and_binds_exact_commit() -> None:
     assert "git branch --show-current" in text
     assert "git_commit = $GitCommit" in text
     assert "working_tree_clean = $true" in text
+    assert "production_research.active.lock" in text
+    assert "[System.IO.FileShare]::None" in text
+    assert "Another production research process already owns the run lock" in text
+    assert "$RunLock.Dispose()" in text
 
 
 def test_launcher_binds_src_layout_for_every_python_child_process() -> None:
@@ -58,6 +62,10 @@ def test_launcher_requires_complete_three_year_aligned_market_inventory() -> Non
     assert "Unpaired $Symbol CHECKSUM detected" in text
     assert "market_inventory = $MarketInventory" in text
     assert 'context_only_symbols = @("BTCUSDC", "ETHBTC")' in text
+    assert '[string]$DataEndDay = "2026-07-07"' in text
+    assert 'selected_end_day = $EndDay' in text
+    assert '$Sorted[-1].Name -ne $CutoffName' in text
+    assert "inventory does not end on the bound data day" in text
 
 
 def test_launcher_runs_full_checks_before_supervised_research() -> None:
@@ -88,24 +96,21 @@ def test_launcher_uses_exact_production_stage_budgets_and_context() -> None:
     for argument, value in expected_arguments.items():
         assert f'"{argument}", "{value}"' in text
     assert '"--enable-context"' in text
+    assert '"--data-end-day", $DataEndDay' in text
     assert '"--fixture-smoke"' not in text
 
 
 def test_launcher_rejects_holdout_noncanonical_safety_or_missing_context_proof() -> None:
     text = _script()
 
-    assert '$Report.audit_policy.evaluated_in_research_loop -ne $false' in text
-    assert '$Report.window_plan.final_holdout_window.evaluated -ne $false' in text
-    assert '$Report.safety_status.live -ne "locked"' in text
-    assert '$Report.safety_status.paper -ne "locked"' in text
-    assert '$Report.safety_status.testtrade -ne "locked"' in text
-    assert '$Report.safety_status.orders -ne "not_created"' in text
-    assert '$Report.safety_status.binance_trading_api -ne "not_used"' in text
-    assert '$Report.safety_status.api_keys -ne "not_used"' in text
-    assert '$Report.safety_status.short_margin_futures_leverage -ne "forbidden"' in text
-    assert '$Report.safety_status.candidate_adoptable -ne $false' in text
-    assert '$_.context_research.enabled -eq $true' in text
-    assert "Context research was requested but not proven enabled" in text
+    assert "context_research\\.enabled=true" in text
+    assert "context_generated=6 context_tested=2" in text
+    assert "walk_forward_folds=6 rolling_origin_limit=3" in text
+    assert "audit_evaluated=false final_holdout_evaluated=false" in text
+    assert "Every completed cycle must prove exact 40/12/3/2 stages" in text
+    assert '"Holdout evaluated: False"' in text
+    assert '"Consumed audit affects selection: False"' in text
+    assert '"Live/Paper/Testtrade locked. No orders, no Trading API, no API keys."' in text
 
 
 def test_launcher_has_no_network_or_order_execution_commands() -> None:
@@ -142,8 +147,10 @@ def test_launcher_writes_auditable_outputs_without_claiming_target_success() -> 
     assert "+3 USDC/day target was reached" not in text
 
 
-def test_launcher_remains_windows_powershell_51_compatible_for_json_reading() -> None:
+def test_launcher_never_deserializes_the_multi_gigabyte_detail_json() -> None:
     text = _script()
 
-    assert "ConvertFrom-Json -Depth" not in text
-    assert "| ConvertFrom-Json" in text
+    assert "Get-Content -Path $ReportJson" not in text
+    assert "ConvertFrom-Json" not in text
+    assert "Get-Content -Path $ReportTxt" in text
+    assert "Never deserialize the multi-GB" in text

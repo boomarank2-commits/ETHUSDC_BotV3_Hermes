@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 import json
 from math import isfinite
 from pathlib import Path
@@ -112,10 +112,18 @@ class LoopConfig:
     stagnation_cycles: int = 3
     required_days: int | None = REQUIRED_DAYS
     enable_context: bool = False
+    data_end_day: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.enable_context, bool):
             raise ValueError("enable_context must be bool")
+        if self.data_end_day is not None:
+            if not isinstance(self.data_end_day, str):
+                raise ValueError("data_end_day must be an ISO date string or None")
+            try:
+                date.fromisoformat(self.data_end_day)
+            except ValueError as exc:
+                raise ValueError("data_end_day must be an ISO date string") from exc
         integer_controls = (
             self.max_cycles,
             self.min_cycles,
@@ -229,6 +237,8 @@ def run_research_loop(
             f"finalists={cycle['finalists']} selected_rank={current_selection_rank}",
             flush=True,
         )
+        if config.enable_context:
+            print(_context_cycle_proof(cycle, config), flush=True)
         if best_selection_rank is None or current_selection_rank > best_selection_rank:
             best_selection_rank = current_selection_rank
             best_candidate = cycle.get("selected_candidate")
@@ -263,12 +273,23 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
         if not readiness["data_gate_ready"]:
             raise RuntimeError(f"Data gate blocked: {readiness['overall_status']}")
     market_context: AlignedMarketCandles | None
+    load_window = (
+        {"end_day": config.data_end_day}
+        if config.data_end_day is not None
+        else {}
+    )
     if config.enable_context:
-        market_context = load_aligned_market_candles(raw_root)
+        market_context = load_aligned_market_candles(
+            raw_root,
+            **load_window,
+        )
         candles = list(market_context.ethusdc)
     else:
         market_context = None
-        candles = load_ethusdc_1m_candles(raw_root)
+        candles = load_ethusdc_1m_candles(
+            raw_root,
+            **load_window,
+        )
     plan = _build_window_plan(candles, config)
     split = plan.final_window
     build_feature_rows(split.training[: min(len(split.training), 5000)])
@@ -790,6 +811,94 @@ def _cycle_validation_net(cycle: dict[str, Any]) -> float:
     return 0.0
 
 
+def _context_cycle_proof(cycle: dict[str, Any], config: LoopConfig) -> str:
+    """Return one fail-closed runtime proof for the supervised UI run."""
+
+    context = cycle.get("context_research")
+    stage_ids = cycle.get("candidate_stage_ids")
+    inventory = cycle.get("generated_candidate_inventory")
+    wfv = cycle.get("wfv_summary")
+    rolling = cycle.get("rolling_origin_summary")
+    budget = cycle.get("resource_budget")
+    window_plan = cycle.get("window_plan")
+    if not isinstance(context, dict) or context.get("enabled") is not True:
+        raise RuntimeError("context research was requested but is not enabled in the cycle")
+    if not _safety_ok(cycle.get("safety", {})):
+        raise RuntimeError("context production cycle safety declaration is not canonical")
+    if (
+        context.get("uses_audit_or_holdout") is not False
+        or cycle.get("selection_source") != "subtrain_validation_walk_forward_only"
+        or not isinstance(wfv, dict)
+        or wfv.get("ranking_uses_blindtest") is not False
+        or not isinstance(rolling, dict)
+        or rolling.get("uses_final_audit") is not False
+    ):
+        raise RuntimeError("context production cycle did not prove audit-free selection")
+    if not isinstance(stage_ids, dict) or not isinstance(inventory, list):
+        raise RuntimeError("context runtime proof is missing candidate-stage evidence")
+
+    expected_counts = (
+        config.max_candidates_per_cycle,
+        config.tested_candidates_per_cycle,
+        config.walk_forward_candidates_per_cycle,
+        config.finalists_per_cycle,
+    )
+    actual_counts = (
+        cycle.get("generated_candidates"),
+        cycle.get("tested_candidates"),
+        cycle.get("walk_forward_candidates"),
+        cycle.get("finalists"),
+    )
+    if actual_counts != expected_counts:
+        raise RuntimeError(
+            f"context production stage counts differ: expected={expected_counts} actual={actual_counts}"
+        )
+
+    generated_context_ids = {
+        row.get("candidate_id")
+        for row in inventory
+        if isinstance(row, dict) and row.get("family") == "context_filter"
+    }
+    tested_ids = stage_ids.get("tested")
+    if not isinstance(tested_ids, list):
+        raise RuntimeError("context runtime proof is missing tested candidate ids")
+    tested_context_count = sum(
+        candidate_id in generated_context_ids for candidate_id in tested_ids
+    )
+    generated_context_count = len(generated_context_ids)
+    if generated_context_count != 6 or tested_context_count != 2:
+        raise RuntimeError(
+            "context production frontier must generate/test exactly 6/2 context candidates"
+        )
+
+    fold_count = wfv.get("fold_count")
+    rolling_limit = budget.get("rolling_origin_cap") if isinstance(budget, dict) else None
+    holdout = (
+        window_plan.get("final_holdout_window")
+        if isinstance(window_plan, dict)
+        else None
+    )
+    final_holdout_evaluated = (
+        holdout.get("evaluated") if isinstance(holdout, dict) else None
+    )
+    if fold_count != config.walk_forward_fold_count:
+        raise RuntimeError("context production WFV fold count differs from configuration")
+    if rolling_limit != config.rolling_origin_limit:
+        raise RuntimeError("context production rolling-origin limit differs from configuration")
+    if final_holdout_evaluated is not False:
+        raise RuntimeError("context production cycle evaluated or omitted the final holdout state")
+
+    return (
+        f"cycle {cycle['cycle_id']}/{config.max_cycles} proof: "
+        "context_research.enabled=true "
+        f"context_generated={generated_context_count} "
+        f"context_tested={tested_context_count} "
+        f"walk_forward_folds={fold_count} "
+        f"rolling_origin_limit={rolling_limit} "
+        "audit_evaluated=false final_holdout_evaluated=false"
+    )
+
+
 def _adjustment_reason(
     candidate_diagnosis: dict[str, Any], family_diagnosis: dict[str, Any], exit_summary: dict[str, Any]
 ) -> str:
@@ -1157,6 +1266,7 @@ def _loop_report(**kwargs: Any) -> dict[str, Any]:
         "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "git_commit": kwargs["git_commit"],
         "raw_root": str(config.raw_root),
+        "data_end_day": config.data_end_day,
         "execution_profile": (
             "production_protocol" if config.required_days == REQUIRED_DAYS else "fixture_smoke_non_production"
         ),
@@ -1309,7 +1419,8 @@ def _record_loop_report(report: dict[str, Any], reports_root: str | Path) -> Exp
         "txt": str(txt_path),
         "index": str(root / "index.jsonl"),
     }
-    json_path.write_text(json.dumps(stored, indent=2, sort_keys=True, allow_nan=False), encoding="utf-8")
+    with json_path.open("w", encoding="utf-8") as handle:
+        json.dump(stored, handle, indent=2, sort_keys=True, allow_nan=False)
     txt_path.write_text(_format_loop_text(stored), encoding="utf-8")
     index_path = root / "index.jsonl"
     with index_path.open("a", encoding="utf-8") as handle:
@@ -1476,6 +1587,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--finalists-per-cycle", type=int, default=2)
     parser.add_argument("--walk-forward-folds", type=int, default=6)
     parser.add_argument("--rolling-origin-limit", type=int, default=3)
+    parser.add_argument("--data-end-day")
     parser.add_argument("--fixture-smoke", action="store_true")
     parser.add_argument("--enable-context", action="store_true")
     return parser
@@ -1495,6 +1607,7 @@ def main(argv: list[str] | None = None) -> int:
         rolling_origin_limit=args.rolling_origin_limit,
         required_days=None if args.fixture_smoke else REQUIRED_DAYS,
         enable_context=args.enable_context,
+        data_end_day=args.data_end_day,
     )
     result = run_research_loop(config)
     print(f"Research loop run_id: {result.loop_run_id}")

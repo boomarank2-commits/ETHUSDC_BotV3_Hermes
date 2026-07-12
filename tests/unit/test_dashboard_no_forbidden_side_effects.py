@@ -336,7 +336,7 @@ def test_backtest_start_button_model_is_training_wfv_only_and_missing_data_block
 
     button = snapshot["ui_status"]["backtest_start_button"]
     assert button["visible"] is True
-    assert button["action"] == "training_validation_wfv_protocol_v2"
+    assert button["action"] == "pr12_production_starter_supervised_context_protocol_v2"
     assert button["enabled"] is False
     assert button["engine_locked"] is True
     assert button["uses_trading_api"] is False

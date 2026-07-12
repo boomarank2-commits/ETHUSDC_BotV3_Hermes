@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import subprocess
 import threading
 from types import SimpleNamespace
 
@@ -13,6 +14,7 @@ from ethusdc_bot.ui.backtest_controller import (
     TrainingResearchController,
     build_canonical_training_loop_config,
     build_initial_training_research_status,
+    run_production_research_via_starter,
     run_training_research_async,
 )
 
@@ -38,6 +40,8 @@ def test_initial_status_is_fail_closed() -> None:
     assert status["orders_created"] is False
     assert status["trading_api_used"] is False
     assert status["api_keys_used"] is False
+    assert status["production_path"] == "ui_to_windows_starter_to_supervisor_to_pr12_runner"
+    assert status["context_research_enabled"] is True
 
 
 def test_canonical_config_is_exact_production_protocol(tmp_path: Path) -> None:
@@ -54,6 +58,46 @@ def test_canonical_config_is_exact_production_protocol(tmp_path: Path) -> None:
     assert config.required_days == 1095
     assert config.min_cycles == 3
     assert config.stagnation_cycles == 3
+    assert config.enable_context is True
+    assert config.data_end_day == "2026-07-07"
+
+
+def test_production_runner_invokes_existing_pr12_windows_starter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    report_path = _write_report(tmp_path / "report.json")
+    calls = []
+
+    class FakeProcess:
+        stdout = iter([f"Report JSON: {report_path}\n"])
+
+        def wait(self):
+            return 0
+
+        def kill(self):  # pragma: no cover - stdout exists
+            raise AssertionError("kill must not be called")
+
+    def fake_popen(command, **kwargs):
+        calls.append((command, kwargs))
+        return FakeProcess()
+
+    monkeypatch.setattr(
+        "ethusdc_bot.ui.backtest_controller.subprocess.Popen", fake_popen
+    )
+    config = build_canonical_training_loop_config(
+        tmp_path / "raw", tmp_path / "reports"
+    )
+
+    result = run_production_research_via_starter(config)
+
+    command, kwargs = calls[0]
+    assert command[0] == "powershell.exe"
+    assert "run_production_research.ps1" in " ".join(command)
+    assert "-DataEndDay" in command
+    assert "2026-07-07" in command
+    assert "research_loop_runner" not in " ".join(command)
+    assert kwargs["stderr"] is subprocess.STDOUT
+    assert result["report_paths"]["json_path"] == report_path
 
 
 def test_async_runner_receives_canonical_config_once_and_returns_blocked_report(
@@ -75,11 +119,12 @@ def test_async_runner_receives_canonical_config_once_and_returns_blocked_report(
     )
     thread.join(timeout=5)
 
-    assert thread.daemon is True
+    assert thread.daemon is False
     assert not thread.is_alive()
     assert len(calls) == 1
     assert calls[0].required_days == 1095
     assert calls[0].max_cycles == 8
+    assert calls[0].enable_context is True
     status = container["status"]
     assert status["phase"] == "completed"
     assert status["report_path"] == str(report_path)

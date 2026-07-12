@@ -11,19 +11,19 @@ from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 import json
 from pathlib import Path
+import re
+import subprocess
 import threading
 from typing import Any
 
-from ethusdc_bot.backtest.research_loop_runner import (
-    LoopConfig,
-    LoopRunResult,
-    run_research_loop,
-)
+from ethusdc_bot.backtest.research_loop_runner import LoopConfig
 from ethusdc_bot.backtest.split import REQUIRED_DAYS
 
 
 StatusCallback = Callable[[dict[str, Any]], None]
-ResearchRunner = Callable[[LoopConfig], LoopRunResult | Any]
+ResearchRunner = Callable[[LoopConfig], Any]
+_REPORT_JSON = re.compile(r"^Report JSON:\s+(?P<path>.+)$")
+_PRODUCTION_DATA_END_DAY = "2026-07-07"
 
 
 def build_initial_training_research_status() -> dict[str, Any]:
@@ -45,6 +45,8 @@ def build_initial_training_research_status() -> dict[str, Any]:
         "orders_created": False,
         "trading_api_used": False,
         "api_keys_used": False,
+        "production_path": "ui_to_windows_starter_to_supervisor_to_pr12_runner",
+        "context_research_enabled": True,
     }
 
 
@@ -68,11 +70,74 @@ def build_canonical_training_loop_config(
         min_cycles=3,
         stagnation_cycles=3,
         required_days=REQUIRED_DAYS,
+        enable_context=True,
+        data_end_day=_PRODUCTION_DATA_END_DAY,
     )
 
 
+def run_production_research_via_starter(config: LoopConfig) -> dict[str, Any]:
+    """Invoke the existing PR12 Windows starter instead of the direct runner."""
+
+    if config.enable_context is not True:
+        raise ValueError("UI production research requires context enabled")
+    if config.data_end_day != _PRODUCTION_DATA_END_DAY:
+        raise ValueError("UI production research requires the bound common data cutoff")
+    repository_root = Path(__file__).resolve().parents[3]
+    script = repository_root / "tools" / "run_production_research.ps1"
+    if not script.is_file():
+        raise RuntimeError(f"production research starter is missing: {script}")
+    command = [
+        "powershell.exe",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(script),
+        "-RawRoot",
+        str(config.raw_root),
+        "-ReportsRoot",
+        str(config.reports_root),
+        "-MaxCycles",
+        str(config.max_cycles),
+        "-DataEndDay",
+        config.data_end_day,
+    ]
+    process = subprocess.Popen(
+        command,
+        cwd=repository_root,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        bufsize=1,
+    )
+    if process.stdout is None:  # pragma: no cover - guaranteed by PIPE
+        process.kill()
+        raise RuntimeError("production research starter stdout is unavailable")
+    output_tail: list[str] = []
+    report_path: Path | None = None
+    for raw_line in process.stdout:
+        line = raw_line.rstrip("\r\n")
+        print(line, flush=True)
+        output_tail.append(line)
+        output_tail = output_tail[-30:]
+        match = _REPORT_JSON.fullmatch(line.strip())
+        if match is not None:
+            report_path = Path(match.group("path").strip())
+    exit_code = process.wait()
+    if exit_code != 0:
+        detail = "\n".join(output_tail[-10:])
+        raise RuntimeError(
+            f"PR12 production starter failed with exit code {exit_code}: {detail}"
+        )
+    if report_path is None or not report_path.is_file():
+        raise RuntimeError("PR12 production starter returned no existing report JSON")
+    return {"report_paths": {"json_path": report_path}}
+
+
 class TrainingResearchController:
-    """Own a single daemon worker and reject overlapping research starts."""
+    """Own one durable starter worker and reject overlapping research starts."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -94,7 +159,7 @@ class TrainingResearchController:
         raw_root: str | Path,
         reports_root: str | Path,
         status_callback: StatusCallback | None = None,
-        runner: ResearchRunner = run_research_loop,
+        runner: ResearchRunner = run_production_research_via_starter,
     ) -> tuple[threading.Thread, dict[str, Any]]:
         """Start exactly one canonical training-research worker.
 
@@ -141,7 +206,7 @@ class TrainingResearchController:
             thread = threading.Thread(
                 target=worker,
                 name="ethusdc-training-research",
-                daemon=True,
+                daemon=False,
             )
             self._thread = thread
 
@@ -159,7 +224,7 @@ def run_training_research_async(
     raw_root: str | Path,
     reports_root: str | Path,
     status_callback: StatusCallback | None = None,
-    runner: ResearchRunner = run_research_loop,
+    runner: ResearchRunner = run_production_research_via_starter,
 ) -> tuple[threading.Thread, dict[str, Any]]:
     """Start canonical training-only research on the shared UI controller."""
 
@@ -236,6 +301,8 @@ def _safe_status(**updates: Any) -> dict[str, Any]:
             "orders_created": False,
             "trading_api_used": False,
             "api_keys_used": False,
+            "production_path": "ui_to_windows_starter_to_supervisor_to_pr12_runner",
+            "context_research_enabled": True,
         }
     )
     return status
@@ -256,6 +323,16 @@ def _result_report_path(result: Any) -> Path | None:
 
 
 def _read_freeze_status(report_path: Path) -> tuple[str | None, str | None]:
+    compact_path = report_path.with_suffix(".txt")
+    try:
+        if compact_path.is_file():
+            for line in compact_path.read_text(encoding="utf-8").splitlines():
+                if line.startswith("Freeze status:"):
+                    value = line.split(":", 1)[1].strip()
+                    if value:
+                        return value, None
+    except (OSError, UnicodeError) as error:
+        return None, f"compact_report_unreadable: {error}"
     try:
         payload = json.loads(report_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
@@ -289,5 +366,6 @@ __all__ = [
     "TrainingResearchController",
     "build_canonical_training_loop_config",
     "build_initial_training_research_status",
+    "run_production_research_via_starter",
     "run_training_research_async",
 ]

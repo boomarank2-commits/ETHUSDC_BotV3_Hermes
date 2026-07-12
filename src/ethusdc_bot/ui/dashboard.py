@@ -366,8 +366,9 @@ class DashboardApp:
             )
             return
         self._log(
-            "Starting canonical Protocol-v2 training/validation/WFV. "
-            "The sealed final holdout remains closed."
+            "Starting PR12 production research: UI -> Windows starter -> "
+            "research supervisor -> context-enabled Protocol-v2 runner. "
+            "No V1/legacy runner; the sealed final holdout remains closed."
         )
         try:
             _thread, container = self.training_research_controller.start(

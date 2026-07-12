@@ -350,6 +350,61 @@ def test_production_config_requires_exact_six_folds_and_canonical_origins(tmp_pa
         LoopConfig(reports_root=tmp_path, rolling_origin_limit=0)
 
 
+def test_config_accepts_only_an_iso_data_end_day(tmp_path):
+    config = LoopConfig(reports_root=tmp_path, data_end_day="2026-07-07")
+
+    assert config.data_end_day == "2026-07-07"
+    with pytest.raises(ValueError, match="ISO date"):
+        LoopConfig(reports_root=tmp_path, data_end_day="07.07.2026")
+
+
+def test_context_cycle_proof_binds_the_first_cycle_runtime_contract(tmp_path):
+    context_ids = [f"context_{index}" for index in range(6)]
+    base_ids = [f"base_{index}" for index in range(34)]
+    cycle = {
+        "cycle_id": 1,
+        "generated_candidates": 40,
+        "tested_candidates": 12,
+        "walk_forward_candidates": 3,
+        "finalists": 2,
+        "context_research": {
+            "enabled": True,
+            "uses_audit_or_holdout": False,
+        },
+        "selection_source": "subtrain_validation_walk_forward_only",
+        "candidate_stage_ids": {"tested": context_ids[:2] + base_ids[:10]},
+        "generated_candidate_inventory": [
+            {"candidate_id": candidate_id, "family": "context_filter"}
+            for candidate_id in context_ids
+        ]
+        + [
+            {"candidate_id": candidate_id, "family": "breakout_volatility_filter"}
+            for candidate_id in base_ids
+        ],
+        "wfv_summary": {"fold_count": 6, "ranking_uses_blindtest": False},
+        "rolling_origin_summary": {"uses_final_audit": False},
+        "resource_budget": {"rolling_origin_cap": 3},
+        "window_plan": {"final_holdout_window": {"evaluated": False}},
+        "safety": safety_status(),
+    }
+    config = LoopConfig(
+        reports_root=tmp_path,
+        enable_context=True,
+        data_end_day="2026-07-07",
+    )
+
+    proof = loop_module._context_cycle_proof(cycle, config)
+
+    assert "context_research.enabled=true" in proof
+    assert "context_generated=6 context_tested=2" in proof
+    assert "walk_forward_folds=6 rolling_origin_limit=3" in proof
+    assert "audit_evaluated=false final_holdout_evaluated=false" in proof
+
+    cycle["context_research"]["uses_audit_or_holdout"] = True
+    with pytest.raises(RuntimeError, match="audit-free selection"):
+        loop_module._context_cycle_proof(cycle, config)
+
+
 def test_custom_cycle_runner_cannot_create_a_production_report(tmp_path):
     with pytest.raises(ValueError, match="fixture/test-only"):
         run_research_loop(

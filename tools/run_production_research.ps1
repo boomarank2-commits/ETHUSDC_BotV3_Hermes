@@ -3,7 +3,9 @@ param(
     [string]$RawRoot = "C:\TradingBot\data\ETHUSDC_BotV3_Hermes",
     [string]$ReportsRoot = "",
     [ValidateRange(1, 8)]
-    [int]$MaxCycles = 8
+    [int]$MaxCycles = 8,
+    [ValidatePattern('^\d{4}-\d{2}-\d{2}$')]
+    [string]$DataEndDay = "2026-07-07"
 )
 
 Set-StrictMode -Version Latest
@@ -30,15 +32,27 @@ function Assert-SymbolInventory {
         [Parameter(Mandatory = $true)]
         [string]$Symbol,
         [Parameter(Mandatory = $true)]
-        [string]$Root
+        [string]$Root,
+        [Parameter(Mandatory = $true)]
+        [string]$EndDay
     )
 
     $Folder = Join-Path $Root "raw\binance\spot\$Symbol\klines\1m"
     if (-not (Test-Path $Folder -PathType Container)) {
         throw "$Symbol 1m data folder is missing: $Folder"
     }
-    $ZipFiles = @(Get-ChildItem -Path $Folder -Filter "$Symbol-1m-*.zip" -File)
-    $ChecksumFiles = @(Get-ChildItem -Path $Folder -Filter "$Symbol-1m-*.zip.CHECKSUM" -File)
+    $CutoffName = "$Symbol-1m-$EndDay.zip"
+    $ZipFiles = @(
+        Get-ChildItem -Path $Folder -Filter "$Symbol-1m-*.zip" -File |
+            Where-Object { $_.Name -le $CutoffName }
+    )
+    $ChecksumFiles = @(
+        Get-ChildItem -Path $Folder -Filter "$Symbol-1m-*.zip.CHECKSUM" -File |
+            Where-Object {
+                $TargetName = $_.Name.Substring(0, $_.Name.Length - ".CHECKSUM".Length)
+                $TargetName -le $CutoffName
+            }
+    )
     $ZipCount = $ZipFiles.Count
     $ChecksumCount = $ChecksumFiles.Count
     if ($ZipCount -lt 1095 -or $ChecksumCount -lt 1095) {
@@ -67,12 +81,16 @@ function Assert-SymbolInventory {
     }
 
     $Sorted = @($ZipFiles | Sort-Object Name)
+    if ($Sorted[-1].Name -ne $CutoffName) {
+        throw "$Symbol inventory does not end on the bound data day $EndDay"
+    }
     return [ordered]@{
         symbol = $Symbol
         folder = $Folder
         zip_count = $ZipCount
         checksum_count = $ChecksumCount
         paired_count = $ZipCount
+        selected_end_day = $EndDay
         first_file = $Sorted[0].Name
         last_file = $Sorted[-1].Name
     }
@@ -131,7 +149,7 @@ if ($RawRootFull.Equals($RepoRootFull, [System.StringComparison]::OrdinalIgnoreC
 
 $MarketInventory = [ordered]@{}
 foreach ($Symbol in @("ETHUSDC", "BTCUSDC", "ETHBTC")) {
-    $MarketInventory[$Symbol] = Assert-SymbolInventory -Symbol $Symbol -Root $RawRootFull
+    $MarketInventory[$Symbol] = Assert-SymbolInventory -Symbol $Symbol -Root $RawRootFull -EndDay $DataEndDay
 }
 
 if (-not $ReportsRoot) {
@@ -140,6 +158,19 @@ if (-not $ReportsRoot) {
 $ReportsRootFull = [System.IO.Path]::GetFullPath($ReportsRoot)
 New-Item -Path $ReportsRootFull -ItemType Directory -Force | Out-Null
 
+$RunLockPath = Join-Path $ReportsRootFull "production_research.active.lock"
+try {
+    $RunLock = [System.IO.File]::Open(
+        $RunLockPath,
+        [System.IO.FileMode]::OpenOrCreate,
+        [System.IO.FileAccess]::ReadWrite,
+        [System.IO.FileShare]::None
+    )
+} catch [System.IO.IOException] {
+    throw "Another production research process already owns the run lock: $RunLockPath"
+}
+
+try {
 $StartedAtUtc = [DateTime]::UtcNow
 $Timestamp = $StartedAtUtc.ToString("yyyyMMddTHHmmssZ")
 $ConsoleLog = Join-Path $ReportsRootFull "production_research_$Timestamp.console.log"
@@ -165,6 +196,7 @@ $ResearchArguments = @(
     "--finalists-per-cycle", "2",
     "--walk-forward-folds", "6",
     "--rolling-origin-limit", "3",
+    "--data-end-day", $DataEndDay,
     "--enable-context"
 )
 
@@ -173,6 +205,7 @@ Write-Host "Branch: $GitBranch"
 Write-Host "Commit: $GitCommit"
 Write-Host "Source root: $SrcRoot"
 Write-Host "Raw root: $RawRootFull"
+Write-Host "Data end day: $DataEndDay"
 Write-Host "Reports root: $ReportsRootFull"
 Write-Host "Max cycles: $MaxCycles"
 foreach ($Symbol in $MarketInventory.Keys) {
@@ -198,33 +231,65 @@ if (-not (Test-Path $ReportJson -PathType Leaf)) {
     throw "Reported JSON does not exist: $ReportJson"
 }
 
-# ConvertFrom-Json is intentionally used without -Depth for Windows PowerShell 5.1 compatibility.
-$Report = Get-Content -Path $ReportJson -Raw -Encoding UTF8 | ConvertFrom-Json
-if ($Report.execution_profile -ne "production_protocol") {
-    throw "Unexpected execution profile: $($Report.execution_profile)"
+$ReportTxtLine = $ResearchOutput | Where-Object { "$_" -match '^Report TXT:\s+(.+)$' } | Select-Object -Last 1
+if (-not $ReportTxtLine -or "$ReportTxtLine" -notmatch '^Report TXT:\s+(.+)$') {
+    throw "Research completed without reporting a TXT path. Console log: $ConsoleLog"
 }
-if ($Report.audit_policy.evaluated_in_research_loop -ne $false) {
-    throw "Safety violation: research loop evaluated an audit window"
+$ReportTxt = $Matches[1].Trim()
+if (-not [System.IO.Path]::IsPathRooted($ReportTxt)) {
+    $ReportTxt = Join-Path $RepoRoot $ReportTxt
 }
-if ($Report.window_plan.final_holdout_window.evaluated -ne $false) {
-    throw "Safety violation: final holdout was evaluated"
-}
-if ($Report.safety_status.live -ne "locked" -or
-    $Report.safety_status.paper -ne "locked" -or
-    $Report.safety_status.testtrade -ne "locked" -or
-    $Report.safety_status.orders -ne "not_created" -or
-    $Report.safety_status.binance_trading_api -ne "not_used" -or
-    $Report.safety_status.api_keys -ne "not_used" -or
-    $Report.safety_status.short_margin_futures_leverage -ne "forbidden" -or
-    $Report.safety_status.candidate_adoptable -ne $false) {
-    throw "Safety declaration in the research report is not canonical"
-}
-$ContextCycles = @($Report.cycles | Where-Object { $_.context_research.enabled -eq $true })
-if ($ContextCycles.Count -ne $Report.cycles.Count) {
-    throw "Context research was requested but not proven enabled in every completed cycle"
+$ReportTxt = [System.IO.Path]::GetFullPath($ReportTxt)
+if (-not (Test-Path $ReportTxt -PathType Leaf)) {
+    throw "Reported TXT does not exist: $ReportTxt"
 }
 
-$LastCycle = $Report.cycles | Select-Object -Last 1
+# The canonical TXT is intentionally compact. Never deserialize the multi-GB
+# detail JSON in Windows PowerShell after the runner has already validated and
+# written it.
+$ReportText = @(Get-Content -Path $ReportTxt -Encoding UTF8)
+$LoopRunLine = $ReportText | Where-Object { "$_" -match '^Loop-Run-ID:\s+(.+)$' } | Select-Object -Last 1
+if (-not $LoopRunLine -or "$LoopRunLine" -notmatch '^Loop-Run-ID:\s+(.+)$') {
+    throw "Compact report is missing Loop-Run-ID"
+}
+$LoopRunId = $Matches[1].Trim()
+$CyclesLine = $ReportText | Where-Object { "$_" -match '^Cycles executed:\s+(\d+)/(\d+)$' } | Select-Object -Last 1
+if (-not $CyclesLine -or "$CyclesLine" -notmatch '^Cycles executed:\s+(\d+)/(\d+)$') {
+    throw "Compact report is missing cycle totals"
+}
+$CyclesExecuted = [int]$Matches[1]
+$ReportedMaxCycles = [int]$Matches[2]
+if ($ReportedMaxCycles -ne $MaxCycles) {
+    throw "Compact report max cycles differ from requested max cycles"
+}
+$StopLine = $ReportText | Where-Object { "$_" -match '^Stop reason:\s+(.+)$' } | Select-Object -Last 1
+if (-not $StopLine -or "$StopLine" -notmatch '^Stop reason:\s+(.+)$') {
+    throw "Compact report is missing stop reason"
+}
+$StopReason = $Matches[1].Trim()
+$FreezeLine = $ReportText | Where-Object { "$_" -match '^Freeze status:\s+(.+)$' } | Select-Object -Last 1
+if (-not $FreezeLine -or "$FreezeLine" -notmatch '^Freeze status:\s+(.+)$') {
+    throw "Compact report is missing freeze status"
+}
+$FreezeStatus = $Matches[1].Trim()
+$BestValidationLine = $ReportText | Where-Object { "$_" -match '^Best validation:\s+(.+)$' } | Select-Object -Last 1
+$BestValidation = if ($BestValidationLine -and "$BestValidationLine" -match '^Best validation:\s+(.+)$') { $Matches[1].Trim() } else { "not_reported" }
+
+$StageLines = @($ResearchOutput | Where-Object {
+    "$_" -match '^cycle \d+/\d+: generated=40 tested=12 walk_forward=3 finalists=2 selected_rank='
+})
+$ProofLines = @($ResearchOutput | Where-Object {
+    "$_" -match '^cycle \d+/\d+ proof: context_research\.enabled=true context_generated=6 context_tested=2 walk_forward_folds=6 rolling_origin_limit=3 audit_evaluated=false final_holdout_evaluated=false$'
+})
+if ($StageLines.Count -ne $CyclesExecuted -or $ProofLines.Count -ne $CyclesExecuted) {
+    throw "Every completed cycle must prove exact 40/12/3/2 stages and enabled PR12 context"
+}
+if (-not ($ReportText -contains "Holdout evaluated: False") -or
+    -not ($ReportText -contains "Consumed audit affects selection: False") -or
+    -not ($ReportText -contains "Live/Paper/Testtrade locked. No orders, no Trading API, no API keys.")) {
+    throw "Compact report is missing canonical audit, holdout, or safety locks"
+}
+
 $Manifest = [ordered]@{
     schema_version = 1
     run_kind = "production_selection_research_with_context"
@@ -236,7 +301,9 @@ $Manifest = [ordered]@{
     source_root = $SrcRoot
     pythonpath = $env:PYTHONPATH
     raw_root = $RawRootFull
+    data_end_day = $DataEndDay
     reports_root = $ReportsRootFull
+    run_lock_path = $RunLockPath
     market_inventory = $MarketInventory
     context_enabled = $true
     context_trade_symbol = "ETHUSDC"
@@ -249,11 +316,12 @@ $Manifest = [ordered]@{
         finalists = 2
     }
     report_json = $ReportJson
+    report_txt = $ReportTxt
     console_log = $ConsoleLog
-    loop_run_id = $Report.loop_run_id
-    cycles_executed = $Report.cycles_executed
-    stop_reason = $Report.stop_reason
-    freeze_status = $Report.freeze_status
+    loop_run_id = $LoopRunId
+    cycles_executed = $CyclesExecuted
+    stop_reason = $StopReason
+    freeze_status = $FreezeStatus
     final_holdout_evaluated = $false
     live_enabled = $false
     paper_enabled = $false
@@ -265,18 +333,19 @@ $Manifest | ConvertTo-Json -Depth 10 | Set-Content -Path $ManifestPath -Encoding
 
 Write-Host ""
 Write-Host "=== Production Research Summary ==="
-Write-Host "Run ID: $($Report.loop_run_id)"
-Write-Host "Cycles: $($Report.cycles_executed)"
-Write-Host "Stop reason: $($Report.stop_reason)"
-Write-Host "Freeze status: $($Report.freeze_status)"
-Write-Host "Best validation: $($Report.best_validation_result)"
-if ($null -ne $LastCycle) {
-    Write-Host "Last frontier: generated=$($LastCycle.generated_candidates) tested=$($LastCycle.tested_candidates) WFV=$($LastCycle.walk_forward_candidates) finalists=$($LastCycle.finalists)"
-    Write-Host "Qualified finalists: $($LastCycle.qualified_finalists)"
-    Write-Host "Context candidates generated: $($LastCycle.context_research.context_candidate_count)"
-}
+Write-Host "Run ID: $LoopRunId"
+Write-Host "Cycles: $CyclesExecuted"
+Write-Host "Stop reason: $StopReason"
+Write-Host "Freeze status: $FreezeStatus"
+Write-Host "Best validation: $BestValidation"
+Write-Host "Last frontier: $($StageLines | Select-Object -Last 1)"
+Write-Host "Context proof: $($ProofLines | Select-Object -Last 1)"
 Write-Host "Final holdout evaluated: False"
 Write-Host "Live/Paper/Testtrade/Orders: locked"
 Write-Host "Report JSON: $ReportJson"
+Write-Host "Report TXT: $ReportTxt"
 Write-Host "Manifest: $ManifestPath"
 Write-Host "Console log: $ConsoleLog"
+} finally {
+    $RunLock.Dispose()
+}

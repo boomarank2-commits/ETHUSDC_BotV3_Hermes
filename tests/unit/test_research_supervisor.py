@@ -54,6 +54,21 @@ def test_parse_cycle_progress_rejects_impossible_indexes() -> None:
         )
 
 
+def test_parse_cycle_runtime_proof_requires_the_pr12_contract() -> None:
+    proof = supervisor.parse_cycle_runtime_proof(
+        "cycle 1/8 proof: context_research.enabled=true context_generated=6 "
+        "context_tested=2 walk_forward_folds=6 rolling_origin_limit=3 "
+        "audit_evaluated=false final_holdout_evaluated=false"
+    )
+
+    assert proof is not None
+    assert proof.context_research_enabled is True
+    assert proof.context_generated == 6
+    assert proof.context_tested == 2
+    assert proof.audit_evaluated is False
+    assert proof.final_holdout_evaluated is False
+
+
 def test_checkpoint_payload_is_explicitly_order_free_and_not_a_result_claim(monkeypatch) -> None:
     monkeypatch.setattr(supervisor, "_git_value", lambda *args: "fixed")
     payload = supervisor._checkpoint_payload(
@@ -157,3 +172,39 @@ def test_supervisor_preserves_progress_when_child_fails(tmp_path: Path, monkeypa
     assert data["active_cycle"] == 2
     assert data["child_exit_code"] == 7
     assert data["report_json"] is None
+
+
+def test_context_supervisor_persists_first_cycle_proof(tmp_path: Path, monkeypatch) -> None:
+    process = _FakeProcess(
+        [
+            "cycle 1/8: starting\n",
+            "cycle 1/8: generated=40 tested=12 walk_forward=3 finalists=2 "
+            "selected_rank=(0.0, -0.1)\n",
+            "cycle 1/8 proof: context_research.enabled=true context_generated=6 "
+            "context_tested=2 walk_forward_folds=6 rolling_origin_limit=3 "
+            "audit_evaluated=false final_holdout_evaluated=false\n",
+            "Report JSON: reports/research_loop/final.json\n",
+        ],
+        returncode=0,
+    )
+    monkeypatch.setattr(supervisor.subprocess, "Popen", lambda *args, **kwargs: process)
+    monkeypatch.setattr(supervisor, "_git_value", lambda *args: "fixed")
+
+    assert supervisor.supervise(
+        [
+            "--reports-root",
+            str(tmp_path),
+            "--max-cycles",
+            "8",
+            "--enable-context",
+        ]
+    ) == 0
+
+    checkpoint = next(tmp_path.glob("production_research_supervisor_*.checkpoint.json"))
+    data = json.loads(checkpoint.read_text(encoding="utf-8"))
+    proof = data["cycles"][0]["runtime_proof"]
+    assert proof["context_research"]["enabled"] is True
+    assert proof["context_generated"] == 6
+    assert proof["context_tested"] == 2
+    assert proof["audit_evaluated"] is False
+    assert proof["final_holdout_evaluated"] is False
