@@ -29,6 +29,8 @@ CANONICAL_ROLLING_ORIGIN_DAYS = 365
 _CHECKPOINT_PATTERN = "production_research_supervisor_*.checkpoint.json"
 _CONSOLE_PATTERN = "production_research_*.console.log"
 _KEY_LINE = re.compile(r'^(?P<indent> *)"(?P<key>[^"\\]+)"\s*:\s*(?P<value>.*)$')
+_FINAL_REPORT_CACHE: dict[tuple[str, int, int], dict[str, Any]] = {}
+
 _CYCLE_TEXT = re.compile(
     r"^Cycle\s+(?P<cycle>\d+):\s+generated=(?P<generated>\d+)\s+"
     r"tested=(?P<tested>\d+)\s+walk_forward=(?P<walk_forward>\d+)\s+"
@@ -182,7 +184,11 @@ def format_backtest_summary_for_display(status: Mapping[str, Any]) -> str:
     if isinstance(latest, Mapping):
         lines.extend(_cycle_lines("Letzter abgeschlossener Zyklus", latest))
     best = status.get("best_cycle")
-    if isinstance(best, Mapping) and best is not latest:
+    if (
+        isinstance(best, Mapping)
+        and best.get("cycle")
+        != (latest.get("cycle") if isinstance(latest, Mapping) else None)
+    ):
         lines.extend([""] + _cycle_lines("Bester bisheriger Zyklus", best))
 
     final = status.get("final_summary")
@@ -430,6 +436,11 @@ def _extract_final_report_summary(path: Path) -> dict[str, Any]:
 
     if not path.is_file():
         return {}
+    stat = path.stat()
+    cache_key = (str(path.resolve()), stat.st_size, stat.st_mtime_ns)
+    cached = _FINAL_REPORT_CACHE.get(cache_key)
+    if cached is not None:
+        return dict(cached)
     top_keys = {
         "loop_run_id",
         "git_commit",
@@ -469,6 +480,7 @@ def _extract_final_report_summary(path: Path) -> dict[str, Any]:
                 elif indent == 8 and key == "aggregate_metrics":
                     aggregate_metrics.append(value)
     except (OSError, UnicodeError, ValueError, json.JSONDecodeError):
+        _FINAL_REPORT_CACHE[cache_key] = dict(extracted)
         return extracted
 
     cycle_count = max(
@@ -483,6 +495,7 @@ def _extract_final_report_summary(path: Path) -> dict[str, Any]:
             aggregate_metrics[index] if index < len(aggregate_metrics) else None
         )
         extracted["cycles"].append(row)
+    _FINAL_REPORT_CACHE[cache_key] = dict(extracted)
     return extracted
 
 
