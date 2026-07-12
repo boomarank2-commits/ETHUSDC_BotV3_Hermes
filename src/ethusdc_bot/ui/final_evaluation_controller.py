@@ -20,6 +20,8 @@ from ethusdc_bot.shadow.adoption import assess_final_report
 
 StatusCallback = Callable[[dict[str, Any]], None]
 FinalRunner = Callable[[str | Path, str | Path, str | Path], Any]
+_DIRECT_REPORT_READ_LIMIT_BYTES = 8_000_000
+_DISCOVERY_CACHE: dict[tuple[str, int, int], dict[str, Any] | None] = {}
 
 
 def build_initial_final_evaluation_status() -> dict[str, Any]:
@@ -50,12 +52,8 @@ def discover_latest_frozen_research_report(reports_root: str | Path) -> dict[str
     for path in reports:
         if not path.is_file():
             continue
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError):
-            invalid_count += 1
-            continue
-        if not isinstance(payload, Mapping):
+        payload = _read_research_discovery_fields(path)
+        if payload is None:
             invalid_count += 1
             continue
         audit = payload.get("audit_policy")
@@ -95,6 +93,121 @@ def discover_latest_frozen_research_report(reports_root: str | Path) -> dict[str
         "invalid_report_count": invalid_count,
         "reason": None,
     }
+
+
+def _read_research_discovery_fields(path: Path) -> dict[str, Any] | None:
+    """Read only bounded UI-discovery fields from one research artifact.
+
+    Multi-gigabyte detail reports are rejected from the hot path by their
+    compact report whenever they are not frozen. A genuinely frozen large
+    report is scanned line-by-line once and cached; it is never loaded as one
+    Python string or JSON object.
+    """
+
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    cache_key = (str(path.resolve()), stat.st_size, stat.st_mtime_ns)
+    if cache_key in _DISCOVERY_CACHE:
+        cached = _DISCOVERY_CACHE[cache_key]
+        return dict(cached) if cached is not None else None
+
+    if stat.st_size <= _DIRECT_REPORT_READ_LIMIT_BYTES:
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            value = None
+        result = dict(value) if isinstance(value, Mapping) else None
+        _DISCOVERY_CACHE[cache_key] = result
+        return dict(result) if result is not None else None
+
+    if _compact_freeze_status(path.with_suffix(".txt")) != "frozen_for_separate_sealed_holdout":
+        _DISCOVERY_CACHE[cache_key] = None
+        return None
+
+    wanted = {
+        "schema_version",
+        "execution_profile",
+        "fixture_data_only",
+        "freeze_status",
+        "frozen_candidate",
+        "loop_run_id",
+        "audit_policy",
+        "window_plan",
+    }
+    result: dict[str, Any] = {}
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                if not line.startswith('  "'):
+                    continue
+                stripped = line.lstrip()
+                if not stripped.startswith('"') or '":' not in stripped:
+                    continue
+                key = stripped[1 : stripped.index('"', 1)]
+                if key not in wanted:
+                    continue
+                first = stripped.split(":", 1)[1].lstrip()
+                result[key] = _read_bounded_json_fragment(handle, first)
+    except (OSError, UnicodeError, ValueError, json.JSONDecodeError):
+        result = {}
+    cached_result = result if wanted.issubset(result) else None
+    _DISCOVERY_CACHE[cache_key] = cached_result
+    return dict(cached_result) if cached_result is not None else None
+
+
+def _compact_freeze_status(path: Path) -> str | None:
+    try:
+        if not path.is_file() or path.stat().st_size > 1_000_000:
+            return None
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                if line.startswith("Freeze status:"):
+                    return line.split(":", 1)[1].strip() or None
+    except (OSError, UnicodeError):
+        return None
+    return None
+
+
+def _read_bounded_json_fragment(handle: Any, first: str, max_bytes: int = 2_000_000) -> Any:
+    parts = [first.rstrip("\r\n")]
+    text = parts[0].lstrip()
+    if not text:
+        raise ValueError("missing JSON value")
+    if text[0] not in "[{":
+        return json.loads(text.rstrip().removesuffix(","))
+
+    balance = 0
+    in_string = False
+    escaped = False
+    size = 0
+    while True:
+        chunk = parts[-1]
+        size += len(chunk.encode("utf-8"))
+        if size > max_bytes:
+            raise ValueError("research discovery value exceeds bounded UI cap")
+        for char in chunk:
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    in_string = False
+            elif char == '"':
+                in_string = True
+            elif char in "[{":
+                balance += 1
+            elif char in "]}":
+                balance -= 1
+        if balance <= 0:
+            break
+        line = handle.readline()
+        if not line:
+            raise ValueError("truncated JSON value")
+        parts.append(line.rstrip("\r\n"))
+    return json.loads("\n".join(parts).rstrip().removesuffix(","))
 
 
 class FinalEvaluationController:

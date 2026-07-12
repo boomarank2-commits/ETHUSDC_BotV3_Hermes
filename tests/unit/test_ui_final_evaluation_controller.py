@@ -14,6 +14,7 @@ from ethusdc_bot.ui.final_evaluation_controller import (
     build_initial_final_evaluation_status,
     discover_latest_frozen_research_report,
 )
+from ethusdc_bot.ui import final_evaluation_controller as controller_module
 
 
 def test_initial_status_keeps_every_external_action_locked():
@@ -84,6 +85,63 @@ def test_discovery_rejects_consumed_or_evaluated_holdout(tmp_path):
         (root / f"{index}.json").write_text(json.dumps(payload), encoding="utf-8")
 
     assert discover_latest_frozen_research_report(root)["status"] == "not_ready"
+
+
+def test_large_non_frozen_report_is_never_fully_read(monkeypatch, tmp_path):
+    root = tmp_path / "research"
+    root.mkdir()
+    report = root / "research_large.json"
+    report.write_bytes(b"{}")
+    report.with_suffix(".txt").write_text(
+        "Freeze status: blocked_by_holdout_policy\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(controller_module, "_DIRECT_REPORT_READ_LIMIT_BYTES", 1)
+    controller_module._DISCOVERY_CACHE.clear()
+
+    def forbidden_read_text(path, *args, **kwargs):
+        raise AssertionError(f"full report read attempted: {path}")
+
+    monkeypatch.setattr(Path, "read_text", forbidden_read_text)
+
+    status = discover_latest_frozen_research_report(root)
+
+    assert status["status"] == "not_ready"
+
+
+def test_large_frozen_report_uses_bounded_streaming_fields(monkeypatch, tmp_path):
+    root = tmp_path / "research"
+    root.mkdir()
+    payload = {
+        "audit_policy": {"freeze_eligible": True},
+        "execution_profile": "production_protocol",
+        "fixture_data_only": False,
+        "freeze_status": "frozen_for_separate_sealed_holdout",
+        "frozen_candidate": {"candidate_id": "bounded_candidate"},
+        "loop_run_id": "bounded_run",
+        "schema_version": 2,
+        "window_plan": {
+            "final_holdout_window": {
+                "status": "sealed_unopened",
+                "consumed_audit_window": False,
+                "evaluated": False,
+                "days": 365,
+            }
+        },
+    }
+    report = root / "research_large.json"
+    report.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    report.with_suffix(".txt").write_text(
+        "Freeze status: frozen_for_separate_sealed_holdout\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(controller_module, "_DIRECT_REPORT_READ_LIMIT_BYTES", 1)
+    controller_module._DISCOVERY_CACHE.clear()
+
+    status = discover_latest_frozen_research_report(root)
+
+    assert status["status"] == "ready_for_explicit_one_shot"
+    assert status["candidate_id"] == "bounded_candidate"
 
 
 def test_controller_runs_once_and_reassesses_final_report(monkeypatch, tmp_path):
