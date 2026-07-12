@@ -27,14 +27,30 @@ jobs:
       - name: Apply deterministic UI patch
         run: python .github/patch_backtest_ui.py
 
-      - name: Run focused tests
+      - name: Run focused tests with diagnostics
+        id: focused
+        continue-on-error: true
+        shell: bash
         run: |
-          python -m pytest -q \
+          set -o pipefail
+          python -m pytest -vv \
             tests/unit/test_backtest_display.py \
             tests/unit/test_ui_backtest_controller.py \
             tests/unit/test_dashboard_state.py \
             tests/unit/test_backtest_ui_mode.py \
-            tests/unit/test_dashboard_no_forbidden_side_effects.py
+            tests/unit/test_dashboard_no_forbidden_side_effects.py \
+            2>&1 | tee focused-test-output.txt
+
+      - name: Upload focused test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backtest-ui-focused-test-output
+          path: focused-test-output.txt
+
+      - name: Fail on focused-test errors
+        if: steps.focused.outcome != 'success'
+        run: exit 1
 
       - name: Run full test suite
         run: python -m pytest -q
