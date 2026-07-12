@@ -46,6 +46,53 @@ def test_tested_frontier_selects_two_variants_from_each_family() -> None:
     assert counts == {family: 2 for family in ACTIVE_SEARCH_FAMILIES}
 
 
+def test_context_frontier_rotates_profile_and_extra_family_coverage_across_cycles() -> None:
+    first_generated = generate_search_space(
+        SearchSpaceState(cycle_index=1),
+        max_candidates=40,
+        context_enabled=True,
+    )
+    second_generated = generate_search_space(
+        SearchSpaceState(cycle_index=2),
+        max_candidates=40,
+        context_enabled=True,
+    )
+    first_tested = select_candidates_for_testing(first_generated, limit=12)
+    second_tested = select_candidates_for_testing(second_generated, limit=12)
+
+    def family_counts(candidates):
+        return {
+            family: sum(candidate.family == family for candidate in candidates)
+            for family in (*ACTIVE_SEARCH_FAMILIES, "context_filter")
+        }
+
+    assert len(first_generated) == len(second_generated) == 40
+    assert len(first_tested) == len(second_tested) == 12
+    assert family_counts(first_generated)["context_filter"] == 6
+    assert family_counts(second_generated)["context_filter"] == 6
+    assert family_counts(first_tested)["context_filter"] == 2
+    assert family_counts(second_tested)["context_filter"] == 2
+    assert family_counts(first_tested) != family_counts(second_tested)
+    assert family_counts(first_tested)["mean_reversion_regime_filter"] == 1
+    assert family_counts(second_tested)["mean_reversion_regime_filter"] == 2
+    assert {
+        canonical_candidate_signature(candidate) for candidate in first_tested
+    } != {
+        canonical_candidate_signature(candidate) for candidate in second_tested
+    }
+    for cycle_index in range(1, 8):
+        generated = generate_search_space(
+            SearchSpaceState(cycle_index=cycle_index),
+            max_candidates=40,
+            context_enabled=True,
+        )
+        tested = select_candidates_for_testing(generated, limit=12)
+        assert len(generated) == 40
+        assert len(tested) == 12
+        assert family_counts(generated)["context_filter"] == 6
+        assert family_counts(tested)["context_filter"] == 2
+
+
 def test_context_candidates_are_excluded_until_real_context_data_is_integrated() -> None:
     candidates = generate_search_space(SearchSpaceState(cycle_index=3), max_candidates=40)
     payload = json.dumps(
@@ -79,6 +126,7 @@ def test_frontier_metadata_is_explicit_and_uses_no_holdout_or_target() -> None:
     assert summary["context_disabled_reason"] == CONTEXT_DISABLED_REASON
     assert summary["uses_audit_or_holdout"] is False
     assert summary["target_used_as_parameter"] is False
+    assert summary["profile_round_offset"] == 1
 
 
 def test_diagnosis_adjustment_is_bounded_and_directionally_consistent() -> None:

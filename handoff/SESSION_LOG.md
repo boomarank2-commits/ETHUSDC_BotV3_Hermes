@@ -478,3 +478,53 @@ Safety:
 - No Trading API, API keys, account data, or orders.
 - ETHUSDC Spot LONG-only, fixed 100 USDC notional, no compounding, one position maximum.
 - No shorts, margin, futures, or leverage.
+
+## 2026-07-12 - Audit canonical UI path and rotate existing search profiles
+
+Goal:
+
+- Prove which PR #3-#14 patches are active in the normal UI backtest.
+- Diagnose the completed PR12 context run before changing parameters.
+- Fix only the smallest demonstrated Search Frontier selection/feedback defect.
+
+Read-only audit:
+
+- Main worktree was clean at PR #14 head `5f6eb9030d44856ccb41f94d0fed3bab68fe8954`.
+- The UI14 worktree was clean and fully ancestral; no unique work was removed.
+- Every runtime-relevant head from PR #3 through #12 plus the PR12 UI bridge is an ancestor of PR #14. PR #13 is report-only and intentionally not in the stack.
+- The button reaches one chain only: `START_DASHBOARD.bat` -> dashboard -> controller -> PowerShell starter -> supervisor -> Protocol-v2 runner -> simulator.
+- Legacy runners are fail-closed. No second UI-reachable backtest engine exists.
+
+Run diagnosis:
+
+- `production_research_supervisor_20260712T081650Z` completed 8/8 with 40/12/3/2 and context enabled.
+- Selected WFV result: 27 trades over 546 days, -0.0261580516 USDC/day, PF 0.3102933291, max drawdown 16.5273477065 USDC.
+- Fold trades were 3/4/3/1/15/1; all trades belonged to one regime and the maximum no-trade gap was 136 days.
+- Exactly 1095 complete days explain the real zero historical origins; there is no parser error.
+- Search generation truncated a sequential 49-row context frontier to 40 and tested the same early family profiles. The capped pressure made cycles 6-8 identical.
+- Feedback used the best-validation trade count instead of selected-WFV activity and therefore increased filtering despite the activity shortfall.
+
+Implementation:
+
+- Created `codex/canonical-backtest-audit-and-consolidation` from PR #14 head.
+- Added deterministic per-cycle profile rotation and rotating extra slots among the six base families.
+- Kept the context family pinned so every cycle retains exactly 6 generated and 2 tested context candidates.
+- Bound the existing `too_few_trades` feedback to selected WFV total trades and temporal no-trade gap using immutable `quality_gate_v1` thresholds.
+- The existing opening profile now removes diagnosis pressure when activity is insufficient; no strategy family or gate changed.
+- Implementation commit `3299a4f879e2737b1166adc1db37f155fe4315e3` was pushed to `origin/codex/canonical-backtest-audit-and-consolidation`.
+- Draft PR #15 was opened against `review/backtest-ui-live-status-v1`.
+
+Review and verification:
+
+- Initial regression run produced five expected failures before implementation.
+- A focused review found that unrestricted family rotation would break context 6/2 after cycle 1; this was fixed before commit.
+- Final focused selection/runner/context/Protocol-v2 set: 59 passed.
+- Full suite: 850 passed with Python 3.12.
+- Python compile, PowerShell parser, and `git diff --check`: passed.
+- Deterministic eight-cycle smoke: every cycle 40 generated / 12 tested / context 6/2, 12 unique tested signatures, eight distinct tested-signature sets.
+- No market-data backtest, audit, or final holdout was run in this work block.
+
+Safety:
+
+- Fixed 100 USDC, LONG-only, one position, no compounding, 0.1% fee and 5 bps slippage per side unchanged.
+- Live, Paper, Testtrade, orders, API keys, account access, and Trading API remained locked or unused.
