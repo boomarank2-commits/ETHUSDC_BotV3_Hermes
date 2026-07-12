@@ -10,6 +10,7 @@ from ethusdc_bot.backtest.context_research import (
     context_policy_for_profile,
     wrap_candidate_with_context,
 )
+from ethusdc_bot.backtest.quality_gates import QUALITY_GATE_V1
 from ethusdc_bot.backtest.simulator import StrategyCandidate
 
 
@@ -52,17 +53,26 @@ def canonical_candidate_signature(candidate: StrategyCandidate) -> CandidateSign
 
 
 def select_candidates_for_testing(
-    candidates: list[StrategyCandidate], limit: int
+    candidates: list[StrategyCandidate],
+    limit: int,
+    *,
+    round_offset: int = 0,
 ) -> list[StrategyCandidate]:
     """Select a deterministic family-balanced testing frontier.
 
     A candidate list that already fits the budget is returned unchanged. When
-    it exceeds the budget, families retain first-seen order and contribute one
-    candidate per round until the limit is reached.
+    it exceeds the budget, families contribute one candidate per round until
+    the limit is reached. ``round_offset`` rotates both the first family and
+    each family's first profile so repeated research cycles do not permanently
+    favor the same early profiles while keeping the fixed stage cap intact.
     """
 
     if limit <= 0:
         return []
+    if isinstance(round_offset, bool) or not isinstance(round_offset, int):
+        raise TypeError("round_offset must be an integer")
+    if round_offset < 0:
+        raise ValueError("round_offset must be non-negative")
     if len(candidates) <= limit:
         return list(candidates)
 
@@ -74,17 +84,35 @@ def select_candidates_for_testing(
             candidates_by_family[candidate.family] = []
         candidates_by_family[candidate.family].append(candidate)
 
+    pinned_families = [
+        family for family in family_order if family == CONTEXT_SEARCH_FAMILY
+    ]
+    rotating_families = [
+        family for family in family_order if family != CONTEXT_SEARCH_FAMILY
+    ]
+    if rotating_families:
+        family_rotation = round_offset % len(rotating_families)
+        rotating_families = (
+            rotating_families[family_rotation:]
+            + rotating_families[:family_rotation]
+        )
+    family_order = pinned_families + rotating_families
     selected: list[StrategyCandidate] = []
-    family_offsets = {family: 0 for family in family_order}
+    family_starts = {
+        family: round_offset % len(candidates_by_family[family])
+        for family in family_order
+    }
+    family_emitted = {family: 0 for family in family_order}
     while len(selected) < limit:
         added_in_round = False
         for family in family_order:
-            offset = family_offsets[family]
             family_candidates = candidates_by_family[family]
-            if offset >= len(family_candidates):
+            emitted = family_emitted[family]
+            if emitted >= len(family_candidates):
                 continue
-            selected.append(family_candidates[offset])
-            family_offsets[family] = offset + 1
+            index = (family_starts[family] + emitted) % len(family_candidates)
+            selected.append(family_candidates[index])
+            family_emitted[family] = emitted + 1
             added_in_round = True
             if len(selected) >= limit:
                 break
@@ -133,9 +161,11 @@ def generate_search_space(
         if signature not in seen:
             seen.add(signature)
             unique.append(normalized_candidate)
-        if len(unique) >= max_candidates:
-            break
-    return unique
+    return select_candidates_for_testing(
+        unique,
+        max_candidates,
+        round_offset=_profile_round_offset(state),
+    )
 
 
 def search_frontier_summary(
@@ -168,6 +198,7 @@ def search_frontier_summary(
         "problem_assessment": problem,
         "diagnosis_pressure": pressure,
         "opening_bias": opening_bias,
+        "profile_round_offset": _profile_round_offset(state),
         "context_candidates_enabled": context_enabled,
         "context_disabled_reason": None if context_enabled else CONTEXT_DISABLED_REASON,
         "uses_audit_or_holdout": False,
@@ -179,7 +210,9 @@ def next_search_space_state(cycle_summary: dict[str, Any]) -> SearchSpaceState:
     exit_summary = cycle_summary.get("exit_reason_summary", {})
     family = cycle_summary.get("family_aggregate_summary", [])
     best = cycle_summary.get("best_validation_candidate", {})
-    if exit_summary.get("stop_loss_share", 0) > 0.45:
+    if _selected_wfv_activity_is_too_low(cycle_summary):
+        problem = "too_few_trades"
+    elif exit_summary.get("stop_loss_share", 0) > 0.45:
         problem = "stop_loss_dominates"
     elif exit_summary.get("time_exit_share", 0) > 0.45:
         problem = "time_exit_dominates"
@@ -207,16 +240,46 @@ def _problem_assessment(state: SearchSpaceState) -> str:
 def _diagnosis_adjustments(
     state: SearchSpaceState, problem: str
 ) -> tuple[int, int]:
+    if "too_few" in problem:
+        return 0, 2
     pressure = max(0, int(state.cycle_index))
     if "cost" in problem or "overtrading" in problem:
         pressure += 2
     if "stop_loss" in problem:
         pressure += 1
-    opening_bias = 0
-    if "too_few" in problem:
-        pressure = max(0, pressure - 1)
-        opening_bias = 2
-    return min(_MAX_DIAGNOSIS_PRESSURE, pressure), opening_bias
+    return min(_MAX_DIAGNOSIS_PRESSURE, pressure), 0
+
+
+def _profile_round_offset(state: SearchSpaceState) -> int:
+    return max(0, int(state.cycle_index) - 1) % _PROFILE_COUNT
+
+
+def _selected_wfv_activity_is_too_low(cycle_summary: dict[str, Any]) -> bool:
+    wfv = cycle_summary.get("wfv_summary")
+    if not isinstance(wfv, dict):
+        return False
+    aggregate = wfv.get("aggregate_metrics")
+    selection_evidence = wfv.get("selection_evidence")
+    temporal = (
+        selection_evidence.get("temporal")
+        if isinstance(selection_evidence, dict)
+        else None
+    )
+    trade_count = aggregate.get("trade_count") if isinstance(aggregate, dict) else None
+    max_no_trade_gap_days = (
+        temporal.get("max_no_trade_gap_days") if isinstance(temporal, dict) else None
+    )
+    trade_shortfall = (
+        isinstance(trade_count, (int, float))
+        and not isinstance(trade_count, bool)
+        and trade_count < QUALITY_GATE_V1.min_wfv_total_trades
+    )
+    gap_shortfall = (
+        isinstance(max_no_trade_gap_days, (int, float))
+        and not isinstance(max_no_trade_gap_days, bool)
+        and max_no_trade_gap_days > QUALITY_GATE_V1.max_no_trade_gap_days
+    )
+    return bool(trade_shortfall or gap_shortfall)
 
 
 def _frontier_candidates(

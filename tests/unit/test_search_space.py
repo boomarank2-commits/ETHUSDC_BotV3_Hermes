@@ -7,6 +7,7 @@ from ethusdc_bot.backtest.search_space import (
     SearchSpaceState,
     canonical_candidate_signature,
     generate_search_space,
+    next_search_space_state,
     select_candidates_for_testing,
 )
 from ethusdc_bot.backtest.simulator import StrategyCandidate
@@ -91,6 +92,26 @@ def test_candidate_selection_uses_deterministic_family_round_robin_when_bounded(
     assert select_candidates_for_testing(candidates, limit=5) == selected
 
 
+def test_candidate_selection_rotates_family_and_profile_offsets_when_requested():
+    candidates = [
+        StrategyCandidate(family, {"variant": variant})
+        for family in ("family_a", "family_b", "family_c")
+        for variant in (1, 2, 3)
+    ]
+
+    selected = select_candidates_for_testing(candidates, limit=5, round_offset=1)
+
+    assert [(candidate.family, candidate.params["variant"]) for candidate in selected] == [
+        ("family_b", 2),
+        ("family_c", 2),
+        ("family_a", 2),
+        ("family_b", 3),
+        ("family_c", 3),
+    ]
+    assert select_candidates_for_testing(candidates, limit=5, round_offset=1) == selected
+    assert selected != select_candidates_for_testing(candidates, limit=5, round_offset=0)
+
+
 def test_candidate_selection_with_non_positive_limit_is_empty():
     candidates = [StrategyCandidate("family_a", {"variant": 1})]
 
@@ -111,3 +132,37 @@ def test_search_space_cost_diagnosis_tightens_expected_move_and_cooldown():
     assert max(int(c.params.get("cooldown_minutes", 0) or 0) for c in cost_aware) >= max(
         int(c.params.get("cooldown_minutes", 0) or 0) for c in baseline
     )
+
+
+def test_next_search_state_prioritizes_selected_wfv_activity_shortfall_over_cost_pressure():
+    cycle = {
+        "cycle_id": 6,
+        "exit_reason_summary": {"stop_loss_share": 0.4, "time_exit_share": 0.1},
+        "family_aggregate_summary": [{"family": "breakout_volatility_filter", "high_cost_count": 1}],
+        "best_validation_candidate": {"trade_count": 21, "net_usdc_per_day": -0.02},
+        "wfv_summary": {
+            "aggregate_metrics": {"trade_count": 27},
+            "selection_evidence": {"temporal": {"max_no_trade_gap_days": 136}},
+        },
+    }
+
+    state = next_search_space_state(cycle)
+
+    assert state.cycle_index == 7
+    assert state.diagnosis["problem_assessment"] == "too_few_trades"
+
+
+def test_too_few_trade_diagnosis_opens_existing_profiles_instead_of_adding_pressure():
+    baseline = generate_search_space(SearchSpaceState(cycle_index=0), max_candidates=40)
+    opened = generate_search_space(
+        SearchSpaceState(cycle_index=7, diagnosis={"problem_assessment": "too_few_trades"}),
+        max_candidates=40,
+    )
+
+    baseline_threshold = min(float(candidate.params.get("threshold_bps", 0) or 0) for candidate in baseline)
+    opened_threshold = min(float(candidate.params.get("threshold_bps", 0) or 0) for candidate in opened)
+    baseline_cooldown = min(int(candidate.params.get("cooldown_minutes", 0) or 0) for candidate in baseline)
+    opened_cooldown = min(int(candidate.params.get("cooldown_minutes", 0) or 0) for candidate in opened)
+
+    assert opened_threshold < baseline_threshold
+    assert opened_cooldown <= baseline_cooldown
