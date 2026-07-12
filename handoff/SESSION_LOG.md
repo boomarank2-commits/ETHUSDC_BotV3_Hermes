@@ -528,3 +528,29 @@ Safety:
 
 - Fixed 100 USDC, LONG-only, one position, no compounding, 0.1% fee and 5 bps slippage per side unchanged.
 - Live, Paper, Testtrade, orders, API keys, account access, and Trading API remained locked or unused.
+
+## 2026-07-12 - Complete rotated run and remove dashboard multi-GB hot path
+
+Run result:
+
+- Canonical UI run `production_research_supervisor_20260712T163528Z` / `research_loop_20260712T163528Z` completed normally after 7/8 cycles with `selection_stagnation_3_cycles`.
+- Every cycle proved 40 generated / 12 tested / 3 WFV / 2 finalists, context 6/2, six folds, audit false, final holdout false, and all trading locks.
+- Profile offsets 0-6 were exercised. The selected family changed to `cooldown_fee_aware` in cycles 6-7, proving that rotation expanded the tested frontier.
+- Best selected WFV: `breakout_volatility_filter_04_012`, +6.875145713 USDC total, +0.012591842/day, 28 trades, PF 1.4688289221, 50% wins, 6.3883786063 USDC drawdown.
+- Fees/slippage: 5.6124876333 / 2.8062476402 USDC. Fold trades: 4/4/2/2/12/4. Positive folds: 3. Worst fold: -0.0185551606/day. No-trade gap: 135 days.
+- Versus the prior run, net/day, PF, drawdown, win rate, positive folds, and worst-fold loss improved; raw activity remained nearly unchanged.
+
+UI diagnosis and fix:
+
+- Research runner and supervisor had exited cleanly; only the dashboard appeared hung/off-screen.
+- Dashboard PID 15468 had accumulated about 8888 CPU seconds. Its window rectangle was `-32000,-32000`; it was restored non-destructively to `40,40` after completion.
+- The one-second heartbeat ran `build_dashboard_snapshot()` on Tk's thread. Frozen-report discovery called `read_text()` plus `json.loads()` for every research JSON, including 3.74 GB and 3.23 GB artifacts. Completion also streamed the latest detail report synchronously on Tk's thread.
+- Commit `5ef7eb8c0283ab67f89b249a274637d465cea8a3` moves snapshot/result collection to a background refresh worker, bounds large-report discovery, uses compact TXT for fast non-frozen rejection, and recovers a durable active supervisor checkpoint to prevent duplicate starts after UI restart.
+- Real-root frozen discovery dropped to about 0.003 seconds without reading either detail report as a whole.
+
+Verification:
+
+- Focused UI/controller/display tests: 51 passed.
+- Full suite: 854 tests passed.
+- Python compile and `git diff --check`: passed.
+- No final holdout, Live, Paper, Testtrade, order, account, API key, or Trading API action occurred.

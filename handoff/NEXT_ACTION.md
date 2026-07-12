@@ -1,18 +1,19 @@
 # Next Action
 
-Immediate sequence for branch `codex/canonical-backtest-audit-and-consolidation`:
+Immediate sequence for branch `codex/ui-responsiveness-and-next-iteration`:
 
-1. Ensure no old research process exists and reduce the two identical idle dashboard instances to one before the next launch.
-2. Start only through `START_DASHBOARD.bat` and click `Backtest starten (Training/WFV)`.
-3. Verify the new run is bound to commit `3299a4f879e2737b1166adc1db37f155fe4315e3` or its documentation-only descendant and still proves 40/12/3/2, context 6/2, six folds, audit false, final holdout false, and all trading locks.
-4. After the first completed cycle, verify `profile_round_offset` and tested IDs differ from the old fixed-prefix frontier.
-5. Let the run continue only if the canonical proof is valid; do not make another strategy change while it runs.
-6. Compare the completed result with `production_research_supervisor_20260712T081650Z`, especially trades, no-trade gap, active months, WFV net/day, PF, drawdown, costs, positive folds, and family coverage.
+1. Preserve the completed UI responsiveness fix and its focused/full regression coverage.
+2. Add bounded signal-funnel attribution to the existing simulator/search report only: eligible observations, raw entry signals, and rejection counts by existing entry/filter/cooldown/context reason.
+3. Do not change strategy parameters, costs, gates, candidate budgets, family definitions, or ranking in that instrumentation block.
+4. Use a small deterministic simulation test to prove counters reconcile and do not affect trades or PnL.
+5. Commit, push, and update the stacked draft PR/handoff.
+6. Only then prepare the next canonical UI run and verify 40/12/3/2, context 6/2, six folds, audit false, final holdout false, and all trading locks.
 
-Exact next diagnostic if the new run is still unprofitable:
+Evidence to preserve:
 
-- Use the new tested-profile evidence to identify whether any existing later profile improves activity and post-cost PF.
-- If no existing profile does, add signal-funnel rejection counters to the current simulator/search report before changing entries or exits. The current report cannot attribute non-context signal rejection to individual filters.
+- The rotation patch already found a positive post-cost WFV profile, but only 28 trades across 546 days.
+- Fold trades are 4/4/2/2/12/4 and the maximum no-trade gap is 135 days.
+- More trades alone are not success; preserve PF 1.4688, drawdown 6.3884, cost realism, and fold stability as comparison dimensions.
 - Do not invent a new engine, strategy family, router, cluster system, or Multi-Timeframe pipeline until that attribution exists.
 
 Rolling-origin rule:
