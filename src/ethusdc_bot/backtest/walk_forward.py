@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from statistics import median, pstdev
@@ -102,6 +103,7 @@ def evaluate_walk_forward(
         expected_candles_per_day=expected_candles_per_day,
     )
     fold_rows: list[dict[str, Any]] = []
+    aggregate_signal_funnel: Counter[str] = Counter()
     all_trades = []
     fold_equity_curves: list[tuple[EquityPoint, ...]] = []
     selection_observations: list[FoldSelectionObservation] = []
@@ -135,6 +137,7 @@ def evaluate_walk_forward(
             )
         )
         fold_metrics = result.metrics.to_dict()
+        aggregate_signal_funnel.update(result.signal_funnel)
         fold_metrics["drawdown_method"] = result.drawdown_method
         fold_net_profits = [float(trade.net_profit_usdc) for trade in result.trades]
         fold_metrics["gross_profit_usdc"] = round(
@@ -157,6 +160,7 @@ def evaluate_walk_forward(
                 "simulated_validation_days": fold_days,
                 "days": fold_days,
                 "metrics": fold_metrics,
+                "signal_funnel": dict(sorted(result.signal_funnel.items())),
                 "equity_curve_usdc": result.equity_curve_usdc,
                 "equity_curve_timestamps_ms": result.equity_curve_timestamps_ms,
             }
@@ -189,6 +193,7 @@ def evaluate_walk_forward(
         }
     summary["fee_bps_per_side"] = fee_rate * 10_000
     summary["slippage_bps_per_side"] = slippage_bps
+    summary["signal_funnel"] = dict(sorted(aggregate_signal_funnel.items()))
     return summary
 
 

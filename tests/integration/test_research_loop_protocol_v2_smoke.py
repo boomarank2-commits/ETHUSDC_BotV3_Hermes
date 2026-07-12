@@ -88,6 +88,12 @@ def test_real_protocol_v2_loop_reports_stages_without_evaluating_holdout(tmp_pat
     assert cycle["generated_candidates"] == len(cycle["candidate_stage_ids"]["generated"])
     assert cycle["search_frontier"]["generator_version"] == "ethusdc_frontier_v2"
     assert cycle["search_frontier"]["generated_count"] == cycle["generated_candidates"]
+    assert cycle["signal_funnel"]["changes_strategy_behavior"] is False
+    assert cycle["signal_funnel"]["uses_audit_or_holdout"] is False
+    assert cycle["signal_funnel"]["validation"]["entry_evaluations"] == (
+        cycle["signal_funnel"]["validation"]["accepted_entry_signals"]
+        + cycle["signal_funnel"]["validation"]["rejected_signals"]
+    )
     assert cycle["search_frontier"]["context_candidates_enabled"] is False
     assert cycle["search_frontier"]["uses_audit_or_holdout"] is False
     assert cycle["tested_candidates"] == len(cycle["candidate_stage_ids"]["tested"])

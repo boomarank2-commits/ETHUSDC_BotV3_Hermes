@@ -62,6 +62,65 @@ def test_no_trades_without_signal():
     assert result.net_profit_usdc == 0
 
 
+def test_signal_funnel_reconciles_and_attributes_existing_filters():
+    strategy = StrategyCandidate(
+        family="breakout_volatility_filter",
+        params={
+            "lookback": 1,
+            "threshold_bps": 0,
+            "volatility_lookback": 1,
+            "min_vol_bps": 500,
+            "max_vol_bps": 1_000,
+        },
+    )
+
+    result = simulate_strategy(
+        _candles([100, 102, 104, 106, 108]),
+        strategy,
+        days=1,
+        fee_rate=0,
+        slippage_bps=0,
+    )
+    funnel = result.signal_funnel
+
+    assert result.trade_count == 0
+    assert funnel["observations_total"] == 5
+    assert funnel["raw_entry_signals"] > 0
+    assert funnel["rejected.volatility_below_min"] == funnel["raw_entry_signals"]
+    assert funnel["entry_evaluations"] == (
+        funnel["accepted_entry_signals"] + funnel["rejected_signals"]
+    )
+    assert result.rejection_reasons["volatility_below_min"] > 0
+
+
+def test_signal_funnel_counts_position_and_cooldown_without_changing_trades():
+    strategy = StrategyCandidate(
+        family="always_long",
+        params={"max_hold_minutes": 1, "cooldown_minutes": 2},
+    )
+
+    result = simulate_strategy(
+        _candles([100, 101, 102, 103, 104, 105, 106]),
+        strategy,
+        days=1,
+        fee_rate=0,
+        slippage_bps=0,
+    )
+
+    assert result.signal_funnel["blocked.position_open"] > 0
+    assert result.signal_funnel["blocked.cooldown"] > 0
+    assert result.signal_funnel["accepted_entry_signals"] == result.trade_count
+    assert result.signal_funnel["observations_total"] == sum(
+        result.signal_funnel[key]
+        for key in (
+            "entry_evaluations",
+            "blocked.position_open",
+            "blocked.cooldown",
+            "blocked.end_of_data",
+        )
+    )
+
+
 def test_tradecount_is_correct():
     strategy = StrategyCandidate(family="always_long", params={"max_hold_minutes": 1})
 
