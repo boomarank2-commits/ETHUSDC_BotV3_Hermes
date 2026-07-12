@@ -15,8 +15,8 @@ def test_start_dashboard_pins_its_own_source_tree_and_python_version() -> None:
 
     assert 'cd /d "%~dp0"' in text
     assert 'set "PYTHONPATH=%~dp0src"' in text
-    assert "py -3.12 -m ethusdc_bot.ui.dashboard" in text
-    assert "python -m ethusdc_bot.ui.dashboard" not in text
+    assert "py -3.12 -m ethusdc_bot.ui.operator_dashboard" in text
+    assert "python -m ethusdc_bot.ui.operator_dashboard" not in text
 
 
 def test_start_dashboard_rejects_detached_head_before_ui_launch() -> None:
