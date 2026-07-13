@@ -150,8 +150,8 @@ Blockern und nicht eine nachtraegliche Anpassung des Holdouts oder der Kosten.
 
 ## 10. Protocol-v3-Shadow- und Finaltrennung
 
-Protocol-v3-Vertragsgeneration: `3.0.0`  
-Maschinenlesbarer Vertrag: `configs/protocol_v3_contract.json`  
+Protocol-v3-Vertragsgeneration: `3.0.0`
+Maschinenlesbarer Vertrag: `configs/protocol_v3_contract.json`
 Kanonischer Zusatzvertrag: `docs/42_PROTOCOL_V3_EXECUTABLE_CONTRACT.md`
 
 Die folgenden Evidenz- und Shadow-Klassen sind strikt getrennt:
