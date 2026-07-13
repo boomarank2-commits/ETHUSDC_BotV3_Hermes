@@ -42,12 +42,15 @@ jobs:
           name: progress-patch-pytest
           path: progress-patch-pytest.txt
 
-      - name: Validate source and test result
+      - name: Compile patched source
+        run: python -m compileall -q src
+
+      - name: Check patched whitespace
+        run: git diff --check
+
+      - name: Confirm pytest result
         shell: bash
-        run: |
-          python -m compileall -q src
-          git diff --check
-          test '${{ steps.pytest.outcome }}' = 'success'
+        run: test '${{ steps.pytest.outcome }}' = 'success'
 
       - name: Commit implementation and remove temporary helpers
         shell: bash
