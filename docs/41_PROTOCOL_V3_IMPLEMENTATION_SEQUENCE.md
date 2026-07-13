@@ -2,7 +2,7 @@
 
 Stand: 2026-07-13
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md` auf Commit `c0676dbec97812a823c225e72c6577b7154d4013`
-Status: verbindlicher Ausführungs- und Abnahmeplan; noch keine Protocol-v3-Codefreigabe
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 1/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -29,6 +29,8 @@ Eine Aufgabe ist **nicht** fertig, wenn nur ein Teil implementiert, nur ein Happ
 
 ## Aufgabe 1 – Protocol-v3-Vertrag versioniert übernehmen
 
+**Status:** `DONE_100`
+
 **Ziel:** Der Blueprint wird zu einer ausdrücklich versionierten, ausführbaren Vertragsgeneration, ohne den verbrauchten Holdout als frisch umzudeuten.
 
 **DONE_100:**
@@ -39,7 +41,11 @@ Eine Aufgabe ist **nicht** fertig, wenn nur ein Teil implementiert, nur ein Happ
 - Der bestehende Protocol-v2- und Single-Candidate-Finalpfad bleibt erhalten und kann keinen Protocol-v3-Finalstatus erzeugen.
 - Vertragstests blockieren widersprüchliche oder fehlende Versionen.
 
+**Abnahmebericht:** `handoff/PROTOCOL_V3_TASK_01_2026-07-13.md`
+
 ## Aufgabe 2 – Monatskalender und Boundary-Vertrag implementieren
+
+**Status:** `NOT_STARTED` – exakt nächste Aufgabe
 
 **Ziel:** Exakt zwölf äußere Origins, 730 Entwicklungstage, 365 lückenlose Prozess-OOS-Tage und `T+24h`-Aktivierung werden als reine Boundary-Objekte implementiert.
 
@@ -440,6 +446,7 @@ Nach jeder Aufgabe wird in diesem Dokument ausschließlich der Status der abgesc
 Aktueller Stand:
 
 ```text
-Protocol v3: Aufgabe 1/33 – Protocol-v3-Vertrag versioniert übernehmen – NOT_STARTED
-Gesamt: 0/33 DONE_100 = 0,00 %
+Protocol v3: Aufgabe 1/33 – Protocol-v3-Vertrag versioniert übernehmen – DONE_100
+Protocol v3: Aufgabe 2/33 – Monatskalender und Boundary-Vertrag implementieren – NOT_STARTED
+Gesamt: 1/33 DONE_100 = 3,03 %
 ```
