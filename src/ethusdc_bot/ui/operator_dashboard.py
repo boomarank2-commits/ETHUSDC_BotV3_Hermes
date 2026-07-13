@@ -188,6 +188,18 @@ def select_operator_view(
     return "download"
 
 
+def apply_requested_operator_view(
+    view_mode: str, *, requested_view: str | None, backtest_mode: str
+) -> str:
+    """Apply a transient operator request without masking a final result."""
+
+    if requested_view == "download":
+        return "download"
+    if requested_view == "backtest_running" and backtest_mode in _ACTIVE_BACKTEST_MODES:
+        return "backtest_running"
+    return view_mode
+
+
 def format_download_view(
     snapshot: Mapping[str, Any],
     runtime_status: Mapping[str, Any],
@@ -512,11 +524,11 @@ class OperatorDashboardApp(_base_dashboard.DashboardApp):
                     backtest_mode=str(display.get("mode", "idle")),
                     runtime_phase=str(effective_runtime.get("phase", "idle")),
                 )
-                requested_view = self._requested_view
-                if requested_view == "download":
-                    view_mode = "download"
-                elif requested_view == "backtest_running":
-                    view_mode = "backtest_running"
+                view_mode = apply_requested_operator_view(
+                    view_mode,
+                    requested_view=self._requested_view,
+                    backtest_mode=str(display.get("mode", "idle")),
+                )
                 if view_mode == "backtest_running":
                     text = format_running_backtest_view(display)
                 elif view_mode == "backtest_result":
@@ -581,6 +593,14 @@ class OperatorDashboardApp(_base_dashboard.DashboardApp):
             self.backtest_display_status = display
             self._apply_product_status(snapshot)
             view_mode = str(payload.get("view_mode", "download"))
+            if (
+                self._requested_view == "backtest_running"
+                and str(display.get("mode", "idle")) not in {"starting", "running"}
+            ):
+                # A start can be rejected by the data gate, and a completed
+                # run must switch to its result view instead of remaining on
+                # the old running view indefinitely.
+                self._requested_view = None
             if view_mode in {"backtest_running", "backtest_result"}:
                 self._apply_backtest_display_status(display)
                 log_text = payload.get("log_text")

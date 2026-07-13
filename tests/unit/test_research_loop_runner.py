@@ -319,14 +319,16 @@ def test_loop_report_recursively_serializes_nonfinite_metric_objects_as_strict_j
 
 def test_loop_stops_on_safety_violation(tmp_path):
     unsafe = {**safety_status(), "live": "unlocked"}
+    config = _config(tmp_path, max_cycles=8, run_id="research_loop_unsafe")
 
     result = run_research_loop(
-        _config(tmp_path, max_cycles=8),
+        config,
         cycle_runner=lambda cycle_index, state: _cycle(f"candidate_{cycle_index}", validation=-0.1, safety=unsafe),
     )
 
     assert result.stop_reason == "safety_violation"
-    assert result.cycles_executed == 1
+    assert result.cycles_executed == 0
+    assert not (tmp_path / "research_loop_unsafe.cycle-01.json").exists()
 
 
 @pytest.mark.parametrize(
@@ -348,7 +350,7 @@ def test_loop_safety_requires_the_complete_canonical_contract(tmp_path, mutate):
     )
 
     assert result.stop_reason == "safety_violation"
-    assert result.cycles_executed == 1
+    assert result.cycles_executed == 0
 
 
 def test_config_rejects_stage_caps_above_the_protocol_hard_caps(tmp_path):

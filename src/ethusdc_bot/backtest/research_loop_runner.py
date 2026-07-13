@@ -231,6 +231,12 @@ def run_research_loop(
         cycle = dict(runner(cycle_index, state))
         cycle["cycle_id"] = cycle_index
         _validate_cycle_payload(cycle, expected_budget=_resource_budget(config))
+        # Never make a non-canonical cycle resumable.  A resume manifest is a
+        # durable statement that every listed cycle satisfied the immutable
+        # offline-only safety contract.
+        if not _safety_ok(cycle.get("safety", {})):
+            stop_reason = "safety_violation"
+            break
         stored_cycle = _jsonable_cycle(cycle)
         cycles.append(stored_cycle)
         _persist_resume_state(
@@ -241,9 +247,6 @@ def run_research_loop(
             cycles=cycles,
             status="running",
         )
-        if not _safety_ok(cycle.get("safety", {})):
-            stop_reason = "safety_violation"
-            break
         current_selection_rank = _cycle_selected_rank(cycle)
         print(
             f"cycle {cycle_index}/{config.max_cycles}: generated={cycle['generated_candidates']} "

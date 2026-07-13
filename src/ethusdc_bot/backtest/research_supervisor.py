@@ -151,10 +151,15 @@ def _validate_runner_resume_state(
     *,
     expected_run_id: str,
     context_required: bool,
+    required: bool = False,
 ) -> None:
     """Revalidate persisted runner cycles before any resumed child is started."""
 
     if not path.is_file():
+        if required:
+            raise RuntimeError(
+                "runner resume state is missing for completed supervisor checkpoint"
+            )
         return
     manifest = _read_json_object(path, "runner resume state")
     if manifest.get("schema_version") != 1:
@@ -393,16 +398,17 @@ def supervise(argv: Sequence[str]) -> int:
     )
     checkpoint_path = reports_root / f"{run_id}.checkpoint.json"
     if requested_run_id:
-        _validate_runner_resume_state(
-            Path(resume_state_path),
-            expected_run_id=runner_run_id,
-            context_required=context_required,
-        )
         resumed_started_at, resumed_cycles, resumed_report_json = _resume_checkpoint(
             checkpoint_path,
             expected_run_id=run_id,
             expected_max_cycles=max_cycles,
             context_required=context_required,
+        )
+        _validate_runner_resume_state(
+            Path(resume_state_path),
+            expected_run_id=runner_run_id,
+            context_required=context_required,
+            required=bool(resumed_cycles),
         )
     else:
         resumed_started_at, resumed_cycles, resumed_report_json = None, [], None

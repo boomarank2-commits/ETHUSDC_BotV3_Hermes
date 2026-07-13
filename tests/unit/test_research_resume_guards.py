@@ -74,6 +74,18 @@ def test_runner_resume_rejects_persisted_unsafe_cycle(tmp_path: Path) -> None:
         )
 
 
+def test_runner_resume_requires_state_when_supervisor_has_completed_cycles(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(RuntimeError, match="runner resume state is missing"):
+        supervisor._validate_runner_resume_state(
+            tmp_path / "missing.resume.json",
+            expected_run_id="research_loop_example",
+            context_required=True,
+            required=True,
+        )
+
+
 def test_context_resume_checkpoint_requires_bound_runtime_proof(tmp_path: Path) -> None:
     path = tmp_path / "production_research_example.checkpoint.json"
     path.write_text(
