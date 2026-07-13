@@ -607,7 +607,10 @@ class OperatorDashboardApp(_base_dashboard.DashboardApp):
             self._hide_frame(self._backtest_action_bar)
             self._hide_frame(self._shadow_action_bar)
             return
-        self._hide_frame(self._data_toolbar)
+        # A completed/interrupted result must still allow the next data gate
+        # before another research run. Keep both safe, order-free controls
+        # visible; only the shadow controls remain hidden.
+        self._show_before_overview(self._data_toolbar)
         self._show_before_overview(self._backtest_action_bar)
         self._hide_frame(self._shadow_action_bar)
 
