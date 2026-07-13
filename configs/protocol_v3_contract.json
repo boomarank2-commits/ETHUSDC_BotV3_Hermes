@@ -1,0 +1,92 @@
+{
+  "schema_version": "protocol_v3_contract_manifest_v1",
+  "protocol_version": "3.0.0",
+  "contract_generation": "monthly_refit_pipeline_v3",
+  "protocol_status": "executable_contract",
+  "canonical_contract_document": "docs/42_PROTOCOL_V3_EXECUTABLE_CONTRACT.md",
+  "implementation_sequence": "docs/41_PROTOCOL_V3_IMPLEMENTATION_SEQUENCE.md",
+  "champion_type": "monthly_refit_selection_pipeline",
+  "market": {
+    "trade_symbol": "ETHUSDC",
+    "venue": "binance_spot",
+    "side": "LONG",
+    "context_symbols": [
+      "BTCUSDC",
+      "ETHBTC"
+    ],
+    "context_may_trade": false,
+    "shorts_margin_futures_leverage": false
+  },
+  "monthly_process": {
+    "training_days_per_origin": 730,
+    "process_oos_days": 365,
+    "outer_origins": 12,
+    "activation_delay_hours": 24,
+    "monthly_process_oos_role": "retrospective_pseudo_live_evidence",
+    "monthly_process_oos_freshness": "NOT_FRESH",
+    "monthly_process_oos_canonical_adoption_eligible": false
+  },
+  "consumed_audit": {
+    "start_day": "2025-07-08",
+    "end_day_inclusive": "2026-07-07",
+    "status": "CONSUMED",
+    "freshness": "NOT_FRESH",
+    "raw_market_observations_may_enter_later_causal_training": true,
+    "prior_pnl_may_enter_later_training": false,
+    "prior_rankings_may_enter_later_training": false,
+    "prior_reports_may_enter_later_training": false,
+    "human_result_feedback_may_enter_later_training": false,
+    "historical_protocol_v3_process_status": "diagnostic_only"
+  },
+  "evidence_classes": {
+    "monthly_process_oos": {
+      "definition": "retrospective monthly pseudo-live process over twelve frozen origins",
+      "freshness": "NOT_FRESH",
+      "canonical_final_evidence": false,
+      "canonical_adoption_eligible": false
+    },
+    "sealed_final_holdout": {
+      "definition": "one preregistered fresh 365-day pipeline evaluation opened exactly once after completion",
+      "freshness": "FRESH_ONLY_IF_PREREGISTERED_AND_UNSEEN",
+      "canonical_final_evidence": true,
+      "requires_pipeline_final_evaluator": true
+    },
+    "forward_shadow_month": {
+      "definition": "one newly observed append-only month for an already frozen pipeline generation",
+      "freshness": "FRESH_FORWARD_OBSERVATION",
+      "canonical_final_evidence": false,
+      "may_be_backfilled": false
+    },
+    "research_challenger_shadow": {
+      "definition": "manual strictly order-free observation of a retrospective Protocol v3 challenger",
+      "orders": false,
+      "trading_api": false,
+      "canonical_adoption_eligible": false,
+      "paper_testtrade_live_eligible": false,
+      "requires_manual_user_action": true
+    },
+    "diagnostic_only": {
+      "definition": "may inform diagnosis but cannot create a canonical final status or trading-path eligibility"
+    }
+  },
+  "legacy_separation": {
+    "protocol_v2_preserved": true,
+    "single_candidate_final_path_preserved": true,
+    "single_candidate_final_path_may_emit_protocol_v3_final": false,
+    "protocol_v2_report_may_emit_protocol_v3_final": false
+  },
+  "target_policy": {
+    "target_usdc_per_calendar_day": 3.0,
+    "target_is_acceptance_metric": true,
+    "target_is_search_loss": false,
+    "search_may_stop_on_first_target_hit": false
+  },
+  "safety": {
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "live": "locked",
+    "trading_api": "forbidden",
+    "api_keys": "forbidden"
+  }
+}
