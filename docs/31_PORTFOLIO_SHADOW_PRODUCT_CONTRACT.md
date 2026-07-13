@@ -1,6 +1,6 @@
 # 31 - Verbindlicher Portfolio- und Shadow-Produktvertrag
 
-Stand: 2026-07-11
+Stand: 2026-07-13
 
 Dieses Dokument ist die verbindliche fachliche Vorgabe fuer alle neuen
 Backtest-, Portfolio-, Dashboard- und Shadow-Funktionen. Bei Widerspruechen zu
@@ -124,14 +124,22 @@ darf nie automatisch erfolgen.
 
 Der aktuell lokale ETHUSDC-1m-Bestand umfasst 2023-07-09 bis 2026-07-07. Das
 darin enthaltene Fenster 2025-07-08 bis 2026-07-07 wurde bereits als Audit-
-beziehungsweise Holdout-Fenster konsumiert. Es darf nicht erneut zur Auswahl
-oder zum Nachoptimieren verwendet werden.
+beziehungsweise Holdout-Fenster konsumiert. Es darf nicht erneut als frisch,
+blind oder versiegelt bezeichnet werden.
 
-Damit sind Training, WFV, Infrastrukturtests und kuenftiges Forward-Shadow
-moeglich. Ein neuer ehrlicher 365-Tage-Finalnachweis ist erst moeglich, wenn
-ein separates, nicht konsumiertes und vorab versiegeltes Fenster verfuegbar
-ist. Bis dahin darf die UI keinen gruenen oder gelben echten Finalstatus
-erfinden.
+Protocol-v3-Vertragsgeneration `3.0.0` erlaubt ausschliesslich, die damals
+kausal beobachtbaren Rohmarktwerte dieses Zeitraums in einer spaeteren
+Monthly-Origin als normale Historie zu verwenden. PnL, Rankings, Reports,
+Gate-Ergebnisse, Auswahlentscheidungen und menschliche Ergebnisinterpretationen
+aus frueheren Origins oder dem konsumierten Audit duerfen niemals in einen
+spaeteren Fit zurueckgespielt werden.
+
+Damit sind Training, WFV, Infrastrukturtests, der retrospektive
+`monthly_process_oos` und kuenftiges Forward-Shadow moeglich. Der historische
+Monatsprozess bleibt jedoch `diagnostic_only` und `NOT_FRESH`. Ein neuer ehrlicher
+365-Tage-Finalnachweis ist erst moeglich, wenn ein separates, nicht konsumiertes
+und vorab versiegeltes Pipeline-Finalfenster verfuegbar ist. Bis dahin darf die
+UI keinen gruenen oder gelben echten Finalstatus erfinden.
 
 ## 9. Nicht verhandelbare Ehrlichkeit
 
@@ -139,3 +147,24 @@ Das System kann nach einer Strategie mit durchschnittlich etwa 3 USDC pro Tag
 suchen und deren Evidenz pruefen. Es kann diesen Ertrag nicht garantieren. Wenn
 kein Kandidat die Regeln besteht, ist das korrekte Ergebnis Rot mit konkreten
 Blockern und nicht eine nachtraegliche Anpassung des Holdouts oder der Kosten.
+
+## 10. Protocol-v3-Shadow- und Finaltrennung
+
+Protocol-v3-Vertragsgeneration: `3.0.0`  
+Maschinenlesbarer Vertrag: `configs/protocol_v3_contract.json`  
+Kanonischer Zusatzvertrag: `docs/42_PROTOCOL_V3_EXECUTABLE_CONTRACT.md`
+
+Die folgenden Evidenz- und Shadow-Klassen sind strikt getrennt:
+
+- `monthly_process_oos`: retrospektiver Pseudo-Live-Nachweis der monatlich refittenden Pipeline; auf der vorhandenen Historie nicht frisch und nicht adoptierbar.
+- `consumed_audit`: dauerhaft verbrauchter Zeitraum; Rohmarktbeobachtungen duerfen nur unter der engen kausalen Rolling-Reuse-Regel als Historie dienen.
+- `sealed_final_holdout`: einzig moeglicher spaeterer kanonischer Protocol-v3-Finalnachweis; vorab registriert, wirklich neu, 365 Tage versiegelt und erst danach einmal geoeffnet.
+- `forward_shadow_month`: nach Einfrieren einer Pipelinegeneration wirklich neu entstandener append-only Monat; frische Beobachtung, aber kein Finalnachweis.
+- `research_challenger_shadow`: separat, manuell und strikt orderfrei; weder kanonische Adoption noch Paper-, Testtrade-, Live- oder Orderfreigabe.
+- `diagnostic_only`: darf Diagnose erzeugen, aber keinen Finalstatus oder Trading-Pfad freigeben.
+
+Der vorhandene kanonische Single-Candidate-Shadow bleibt an seinen eigenen
+Finalbericht gebunden. Ein retrospektiver Protocol-v3-Challenger darf niemals
+ueber den bestehenden `adopt_for_shadow`-Pfad angenommen werden. Protocol v2 und
+der Single-Candidate-Finalrunner bleiben erhalten, koennen aber keinen
+Protocol-v3-Finalstatus erzeugen.
