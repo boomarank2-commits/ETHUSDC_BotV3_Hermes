@@ -27,12 +27,27 @@ jobs:
       - name: Install project and tests
         run: python -m pip install -e '.[test]'
 
-      - name: Run full validation
+      - name: Run full pytest and preserve diagnostics
+        id: pytest
+        continue-on-error: true
         shell: bash
         run: |
-          python -m pytest tests/ -q
+          set -o pipefail
+          python -m pytest tests/ -q 2>&1 | tee progress-patch-pytest.txt
+
+      - name: Upload progress patch diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: progress-patch-pytest
+          path: progress-patch-pytest.txt
+
+      - name: Validate source and test result
+        shell: bash
+        run: |
           python -m compileall -q src
           git diff --check
+          test '${{ steps.pytest.outcome }}' = 'success'
 
       - name: Commit implementation and remove temporary helpers
         shell: bash
