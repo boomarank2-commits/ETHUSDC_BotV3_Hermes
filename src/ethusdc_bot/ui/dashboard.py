@@ -699,6 +699,16 @@ class DashboardApp:
         self.active_result_container = result_container
 
     def _drain_log_queue(self) -> None:
+        """Apply worker messages without allowing one bad payload to stall Tk."""
+
+        try:
+            self._drain_log_queue_impl()
+        except Exception as exc:  # defensive UI boundary; workers must not freeze the view
+            self._log(f"UI-Queue-Fehler: {exc}")
+        finally:
+            self.root.after(250, self._drain_log_queue)
+
+    def _drain_log_queue_impl(self) -> None:
         while True:
             try:
                 message = self.log_queue.get_nowait()
@@ -767,7 +777,6 @@ class DashboardApp:
             self.data_prep_running = False
             self._set_data_buttons_enabled(True)
             self.refresh_status()
-        self.root.after(250, self._drain_log_queue)
 
     def _heartbeat_active_run(self) -> None:
         data_running = bool(

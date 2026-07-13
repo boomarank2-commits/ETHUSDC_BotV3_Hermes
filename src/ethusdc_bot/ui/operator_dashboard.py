@@ -448,6 +448,7 @@ class OperatorDashboardApp(_base_dashboard.DashboardApp):
     ) -> None:
         _install_runtime_guards()
         self._refresh_gate = RefreshGate()
+        self._refresh_requested = False
         self._requested_view: str | None = None
         super().__init__(root, repository_root=repository_root, local_root=local_root)
 
@@ -466,6 +467,11 @@ class OperatorDashboardApp(_base_dashboard.DashboardApp):
 
         generation = self._refresh_gate.begin()
         if generation is None:
+            # A long ZIP-audit refresh may still be applying an older snapshot.
+            # Remember the request so the current data/backtest state is read
+            # immediately after that payload is consumed instead of being
+            # overwritten by stale UI data.
+            self._refresh_requested = True
             return
         data_running = bool(
             self.active_data_thread is not None and self.active_data_thread.is_alive()
@@ -599,6 +605,9 @@ class OperatorDashboardApp(_base_dashboard.DashboardApp):
         self.status_text.configure(state=tk.DISABLED)
         if payload.get("log_refresh") and payload.get("view_mode") == "download":
             self._log("Refreshed data/download status snapshot.")
+        if self._refresh_requested:
+            self._refresh_requested = False
+            self.refresh_status(log_refresh=False)
 
     def _set_context_layout(self, view_mode: str) -> None:
         """Keep every top-level action bar visible; switch only the body view."""
