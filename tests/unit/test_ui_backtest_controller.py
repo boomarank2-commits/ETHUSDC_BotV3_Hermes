@@ -203,6 +203,28 @@ def test_new_run_is_allowed_after_previous_worker_finished(tmp_path: Path) -> No
     assert controller.is_running is False
 
 
+def test_durable_running_checkpoint_blocks_second_supervisor(tmp_path: Path) -> None:
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    checkpoint = reports / "production_research_supervisor_active.checkpoint.json"
+    checkpoint.write_text(
+        json.dumps({"status": "running", "run_id": "existing_supervisor"}),
+        encoding="utf-8",
+    )
+    calls = []
+    controller = TrainingResearchController()
+
+    with pytest.raises(RuntimeError, match="existing_supervisor"):
+        controller.start(
+            tmp_path / "raw",
+            reports,
+            runner=lambda config: calls.append(config),
+        )
+
+    assert calls == []
+    assert controller.is_running is False
+
+
 def test_runner_failure_is_published_without_background_exception(tmp_path: Path) -> None:
     updates = []
     controller = TrainingResearchController()

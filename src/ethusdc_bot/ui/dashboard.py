@@ -116,6 +116,7 @@ class DashboardApp:
         self.local_root = local_root or default_local_root()
         self.log_queue: queue.Queue[object] = queue.Queue()
         self.active_data_thread: threading.Thread | None = None
+        self.active_refresh_thread: threading.Thread | None = None
         self.active_result_container: dict[str, object] | None = None
         self.data_prep_running = False
         self.last_run_status = build_initial_data_prep_last_run_status()
@@ -275,40 +276,87 @@ class DashboardApp:
         self.log_text.pack(fill=tk.BOTH, expand=True)
 
     def refresh_status(self, *, log_refresh: bool = True) -> None:
-        """Refresh the existing three display areas for data or backtest mode."""
+        """Request a status refresh without running file scans on Tk's thread."""
 
-        show_backtest = False
-        try:
-            snapshot = build_dashboard_snapshot(
-                self.repository_root,
-                self.local_root,
-                data_prep_last_run_status=self.last_run_status,
-                deployment_budget_usdc=self._selected_deployment_budget(),
-                training_research_status=self.training_research_status,
-                final_evaluation_runtime_status=self.final_evaluation_runtime_status,
-                shadow_controller_status=self.shadow_controller_status,
-                training_reports_root=self.training_reports_root,
-                final_reports_root=self.final_reports_root,
-                shadow_root=self.shadow_root,
-            )
+        if self.active_refresh_thread is not None and self.active_refresh_thread.is_alive():
+            return
+        data_running = bool(
+            self.active_data_thread is not None and self.active_data_thread.is_alive()
+        )
+        inputs = {
+            "data_prep_last_run_status": dict(self.last_run_status),
+            "deployment_budget_usdc": self._selected_deployment_budget(),
+            "training_research_status": dict(self.training_research_status),
+            "final_evaluation_runtime_status": dict(self.final_evaluation_runtime_status),
+            "shadow_controller_status": dict(self.shadow_controller_status),
+        }
+
+        def worker() -> None:
+            try:
+                snapshot = build_dashboard_snapshot(
+                    self.repository_root,
+                    self.local_root,
+                    **inputs,
+                    training_reports_root=self.training_reports_root,
+                    final_reports_root=self.final_reports_root,
+                    shadow_root=self.shadow_root,
+                )
+                display = collect_backtest_display_status(
+                    self.training_reports_root,
+                    controller_status=inputs["training_research_status"],
+                )
+                show_backtest = not data_running and display.get("mode") != "idle"
+                payload: dict[str, object] = {
+                    "snapshot": snapshot,
+                    "display": display,
+                    "show_backtest": show_backtest,
+                    "log_refresh": log_refresh,
+                }
+                if show_backtest:
+                    payload["text"] = format_backtest_summary_for_display(display)
+                    payload["log_text"] = format_backtest_log_for_display(display)
+                else:
+                    payload["text"] = format_operator_summary_for_display(snapshot)
+            except Exception as exc:  # defensive worker boundary
+                payload = {"error": f"Failed to collect dashboard snapshot: {exc}\n"}
+            self.log_queue.put(("dashboard_refresh", payload))
+
+        thread = threading.Thread(
+            target=worker,
+            name="ethusdc-dashboard-refresh",
+            daemon=True,
+        )
+        self.active_refresh_thread = thread
+        thread.start()
+
+    def _apply_dashboard_refresh(self, payload: dict[str, object]) -> None:
+        """Apply one completed background refresh on Tk's main thread."""
+
+        self.active_refresh_thread = None
+        error = payload.get("error")
+        if error is not None:
+            text = str(error)
+            self._log(text)
+        else:
+            snapshot = payload["snapshot"]
+            display = payload["display"]
+            if not isinstance(snapshot, dict) or not isinstance(display, dict):
+                self._log("Dashboard refresh returned an invalid payload.")
+                return
             self.current_snapshot = snapshot
-            display = collect_backtest_display_status(
-                self.training_reports_root,
-                controller_status=self.training_research_status,
-            )
             self.backtest_display_status = display
-            data_running = bool(
-                self.active_data_thread is not None
-                and self.active_data_thread.is_alive()
-            )
-            show_backtest = not data_running and display.get("mode") != "idle"
-
+            show_backtest = bool(payload.get("show_backtest"))
             self._apply_product_status(snapshot)
             if show_backtest:
                 self._apply_backtest_display_status(display)
-                text = format_backtest_summary_for_display(display)
-                self._replace_log_text(format_backtest_log_for_display(display))
+                log_text = payload.get("log_text")
+                if isinstance(log_text, str):
+                    self._replace_log_text(log_text)
             else:
+                data_running = bool(
+                    self.active_data_thread is not None
+                    and self.active_data_thread.is_alive()
+                )
                 if data_running and self.current_runtime_status:
                     self._apply_runtime_status(self.current_runtime_status)
                 else:
@@ -316,15 +364,12 @@ class DashboardApp:
                 self._apply_overall_data_status(snapshot)
                 self._apply_last_run_status(snapshot["data_prep_last_run_status"])
                 self._set_progress_visible(True)
-                text = format_operator_summary_for_display(snapshot)
-        except Exception as exc:  # pragma: no cover - defensive UI reporting
-            text = f"Failed to collect dashboard snapshot: {exc}\n"
-            self._log(text)
+            text = str(payload.get("text", ""))
         self.status_text.configure(state=tk.NORMAL)
         self.status_text.delete("1.0", tk.END)
         self.status_text.insert(tk.END, text)
         self.status_text.configure(state=tk.DISABLED)
-        if log_refresh and not show_backtest:
+        if payload.get("log_refresh") and not payload.get("show_backtest"):
             self._log("Refreshed status snapshot.")
 
     def open_data_folder(self) -> None:
@@ -376,6 +421,13 @@ class DashboardApp:
             return
         if self.training_research_controller.is_running:
             self._log("Training/WFV research is already running.")
+            return
+        durable_display = getattr(self, "backtest_display_status", None) or {}
+        if durable_display.get("mode") in {"starting", "running"}:
+            self._log(
+                f"Durable Research-Lauf {durable_display.get('run_id') or 'unbekannt'} "
+                "ist bereits aktiv; kein zweiter Supervisor wurde gestartet."
+            )
             return
         snapshot = build_dashboard_snapshot(
             self.repository_root,
@@ -655,6 +707,14 @@ class DashboardApp:
             if (
                 isinstance(message, tuple)
                 and len(message) == 2
+                and message[0] == "dashboard_refresh"
+                and isinstance(message[1], dict)
+            ):
+                self._apply_dashboard_refresh(message[1])
+                continue
+            if (
+                isinstance(message, tuple)
+                and len(message) == 2
                 and message[0] == "shadow_controller"
                 and isinstance(message[1], dict)
             ):
@@ -756,6 +816,7 @@ class DashboardApp:
         final_row = final if isinstance(final, dict) else {}
 
         if mode in {"starting", "running"}:
+            self.training_button.configure(state=tk.DISABLED)
             self.bot_state_var.set("Bot-Status: Backtest läuft")
             phase = (
                 f"Zyklus {active_cycle}/{maximum} läuft"

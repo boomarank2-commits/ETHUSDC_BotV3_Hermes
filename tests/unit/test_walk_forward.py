@@ -270,6 +270,11 @@ def test_walk_forward_frontier_evaluates_multiple_ranked_candidates():
     assert [row["candidate_id"] for row in evaluated] == ["candidate_0", "candidate_1", "candidate_2"]
     assert all(row["walk_forward_summary"]["fold_count"] == 2 for row in evaluated)
     assert all(row["walk_forward_summary"]["ranking_uses_blindtest"] is False for row in evaluated)
+    for row in evaluated:
+        summary = row["walk_forward_summary"]
+        assert summary["signal_funnel"]["observations_total"] == sum(
+            fold["signal_funnel"]["observations_total"] for fold in summary["folds"]
+        )
 
 
 def test_walk_forward_sample_uses_actual_simulated_calendar_day_denominator():

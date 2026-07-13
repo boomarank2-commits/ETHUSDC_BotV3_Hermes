@@ -42,11 +42,21 @@ class Trade:
 
 
 @dataclass(frozen=True)
+class EntryDecision:
+    """One trailing-data-only entry decision with diagnostic attribution."""
+
+    allowed: bool
+    raw_signal: bool
+    reason: str | None
+
+
+@dataclass(frozen=True)
 class SimulationResult:
     strategy: StrategyCandidate
     metrics: BacktestMetrics
     trades: list[Trade]
     rejection_reasons: Counter[str] = field(default_factory=Counter)
+    signal_funnel: Counter[str] = field(default_factory=Counter)
     equity_curve: tuple[EquityPoint, ...] = ()
     max_underwater_days: int = 0
     drawdown_method: str = "mark_to_market"
@@ -100,12 +110,22 @@ def simulate_strategy(
         raise ValueError("Simulator is LONG-only; shorts are forbidden")
     symbol = str(strategy.params.get("symbol", SYMBOL))
     rejections: Counter[str] = Counter()
+    signal_funnel: Counter[str] = Counter()
     if symbol != SYMBOL:
         rejections["context_symbol_not_tradeable"] += 1
+        signal_funnel.update(
+            {
+                "observations_total": len(candles),
+                "entry_evaluations": 1,
+                "rejected_signals": 1,
+                "rejected.context_symbol_not_tradeable": 1,
+            }
+        )
         return _build_result(
             strategy,
             [],
             rejections,
+            signal_funnel,
             _zero_equity_curve(candles),
             days=days,
             training_days=training_days,
@@ -125,6 +145,7 @@ def simulate_strategy(
         EquityPoint(candles[0].open_time if candles else 0, 0.0)
     ]
     for index, candle in enumerate(candles):
+        signal_funnel["observations_total"] += 1
         if pending_entry and position is None:
             entry_mid_price = candle.open
             entry_price = entry_mid_price * (1 + slippage_bps / 10_000)
@@ -161,18 +182,31 @@ def simulate_strategy(
             trades.append(trade)
             realized_net_usdc += trade.net_profit_usdc
             position = None
-        if position is None and index >= cooldown_until_index and index < len(candles) - 1:
-            entry_allowed, rejection_reason = _entry_decision(
+        if position is not None:
+            signal_funnel["blocked.position_open"] += 1
+        elif index >= len(candles) - 1:
+            signal_funnel["blocked.end_of_data"] += 1
+        elif index < cooldown_until_index:
+            signal_funnel["blocked.cooldown"] += 1
+        else:
+            signal_funnel["entry_evaluations"] += 1
+            decision = _entry_decision(
                 candles,
                 index,
                 strategy,
                 market_context=market_context,
                 context_policy=context_policy,
             )
-            if entry_allowed:
+            if decision.raw_signal:
+                signal_funnel["raw_entry_signals"] += 1
+            if decision.allowed:
+                signal_funnel["accepted_entry_signals"] += 1
                 pending_entry = True
-            elif rejection_reason is not None:
+            else:
+                rejection_reason = decision.reason or "entry_signal_absent"
                 rejections[rejection_reason] += 1
+                signal_funnel["rejected_signals"] += 1
+                signal_funnel[f"rejected.{rejection_reason}"] += 1
         equity_curve.append(
             EquityPoint(
                 timestamp_ms=candle.open_time + EXPECTED_STEP_MS - 1,
@@ -189,6 +223,7 @@ def simulate_strategy(
         strategy,
         trades,
         rejections,
+        signal_funnel,
         tuple(equity_curve),
         days=days,
         training_days=training_days,
@@ -200,12 +235,24 @@ def _build_result(
     strategy: StrategyCandidate,
     trades: list[Trade],
     rejection_reasons: Counter[str],
+    signal_funnel: Counter[str],
     equity_curve: tuple[EquityPoint, ...],
     *,
     days: int,
     training_days: int,
     blindtest_days: int,
 ) -> SimulationResult:
+    for key in (
+        "observations_total",
+        "entry_evaluations",
+        "raw_entry_signals",
+        "accepted_entry_signals",
+        "rejected_signals",
+        "blocked.position_open",
+        "blocked.cooldown",
+        "blocked.end_of_data",
+    ):
+        signal_funnel.setdefault(key, 0)
     metrics = compute_metrics(
         trades,
         days=days,
@@ -225,6 +272,7 @@ def _build_result(
         metrics=metrics,
         trades=trades,
         rejection_reasons=rejection_reasons,
+        signal_funnel=signal_funnel,
         equity_curve=equity_curve,
         max_underwater_days=max_underwater_calendar_days(equity_curve),
     )
@@ -271,9 +319,9 @@ def _entry_decision(
     *,
     market_context: AlignedMarketCandles | None,
     context_policy: ContextVetoPolicy | None,
-) -> tuple[bool, str | None]:
+) -> EntryDecision:
     if strategy.family != "context_filter":
-        return _signal(candles, index, strategy), None
+        return _signal_decision(candles, index, strategy)
 
     base_family = str(
         strategy.params.get(
@@ -282,65 +330,108 @@ def _entry_decision(
         )
     )
     if base_family == "context_filter":
-        return False, "context_recursive_base_forbidden"
+        return EntryDecision(False, False, "context_recursive_base_forbidden")
     base_params = {
         key: value
         for key, value in strategy.params.items()
         if key != "context_base_family" and not key.startswith("context_")
     }
-    if not _signal(candles, index, StrategyCandidate(base_family, base_params)):
-        return False, None
+    base_decision = _signal_decision(
+        candles,
+        index,
+        StrategyCandidate(base_family, base_params),
+    )
+    if not base_decision.allowed:
+        return base_decision
     if market_context is None or context_policy is None:
-        return False, "context_data_missing"
+        return EntryDecision(False, base_decision.raw_signal, "context_data_missing")
     decision = evaluate_context_veto(market_context, index, context_policy)
     if decision.allowed:
-        return True, None
-    return False, decision.reason
+        return EntryDecision(True, base_decision.raw_signal, None)
+    return EntryDecision(False, base_decision.raw_signal, decision.reason)
 
 
 def _signal(candles: list[Candle], index: int, strategy: StrategyCandidate) -> bool:
+    return _signal_decision(candles, index, strategy).allowed
+
+
+def _signal_decision(
+    candles: list[Candle], index: int, strategy: StrategyCandidate
+) -> EntryDecision:
     if strategy.family == "always_long":
-        return True
+        return EntryDecision(True, True, None)
     lookback = int(strategy.params.get("lookback", 5) or 5)
     if index < lookback:
-        return False
+        return EntryDecision(False, False, "entry_warmup")
     threshold = float(strategy.params.get("threshold_bps", 10) or 0) / 10_000
     current = candles[index].close
     reference = candles[index - lookback].close
     if reference <= 0:
-        return False
+        return EntryDecision(False, False, "entry_reference_invalid")
     change = current / reference - 1
     if strategy.family == "momentum":
-        return change >= threshold
+        allowed = change >= threshold
+        return EntryDecision(allowed, allowed, None if allowed else "momentum_threshold_not_met")
     if strategy.family == "mean_reversion":
-        return change <= -threshold
+        allowed = change <= -threshold
+        return EntryDecision(allowed, allowed, None if allowed else "mean_reversion_threshold_not_met")
     if strategy.family == "breakout":
         previous_high = max(c.high for c in candles[index - lookback : index])
-        return current >= previous_high * (1 + threshold)
+        allowed = current >= previous_high * (1 + threshold)
+        return EntryDecision(allowed, allowed, None if allowed else "breakout_threshold_not_met")
     if strategy.family == "momentum_trend_filter":
         trend = _trend_bps(candles, index, int(strategy.params.get("trend_lookback", lookback) or lookback))
-        return change >= threshold and trend >= float(strategy.params.get("trend_min_bps", 0) or 0)
+        raw_signal = change >= threshold
+        if not raw_signal:
+            return EntryDecision(False, False, "momentum_threshold_not_met")
+        allowed = trend >= float(strategy.params.get("trend_min_bps", 0) or 0)
+        return EntryDecision(allowed, True, None if allowed else "trend_filter_rejected")
     if strategy.family == "breakout_volatility_filter":
         previous_high = max(c.high for c in candles[index - lookback : index])
         vol = _volatility_bps(candles, index, int(strategy.params.get("volatility_lookback", lookback) or lookback))
-        return current >= previous_high * (1 + threshold) and float(strategy.params.get("min_vol_bps", 0) or 0) <= vol <= float(strategy.params.get("max_vol_bps", 10_000) or 10_000)
+        raw_signal = current >= previous_high * (1 + threshold)
+        if not raw_signal:
+            return EntryDecision(False, False, "breakout_threshold_not_met")
+        if vol < float(strategy.params.get("min_vol_bps", 0) or 0):
+            return EntryDecision(False, True, "volatility_below_min")
+        if vol > float(strategy.params.get("max_vol_bps", 10_000) or 10_000):
+            return EntryDecision(False, True, "volatility_above_max")
+        return EntryDecision(True, True, None)
     if strategy.family == "mean_reversion_regime_filter":
         trend = abs(_trend_bps(candles, index, int(strategy.params.get("trend_lookback", lookback) or lookback)))
-        return change <= -threshold and trend <= float(strategy.params.get("max_abs_trend_bps", 10_000) or 10_000)
+        raw_signal = change <= -threshold
+        if not raw_signal:
+            return EntryDecision(False, False, "mean_reversion_threshold_not_met")
+        allowed = trend <= float(strategy.params.get("max_abs_trend_bps", 10_000) or 10_000)
+        return EntryDecision(allowed, True, None if allowed else "regime_filter_rejected")
     if strategy.family == "pullback_in_trend":
         trend = _trend_bps(candles, index, int(strategy.params.get("trend_lookback", lookback) or lookback))
-        return change <= -threshold and trend >= float(strategy.params.get("trend_min_bps", 0) or 0)
+        raw_signal = change <= -threshold
+        if not raw_signal:
+            return EntryDecision(False, False, "pullback_threshold_not_met")
+        allowed = trend >= float(strategy.params.get("trend_min_bps", 0) or 0)
+        return EntryDecision(allowed, True, None if allowed else "trend_filter_rejected")
     if strategy.family == "session_filter":
+        base = _signal_decision(
+            candles,
+            index,
+            StrategyCandidate(str(strategy.params.get("base_family", "momentum")), dict(strategy.params)),
+        )
         if not _in_session(candles[index].open_time, int(strategy.params.get("session_start_hour", 0) or 0), int(strategy.params.get("session_end_hour", 24) or 24)):
-            return False
-        return _signal(candles, index, StrategyCandidate(str(strategy.params.get("base_family", "momentum")), dict(strategy.params)))
+            return EntryDecision(False, base.raw_signal, "session_filter_closed")
+        return base
     if strategy.family == "cooldown_fee_aware":
+        base = _signal_decision(
+            candles,
+            index,
+            StrategyCandidate(str(strategy.params.get("base_family", "momentum")), dict(strategy.params)),
+        )
         if abs(change) * 10_000 < float(strategy.params.get("min_expected_move_bps", 0) or 0):
-            return False
-        return _signal(candles, index, StrategyCandidate(str(strategy.params.get("base_family", "momentum")), dict(strategy.params)))
+            return EntryDecision(False, base.raw_signal, "expected_move_below_min")
+        return base
     if strategy.family == "context_filter":
-        return False
-    return False
+        return EntryDecision(False, False, "context_requires_entry_boundary")
+    return EntryDecision(False, False, "unknown_strategy_family")
 
 
 def _trend_bps(candles: list[Candle], index: int, lookback: int) -> float:

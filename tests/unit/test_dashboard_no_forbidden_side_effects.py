@@ -2,6 +2,8 @@
 
 from pathlib import Path
 import importlib
+import queue
+import threading
 from types import SimpleNamespace
 
 from ethusdc_bot.ui import dashboard_state
@@ -28,6 +30,47 @@ def test_dashboard_module_is_importable():
     assert module.BACKTEST_DISABLED_HINT == (
         "Training/WFV research waits for the complete data gate. No fake result."
     )
+
+
+def test_refresh_status_runs_snapshot_collection_off_tk_thread(monkeypatch, tmp_path):
+    module = importlib.import_module("ethusdc_bot.ui.dashboard")
+    app = module.DashboardApp.__new__(module.DashboardApp)
+    app.repository_root = tmp_path
+    app.local_root = tmp_path
+    app.training_reports_root = tmp_path / "research"
+    app.final_reports_root = tmp_path / "final"
+    app.shadow_root = tmp_path / "shadow"
+    app.last_run_status = {}
+    app.training_research_status = {}
+    app.final_evaluation_runtime_status = {}
+    app.shadow_controller_status = {}
+    app.active_data_thread = None
+    app.active_refresh_thread = None
+    app.log_queue = queue.Queue()
+    app._selected_deployment_budget = lambda: 100
+    entered = threading.Event()
+    release = threading.Event()
+
+    def blocking_snapshot(*args, **kwargs):
+        entered.set()
+        assert release.wait(timeout=5)
+        return {"data_prep_runtime_status": {}, "data_prep_last_run_status": {}}
+
+    monkeypatch.setattr(module, "build_dashboard_snapshot", blocking_snapshot)
+    monkeypatch.setattr(module, "collect_backtest_display_status", lambda *args, **kwargs: {"mode": "idle"})
+    monkeypatch.setattr(module, "format_operator_summary_for_display", lambda snapshot: "ready")
+
+    app.refresh_status()
+
+    assert entered.wait(timeout=1)
+    assert app.active_refresh_thread is not None
+    assert app.active_refresh_thread.is_alive()
+    assert app.log_queue.empty()
+    release.set()
+    app.active_refresh_thread.join(timeout=5)
+    kind, payload = app.log_queue.get(timeout=1)
+    assert kind == "dashboard_refresh"
+    assert payload["text"] == "ready"
 
 
 def test_primary_data_button_starts_execute_mode():

@@ -621,6 +621,24 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
             "family_diagnosis": family_diagnosis,
             "candidate_diagnosis": candidate_diagnosis,
             "exit_reason_summary": exit_summary,
+            "signal_funnel": {
+                "training": dict(
+                    sorted(
+                        selected_record.get(
+                            "full_training_result",
+                            selected_record["training_result"],
+                        ).signal_funnel.items()
+                    )
+                ),
+                "validation": dict(
+                    sorted(selected_record["validation_result"].signal_funnel.items())
+                ),
+                "walk_forward": dict(
+                    sorted((selected_wfv.get("signal_funnel") or {}).items())
+                ),
+                "changes_strategy_behavior": False,
+                "uses_audit_or_holdout": False,
+            },
             "selected_candidate": {
                 "candidate_id": selected_record["candidate_id"],
                 "family": selected.family,

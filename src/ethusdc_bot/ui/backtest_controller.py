@@ -24,6 +24,7 @@ StatusCallback = Callable[[dict[str, Any]], None]
 ResearchRunner = Callable[[LoopConfig], Any]
 _REPORT_JSON = re.compile(r"^Report JSON:\s+(?P<path>.+)$")
 _PRODUCTION_DATA_END_DAY = "2026-07-07"
+_SUPERVISOR_CHECKPOINT_PATTERN = "production_research_supervisor_*.checkpoint.json"
 
 
 def build_initial_training_research_status() -> dict[str, Any]:
@@ -172,6 +173,12 @@ class TrainingResearchController:
             raise TypeError("runner must be callable")
         if status_callback is not None and not callable(status_callback):
             raise TypeError("status_callback must be callable or None")
+        active_checkpoint = discover_active_research_checkpoint(reports_root)
+        if active_checkpoint is not None:
+            raise RuntimeError(
+                "durable production research is already running: "
+                f"{active_checkpoint.get('run_id') or 'unknown_run'}"
+            )
         config = build_canonical_training_loop_config(raw_root, reports_root)
         started_at = _utc_now()
         running_status = _safe_status(
@@ -334,6 +341,11 @@ def _read_freeze_status(report_path: Path) -> tuple[str | None, str | None]:
     except (OSError, UnicodeError) as error:
         return None, f"compact_report_unreadable: {error}"
     try:
+        if report_path.stat().st_size > 8_000_000:
+            return None, "report_too_large_without_compact_freeze_status"
+    except OSError as error:
+        return None, f"report_unreadable: {error}"
+    try:
         payload = json.loads(report_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         return None, f"report_unreadable: {error}"
@@ -343,6 +355,27 @@ def _read_freeze_status(report_path: Path) -> tuple[str | None, str | None]:
     if not isinstance(freeze_status, str) or not freeze_status.strip():
         return None, "report_has_no_freeze_status"
     return freeze_status, None
+
+
+def discover_active_research_checkpoint(reports_root: str | Path) -> dict[str, Any] | None:
+    """Recover a durable active supervisor after a dashboard restart."""
+
+    root = Path(reports_root)
+    if not root.exists():
+        return None
+    paths = [path for path in root.glob(_SUPERVISOR_CHECKPOINT_PATTERN) if path.is_file()]
+    if not paths:
+        return None
+    path = max(paths, key=lambda item: (item.stat().st_mtime_ns, item.name))
+    try:
+        if path.stat().st_size > 1_000_000:
+            return None
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict) or payload.get("status") not in {"starting", "running"}:
+        return None
+    return payload
 
 
 def _notify(callback: StatusCallback | None, status: Mapping[str, Any]) -> None:
@@ -366,6 +399,7 @@ __all__ = [
     "TrainingResearchController",
     "build_canonical_training_loop_config",
     "build_initial_training_research_status",
+    "discover_active_research_checkpoint",
     "run_production_research_via_starter",
     "run_training_research_async",
 ]

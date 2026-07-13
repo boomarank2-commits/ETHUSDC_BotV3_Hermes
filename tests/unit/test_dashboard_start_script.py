@@ -13,7 +13,7 @@ def test_start_dashboard_script_starts_dashboard_with_its_own_absolute_src_pytho
     text = (ROOT / "START_DASHBOARD.bat").read_text(encoding="utf-8")
 
     assert 'set "PYTHONPATH=%~dp0src"' in text
-    assert "py -3.12 -m ethusdc_bot.ui.dashboard" in text
+    assert "py -3.12 -m ethusdc_bot.ui.operator_dashboard" in text
     assert "PYTHONPATH=src" not in text
 
 
