@@ -1,7 +1,7 @@
 # Protocol v3 – verbindliche Implementierungsreihenfolge
 
-Stand: 2026-07-13  
-Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md` auf Commit `c0676dbec97812a823c225e72c6577b7154d4013`  
+Stand: 2026-07-13
+Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md` auf Commit `c0676dbec97812a823c225e72c6577b7154d4013`
 Status: verbindlicher Ausführungs- und Abnahmeplan; noch keine Protocol-v3-Codefreigabe
 
 ## Arbeitsregel
