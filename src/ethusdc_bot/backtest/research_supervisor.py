@@ -17,7 +17,9 @@ from pathlib import Path
 import re
 import subprocess
 import sys
-from typing import Iterable, Sequence
+from typing import Any, Iterable, Mapping, Sequence
+
+from ethusdc_bot.backtest.research_protocol import safety_status
 
 
 _CYCLE_START = re.compile(r"^cycle (?P<cycle>\d+)/(?P<maximum>\d+): starting$")
@@ -123,6 +125,89 @@ def _canonical_context_proof(proof: CycleRuntimeProof) -> bool:
         and proof.audit_evaluated is False
         and proof.final_holdout_evaluated is False
     )
+
+
+def _canonical_cycle_safety(value: object) -> bool:
+    expected = safety_status()
+    return bool(
+        isinstance(value, Mapping)
+        and set(value) == set(expected)
+        and all(value.get(key) == expected_value for key, expected_value in expected.items())
+    )
+
+
+def _read_json_object(path: Path, label: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"{label} is unreadable: {path}") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"{label} root is not an object")
+    return payload
+
+
+def _validate_runner_resume_state(
+    path: Path,
+    *,
+    expected_run_id: str,
+    context_required: bool,
+) -> None:
+    """Revalidate persisted runner cycles before any resumed child is started."""
+
+    if not path.is_file():
+        return
+    manifest = _read_json_object(path, "runner resume state")
+    if manifest.get("schema_version") != 1:
+        raise RuntimeError("runner resume state schema is unsupported")
+    if manifest.get("artifact_kind") != "research_loop_resume_state":
+        raise RuntimeError("runner resume state artifact kind is invalid")
+    if manifest.get("run_id") != expected_run_id:
+        raise RuntimeError("runner resume state run_id does not match supervisor run")
+    raw_files = manifest.get("cycle_files")
+    if not isinstance(raw_files, list):
+        raise RuntimeError("runner resume state has no cycle file list")
+    if manifest.get("completed_cycle_count") != len(raw_files):
+        raise RuntimeError("runner resume state completed count does not match cycle files")
+
+    for expected_cycle, raw_name in enumerate(raw_files, start=1):
+        if not isinstance(raw_name, str) or Path(raw_name).name != raw_name:
+            raise RuntimeError("runner resume state contains an invalid cycle path")
+        cycle = _read_json_object(path.parent / raw_name, "runner resume cycle")
+        if cycle.get("cycle_id") != expected_cycle:
+            raise RuntimeError("runner resume cycle artifacts are not contiguous")
+        if not _canonical_cycle_safety(cycle.get("safety")):
+            raise RuntimeError(
+                f"runner resume cycle {expected_cycle} has no canonical safety contract"
+            )
+        if not context_required:
+            continue
+        context = cycle.get("context_research")
+        wfv = cycle.get("wfv_summary")
+        rolling = cycle.get("rolling_origin_summary")
+        stage_counts = (
+            cycle.get("generated_candidates"),
+            cycle.get("tested_candidates"),
+            cycle.get("walk_forward_candidates"),
+            cycle.get("finalists"),
+        )
+        if stage_counts != (40, 12, 3, 2):
+            raise RuntimeError(
+                f"runner resume cycle {expected_cycle} stage counts are not 40/12/3/2"
+            )
+        if (
+            not isinstance(context, Mapping)
+            or context.get("enabled") is not True
+            or context.get("uses_audit_or_holdout") is not False
+            or cycle.get("selection_source") != "subtrain_validation_walk_forward_only"
+            or not isinstance(wfv, Mapping)
+            or wfv.get("fold_count") != 6
+            or wfv.get("ranking_uses_blindtest") is not False
+            or not isinstance(rolling, Mapping)
+            or rolling.get("uses_final_audit") is not False
+        ):
+            raise RuntimeError(
+                f"runner resume cycle {expected_cycle} violates the context/audit contract"
+            )
 
 
 def _checkpoint_cycle(progress: CycleProgress) -> dict[str, object]:
@@ -232,22 +317,37 @@ def write_checkpoint(path: Path, payload: dict[str, object]) -> None:
     temporary.replace(path)
 
 
-def _resume_checkpoint(path: Path) -> tuple[str | None, list[CycleProgress], str | None]:
+def _resume_checkpoint(
+    path: Path,
+    *,
+    expected_run_id: str | None = None,
+    expected_max_cycles: int | None = None,
+    context_required: bool = False,
+) -> tuple[str | None, list[CycleProgress], str | None]:
     if not path.is_file():
         return None, [], None
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise RuntimeError(f"resume checkpoint is unreadable: {path}") from exc
-    if not isinstance(payload, dict):
-        raise RuntimeError("resume checkpoint root is not an object")
+    payload = _read_json_object(path, "resume checkpoint")
+    if payload.get("schema_version") != 1:
+        raise RuntimeError("resume checkpoint schema is unsupported")
+    if payload.get("artifact_kind") != "research_supervisor_checkpoint":
+        raise RuntimeError("resume checkpoint artifact kind is invalid")
+    if expected_run_id is not None and payload.get("run_id") != expected_run_id:
+        raise RuntimeError("resume checkpoint run_id does not match requested run")
+    if expected_max_cycles is not None and payload.get("max_cycles") != expected_max_cycles:
+        raise RuntimeError("resume checkpoint max_cycles does not match requested run")
     rows = payload.get("cycles")
     if not isinstance(rows, list):
         raise RuntimeError("resume checkpoint has no cycle list")
+    if payload.get("completed_cycle_count") != len(rows):
+        raise RuntimeError("resume checkpoint completed count does not match cycle list")
     cycles: list[CycleProgress] = []
-    for row in rows:
+    for expected_cycle, row in enumerate(rows, start=1):
         if not isinstance(row, dict):
             raise RuntimeError("resume checkpoint contains an invalid cycle")
+        if int(row.get("cycle", 0)) != expected_cycle:
+            raise RuntimeError("resume checkpoint cycles are not contiguous")
+        if expected_max_cycles is not None and int(row.get("maximum", 0)) != expected_max_cycles:
+            raise RuntimeError("resume checkpoint cycle maximum does not match requested run")
         proof_payload = row.get("runtime_proof")
         proof = None
         if isinstance(proof_payload, dict):
@@ -262,6 +362,10 @@ def _resume_checkpoint(path: Path) -> tuple[str | None, list[CycleProgress], str
                 rolling_origin_limit=int(proof_payload.get("rolling_origin_limit", 0)),
                 audit_evaluated=bool(proof_payload.get("audit_evaluated", False)),
                 final_holdout_evaluated=bool(proof_payload.get("final_holdout_evaluated", False)),
+            )
+        if context_required and (proof is None or not _canonical_context_proof(proof)):
+            raise RuntimeError(
+                f"resume checkpoint cycle {expected_cycle} has no canonical context proof"
             )
         cycles.append(
             CycleProgress(
@@ -283,11 +387,25 @@ def supervise(argv: Sequence[str]) -> int:
     context_required = "--enable-context" in argv
     started = datetime.now(UTC)
     run_id = requested_run_id or started.strftime("production_research_supervisor_%Y%m%dT%H%M%SZ")
+    runner_run_id = run_id.replace("production_research_", "research_loop_", 1)
     resume_state_path = requested_resume_state or str(
         reports_root / f"research_loop_{run_id.removeprefix('production_research_')}.resume.json"
     )
     checkpoint_path = reports_root / f"{run_id}.checkpoint.json"
-    resumed_started_at, resumed_cycles, resumed_report_json = _resume_checkpoint(checkpoint_path) if requested_run_id else (None, [], None)
+    if requested_run_id:
+        _validate_runner_resume_state(
+            Path(resume_state_path),
+            expected_run_id=runner_run_id,
+            context_required=context_required,
+        )
+        resumed_started_at, resumed_cycles, resumed_report_json = _resume_checkpoint(
+            checkpoint_path,
+            expected_run_id=run_id,
+            expected_max_cycles=max_cycles,
+            context_required=context_required,
+        )
+    else:
+        resumed_started_at, resumed_cycles, resumed_report_json = None, [], None
     if resumed_started_at:
         started = datetime.fromisoformat(resumed_started_at.replace("Z", "+00:00"))
     completed_cycles: list[CycleProgress] = resumed_cycles
@@ -320,7 +438,7 @@ def supervise(argv: Sequence[str]) -> int:
         "ethusdc_bot.backtest.research_loop_runner",
         *argv,
         "--run-id",
-        run_id.replace("production_research_", "research_loop_", 1),
+        runner_run_id,
         "--resume-state",
         resume_state_path,
     ]
