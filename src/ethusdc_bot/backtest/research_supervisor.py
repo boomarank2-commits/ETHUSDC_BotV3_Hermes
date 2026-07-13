@@ -12,6 +12,7 @@ import argparse
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -143,14 +144,16 @@ def _checkpoint_cycle(progress: CycleProgress) -> dict[str, object]:
     return row
 
 
-def _parse_supervisor_arguments(argv: Sequence[str]) -> tuple[Path, int]:
+def _parse_supervisor_arguments(argv: Sequence[str]) -> tuple[Path, int, str | None, str | None]:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--reports-root", default="reports/research_loop")
     parser.add_argument("--max-cycles", type=int, default=8)
+    parser.add_argument("--run-id")
+    parser.add_argument("--resume-state")
     known, _ = parser.parse_known_args(list(argv))
     if known.max_cycles < 1 or known.max_cycles > 8:
         raise ValueError("max-cycles must be between 1 and 8")
-    return Path(known.reports_root), known.max_cycles
+    return Path(known.reports_root), known.max_cycles, known.run_id, known.resume_state
 
 
 def _git_value(*arguments: str) -> str | None:
@@ -178,6 +181,9 @@ def _checkpoint_payload(
     active_cycle: int | None,
     child_exit_code: int | None,
     report_json: str | None,
+    supervisor_pid: int = 0,
+    child_pid: int | None = None,
+    resume_state_path: str | None = None,
 ) -> dict[str, object]:
     if status not in {"starting", "running", "completed", "failed", "interrupted"}:
         raise ValueError("invalid research supervisor status")
@@ -196,7 +202,10 @@ def _checkpoint_payload(
         "cycles": [_checkpoint_cycle(cycle) for cycle in completed_cycles],
         "child_exit_code": child_exit_code,
         "report_json": report_json,
-        "resume_supported": False,
+        "resume_supported": True,
+        "resume_state_path": resume_state_path,
+        "supervisor_pid": supervisor_pid,
+        "child_pid": child_pid,
         "result_truth": "canonical_runner_json_only",
         "audit_evaluated": False,
         "final_holdout_evaluated": False,
@@ -223,15 +232,67 @@ def write_checkpoint(path: Path, payload: dict[str, object]) -> None:
     temporary.replace(path)
 
 
+def _resume_checkpoint(path: Path) -> tuple[str | None, list[CycleProgress], str | None]:
+    if not path.is_file():
+        return None, [], None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"resume checkpoint is unreadable: {path}") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("resume checkpoint root is not an object")
+    rows = payload.get("cycles")
+    if not isinstance(rows, list):
+        raise RuntimeError("resume checkpoint has no cycle list")
+    cycles: list[CycleProgress] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            raise RuntimeError("resume checkpoint contains an invalid cycle")
+        proof_payload = row.get("runtime_proof")
+        proof = None
+        if isinstance(proof_payload, dict):
+            context = proof_payload.get("context_research")
+            proof = CycleRuntimeProof(
+                cycle=int(row["cycle"]),
+                maximum=int(row["maximum"]),
+                context_research_enabled=bool(isinstance(context, dict) and context.get("enabled")),
+                context_generated=int(proof_payload.get("context_generated", 0)),
+                context_tested=int(proof_payload.get("context_tested", 0)),
+                walk_forward_folds=int(proof_payload.get("walk_forward_folds", 0)),
+                rolling_origin_limit=int(proof_payload.get("rolling_origin_limit", 0)),
+                audit_evaluated=bool(proof_payload.get("audit_evaluated", False)),
+                final_holdout_evaluated=bool(proof_payload.get("final_holdout_evaluated", False)),
+            )
+        cycles.append(
+            CycleProgress(
+                cycle=int(row["cycle"]),
+                maximum=int(row["maximum"]),
+                generated=int(row["generated"]),
+                tested=int(row["tested"]),
+                walk_forward=int(row["walk_forward"]),
+                finalists=int(row["finalists"]),
+                selected_rank_text=str(row["selected_rank_text"]),
+                runtime_proof=proof,
+            )
+        )
+    return payload.get("started_at_utc"), cycles, payload.get("report_json")
+
+
 def supervise(argv: Sequence[str]) -> int:
-    reports_root, max_cycles = _parse_supervisor_arguments(argv)
+    reports_root, max_cycles, requested_run_id, requested_resume_state = _parse_supervisor_arguments(argv)
     context_required = "--enable-context" in argv
     started = datetime.now(UTC)
-    run_id = started.strftime("production_research_supervisor_%Y%m%dT%H%M%SZ")
+    run_id = requested_run_id or started.strftime("production_research_supervisor_%Y%m%dT%H%M%SZ")
+    resume_state_path = requested_resume_state or str(
+        reports_root / f"research_loop_{run_id.removeprefix('production_research_')}.resume.json"
+    )
     checkpoint_path = reports_root / f"{run_id}.checkpoint.json"
-    completed_cycles: list[CycleProgress] = []
+    resumed_started_at, resumed_cycles, resumed_report_json = _resume_checkpoint(checkpoint_path) if requested_run_id else (None, [], None)
+    if resumed_started_at:
+        started = datetime.fromisoformat(resumed_started_at.replace("Z", "+00:00"))
+    completed_cycles: list[CycleProgress] = resumed_cycles
     active_cycle: int | None = None
-    report_json: str | None = None
+    report_json: str | None = resumed_report_json
 
     def persist(status: str, exit_code: int | None = None) -> None:
         write_checkpoint(
@@ -245,15 +306,23 @@ def supervise(argv: Sequence[str]) -> int:
                 active_cycle=active_cycle,
                 child_exit_code=exit_code,
                 report_json=report_json,
+                supervisor_pid=os.getpid(),
+                child_pid=child_pid,
+                resume_state_path=resume_state_path,
             ),
         )
 
+    child_pid: int | None = None
     persist("starting")
     command = [
         sys.executable,
         "-m",
         "ethusdc_bot.backtest.research_loop_runner",
         *argv,
+        "--run-id",
+        run_id.replace("production_research_", "research_loop_", 1),
+        "--resume-state",
+        resume_state_path,
     ]
     process = subprocess.Popen(
         command,
@@ -264,6 +333,8 @@ def supervise(argv: Sequence[str]) -> int:
         errors="replace",
         bufsize=1,
     )
+    child_pid = getattr(process, "pid", None)
+    persist("starting")
     if process.stdout is None:  # pragma: no cover - guaranteed by PIPE
         process.kill()
         raise RuntimeError("research supervisor could not capture child output")

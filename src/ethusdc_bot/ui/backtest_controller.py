@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -54,6 +55,9 @@ def build_initial_training_research_status() -> dict[str, Any]:
 def build_canonical_training_loop_config(
     raw_root: str | Path,
     reports_root: str | Path,
+    *,
+    run_id: str | None = None,
+    resume_state_path: str | Path | None = None,
 ) -> LoopConfig:
     """Build the one production configuration permitted by this controller."""
 
@@ -73,6 +77,8 @@ def build_canonical_training_loop_config(
         required_days=REQUIRED_DAYS,
         enable_context=True,
         data_end_day=_PRODUCTION_DATA_END_DAY,
+        run_id=run_id,
+        resume_state_path=resume_state_path,
     )
 
 
@@ -103,6 +109,10 @@ def run_production_research_via_starter(config: LoopConfig) -> dict[str, Any]:
         "-DataEndDay",
         config.data_end_day,
     ]
+    if config.run_id:
+        command.extend(["-RunId", config.run_id])
+    if config.resume_state_path:
+        command.extend(["-ResumeState", str(config.resume_state_path)])
     process = subprocess.Popen(
         command,
         cwd=repository_root,
@@ -179,7 +189,13 @@ class TrainingResearchController:
                 "durable production research is already running: "
                 f"{active_checkpoint.get('run_id') or 'unknown_run'}"
             )
-        config = build_canonical_training_loop_config(raw_root, reports_root)
+        resume_checkpoint = discover_stale_research_checkpoint(reports_root)
+        config = build_canonical_training_loop_config(
+            raw_root,
+            reports_root,
+            run_id=(resume_checkpoint or {}).get("run_id"),
+            resume_state_path=(resume_checkpoint or {}).get("resume_state_path"),
+        )
         started_at = _utc_now()
         running_status = _safe_status(
             phase="running",
@@ -375,7 +391,48 @@ def discover_active_research_checkpoint(reports_root: str | Path) -> dict[str, A
         return None
     if not isinstance(payload, dict) or payload.get("status") not in {"starting", "running"}:
         return None
+    if not _checkpoint_process_alive(payload):
+        return None
     return payload
+
+
+def discover_stale_research_checkpoint(reports_root: str | Path) -> dict[str, Any] | None:
+    """Return a resumable run whose supervisor and child no longer exist."""
+
+    root = Path(reports_root)
+    paths = [path for path in root.glob(_SUPERVISOR_CHECKPOINT_PATTERN) if path.is_file()]
+    if not paths:
+        return None
+    path = max(paths, key=lambda item: (item.stat().st_mtime_ns, item.name))
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict) or payload.get("status") not in {"starting", "running"}:
+        return None
+    resume_path = payload.get("resume_state_path")
+    if payload.get("resume_supported") is not True or not isinstance(resume_path, str):
+        return None
+    if not Path(resume_path).is_file() or _checkpoint_process_alive(payload):
+        return None
+    return payload
+
+
+def _checkpoint_process_alive(payload: Mapping[str, Any]) -> bool:
+    pids = [payload.get("supervisor_pid"), payload.get("child_pid")]
+    if not any(isinstance(value, int) and value > 0 for value in pids):
+        # Legacy checkpoints predate process identity; fail closed and keep
+        # treating them as active until an operator explicitly reviews them.
+        return True
+    for value in pids:
+        if not isinstance(value, int) or value <= 0:
+            continue
+        try:
+            os.kill(value, 0)
+        except (OSError, ProcessLookupError):
+            continue
+        return True
+    return False
 
 
 def _notify(callback: StatusCallback | None, status: Mapping[str, Any]) -> None:
@@ -400,6 +457,7 @@ __all__ = [
     "build_canonical_training_loop_config",
     "build_initial_training_research_status",
     "discover_active_research_checkpoint",
+    "discover_stale_research_checkpoint",
     "run_production_research_via_starter",
     "run_training_research_async",
 ]

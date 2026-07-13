@@ -9,7 +9,7 @@ import json
 from math import isfinite
 from pathlib import Path
 import subprocess
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 from ethusdc_bot.backtest.context_research import (
     context_for_candidate,
@@ -113,6 +113,8 @@ class LoopConfig:
     required_days: int | None = REQUIRED_DAYS
     enable_context: bool = False
     data_end_day: str | None = None
+    run_id: str | None = None
+    resume_state_path: str | Path | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.enable_context, bool):
@@ -210,23 +212,35 @@ def run_research_loop(
     if cycle_runner is not None and config.required_days is not None:
         raise ValueError("custom cycle runners are fixture/test-only and cannot produce production reports")
 
-    run_id = datetime.now(UTC).strftime("research_loop_%Y%m%dT%H%M%SZ")
     git_commit = _git_commit()
-    state = SearchSpaceState(cycle_index=1, diagnosis={"problem_assessment": "costs_and_insufficient_edge"})
-    cycles: list[dict[str, Any]] = []
-    best_selection_rank: tuple[float, ...] | None = None
-    best_candidate: dict[str, Any] | None = None
-    no_improvement = 0
+    run_id = config.run_id or datetime.now(UTC).strftime("research_loop_%Y%m%dT%H%M%SZ")
+    resume_path = _resume_state_path(config, run_id)
+    (
+        cycles,
+        state,
+        best_selection_rank,
+        best_candidate,
+        no_improvement,
+    ) = _load_resume_state(config, run_id, git_commit, resume_path)
+    start_cycle = len(cycles) + 1
     stop_reason = "max_cycles_reached"
     runner = cycle_runner or _build_real_cycle_runner(config)
 
-    for cycle_index in range(1, config.max_cycles + 1):
+    for cycle_index in range(start_cycle, config.max_cycles + 1):
         print(f"cycle {cycle_index}/{config.max_cycles}: starting", flush=True)
         cycle = dict(runner(cycle_index, state))
         cycle["cycle_id"] = cycle_index
         _validate_cycle_payload(cycle, expected_budget=_resource_budget(config))
         stored_cycle = _jsonable_cycle(cycle)
         cycles.append(stored_cycle)
+        _persist_resume_state(
+            resume_path,
+            run_id=run_id,
+            git_commit=git_commit,
+            config=config,
+            cycles=cycles,
+            status="running",
+        )
         if not _safety_ok(cycle.get("safety", {})):
             stop_reason = "safety_violation"
             break
@@ -261,9 +275,160 @@ def run_research_loop(
         stop_reason=stop_reason,
         best_candidate=best_candidate,
         frozen_candidate=frozen_candidate,
+        resume_state_path=str(resume_path),
+        resume_supported=True,
+    )
+    _persist_resume_state(
+        resume_path,
+        run_id=run_id,
+        git_commit=git_commit,
+        config=config,
+        cycles=cycles,
+        status="completed",
     )
     paths = _record_loop_report(report, config.reports_root)
     return LoopRunResult(run_id, len(cycles), stop_reason, False, best_candidate, paths)
+
+
+def _resume_state_path(config: LoopConfig, run_id: str) -> Path:
+    if config.resume_state_path is not None:
+        return Path(config.resume_state_path)
+    return Path(config.reports_root) / f"{run_id}.resume.json"
+
+
+def _resume_config_payload(config: LoopConfig) -> dict[str, Any]:
+    return {
+        "max_cycles": config.max_cycles,
+        "max_candidates_per_cycle": config.max_candidates_per_cycle,
+        "tested_candidates_per_cycle": config.tested_candidates_per_cycle,
+        "walk_forward_candidates_per_cycle": config.walk_forward_candidates_per_cycle,
+        "finalists_per_cycle": config.finalists_per_cycle,
+        "walk_forward_fold_count": config.walk_forward_fold_count,
+        "rolling_origin_limit": config.rolling_origin_limit,
+        "rolling_origin_step_days": config.rolling_origin_step_days,
+        "min_cycles": config.min_cycles,
+        "stagnation_cycles": config.stagnation_cycles,
+        "required_days": config.required_days,
+        "enable_context": config.enable_context,
+        "data_end_day": config.data_end_day,
+    }
+
+
+def _atomic_json_write(path: Path, payload: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(
+        json.dumps(payload, indent=2, sort_keys=True, allow_nan=False),
+        encoding="utf-8",
+    )
+    temporary.replace(path)
+
+
+def _persist_resume_state(
+    path: Path,
+    *,
+    run_id: str,
+    git_commit: str,
+    config: LoopConfig,
+    cycles: list[dict[str, Any]],
+    status: str,
+) -> None:
+    """Persist completed cycles before the next expensive cycle starts."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    cycle_files: list[str] = []
+    for index, cycle in enumerate(cycles):
+        cycle_id = int(cycle["cycle_id"])
+        cycle_path = path.parent / f"{run_id}.cycle-{cycle_id:02d}.json"
+        # Earlier cycle artifacts are immutable; rewrite only the newest one
+        # so checkpointing remains bounded instead of becoming O(n²).
+        if index == len(cycles) - 1 or not cycle_path.is_file():
+            _atomic_json_write(cycle_path, cycle)
+        cycle_files.append(cycle_path.name)
+    _atomic_json_write(
+        path,
+        {
+            "schema_version": 1,
+            "artifact_kind": "research_loop_resume_state",
+            "run_id": run_id,
+            "git_commit": git_commit,
+            "config": _resume_config_payload(config),
+            "completed_cycle_count": len(cycles),
+            "cycle_files": cycle_files,
+            "status": status,
+            "resume_supported": True,
+        },
+    )
+
+
+def _load_resume_state(
+    config: LoopConfig,
+    run_id: str,
+    git_commit: str,
+    path: Path,
+) -> tuple[list[dict[str, Any]], SearchSpaceState, tuple[float, ...] | None, dict[str, Any] | None, int]:
+    if not path.is_file():
+        return (
+            [],
+            SearchSpaceState(cycle_index=1, diagnosis={"problem_assessment": "costs_and_insufficient_edge"}),
+            None,
+            None,
+            0,
+        )
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"resume state is unreadable: {path}") from exc
+    if not isinstance(manifest, dict) or manifest.get("schema_version") != 1:
+        raise RuntimeError("resume state schema is unsupported")
+    if manifest.get("run_id") != run_id:
+        raise RuntimeError("resume state run_id does not match requested run")
+    if manifest.get("git_commit") != git_commit:
+        raise RuntimeError("resume state git commit does not match current checkout")
+    if manifest.get("config") != _resume_config_payload(config):
+        raise RuntimeError("resume state configuration does not match requested run")
+    raw_files = manifest.get("cycle_files")
+    if not isinstance(raw_files, list):
+        raise RuntimeError("resume state has no cycle file list")
+    cycles: list[dict[str, Any]] = []
+    for expected_cycle, raw_name in enumerate(raw_files, start=1):
+        if not isinstance(raw_name, str) or Path(raw_name).name != raw_name:
+            raise RuntimeError("resume state contains an invalid cycle path")
+        cycle_path = path.parent / raw_name
+        try:
+            cycle = json.loads(cycle_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"resume cycle artifact is unreadable: {cycle_path}") from exc
+        if not isinstance(cycle, dict) or cycle.get("cycle_id") != expected_cycle:
+            raise RuntimeError("resume cycle artifacts are not contiguous")
+        _validate_cycle_payload(cycle, expected_budget=_resource_budget(config))
+        cycles.append(cycle)
+    if not cycles:
+        return (
+            [],
+            SearchSpaceState(cycle_index=1, diagnosis={"problem_assessment": "costs_and_insufficient_edge"}),
+            None,
+            None,
+            0,
+        )
+    best_rank: tuple[float, ...] | None = None
+    best_candidate: dict[str, Any] | None = None
+    no_improvement = 0
+    for cycle in cycles:
+        rank = _cycle_selected_rank(cycle)
+        if best_rank is None or rank > best_rank:
+            best_rank = rank
+            best_candidate = cycle.get("selected_candidate")
+            no_improvement = 0
+        else:
+            no_improvement += 1
+    return (
+        cycles,
+        next_search_space_state(cycles[-1]),
+        best_rank,
+        best_candidate,
+        no_improvement,
+    )
 
 
 def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceState], dict[str, Any]]:
@@ -1291,6 +1456,8 @@ def _loop_report(**kwargs: Any) -> dict[str, Any]:
         "fixture_data_only": config.required_days is None,
         "max_cycles": config.max_cycles,
         "cycles_executed": len(cycles),
+        "resume_supported": bool(kwargs.get("resume_supported", False)),
+        "resume_state_path": kwargs.get("resume_state_path"),
         "stop_reason": kwargs["stop_reason"],
         "target_reached": False,
         "target_status": "not_evaluated_no_sealed_holdout_run",
@@ -1608,6 +1775,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--data-end-day")
     parser.add_argument("--fixture-smoke", action="store_true")
     parser.add_argument("--enable-context", action="store_true")
+    parser.add_argument("--run-id")
+    parser.add_argument("--resume-state")
     return parser
 
 
@@ -1626,6 +1795,8 @@ def main(argv: list[str] | None = None) -> int:
         required_days=None if args.fixture_smoke else REQUIRED_DAYS,
         enable_context=args.enable_context,
         data_end_day=args.data_end_day,
+        run_id=args.run_id,
+        resume_state_path=args.resume_state,
     )
     result = run_research_loop(config)
     print(f"Research loop run_id: {result.loop_run_id}")

@@ -85,7 +85,7 @@ def test_checkpoint_payload_is_explicitly_order_free_and_not_a_result_claim(monk
     )
 
     assert payload["result_truth"] == "canonical_runner_json_only"
-    assert payload["resume_supported"] is False
+    assert payload["resume_supported"] is True
     assert payload["audit_evaluated"] is False
     assert payload["final_holdout_evaluated"] is False
     assert payload["safety"] == {
