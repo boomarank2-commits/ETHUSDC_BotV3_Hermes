@@ -595,24 +595,14 @@ class OperatorDashboardApp(_base_dashboard.DashboardApp):
             self._log("Refreshed data/download status snapshot.")
 
     def _set_context_layout(self, view_mode: str) -> None:
-        """Show only controls relevant to the active operator context."""
+        """Keep every top-level action bar visible; switch only the body view."""
 
-        if view_mode == "download":
-            self._show_before_overview(self._data_toolbar)
-            self._hide_frame(self._backtest_action_bar)
-            self._hide_frame(self._shadow_action_bar)
-            return
-        if view_mode == "backtest_running":
-            self._hide_frame(self._data_toolbar)
-            self._hide_frame(self._backtest_action_bar)
-            self._hide_frame(self._shadow_action_bar)
-            return
-        # A completed/interrupted result must still allow the next data gate
-        # before another research run. Keep both safe, order-free controls
-        # visible; only the shadow controls remain hidden.
+        # The top controls are the operator's stable navigation surface.  The
+        # lower overview/status body is the only contextual area; hiding action
+        # bars made the data gate unreachable after an interrupted result.
         self._show_before_overview(self._data_toolbar)
         self._show_before_overview(self._backtest_action_bar)
-        self._hide_frame(self._shadow_action_bar)
+        self._show_before_overview(self._shadow_action_bar)
 
     def _show_before_overview(self, frame: tk.Misc) -> None:
         if frame.winfo_manager():
