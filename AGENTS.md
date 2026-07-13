@@ -229,9 +229,9 @@ Ein Zustand ist erst `fertig`, wenn alle Punkte zutreffen:
 
 ## 11. Protocol-v3-Arbeits- und Evidenzvertrag
 
-Protocol-v3-Vertragsgeneration: `3.0.0`  
-Maschinenlesbarer Vertrag: `configs/protocol_v3_contract.json`  
-Kanonischer Zusatzvertrag: `docs/42_PROTOCOL_V3_EXECUTABLE_CONTRACT.md`  
+Protocol-v3-Vertragsgeneration: `3.0.0`
+Maschinenlesbarer Vertrag: `configs/protocol_v3_contract.json`
+Kanonischer Zusatzvertrag: `docs/42_PROTOCOL_V3_EXECUTABLE_CONTRACT.md`
 Verbindliche Reihenfolge: `docs/41_PROTOCOL_V3_IMPLEMENTATION_SEQUENCE.md`
 
 Fuer Protocol v3 gelten zusaetzlich folgende harte Agentenregeln:
