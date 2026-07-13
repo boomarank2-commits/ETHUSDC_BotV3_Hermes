@@ -24,6 +24,20 @@ jobs:
       - name: Apply exact reviewed patch
         run: python tools/apply_progress_patch.py
 
+      - name: Preserve established operator text
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/ethusdc_bot/ui/operator_dashboard.py')
+          text = path.read_text(encoding='utf-8')
+          old = '        f"Fortschritt gesamt: {_number(status.get(\'progress_pct\'), 2)} %",\n'
+          new = '        f"Fortschritt: {_number(status.get(\'progress_pct\'), 1)} %",\n'
+          if text.count(old) != 1:
+              raise RuntimeError('expected granular operator progress label exactly once')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
       - name: Install project and tests
         run: python -m pip install --upgrade pip && python -m pip install -e '.[dev]'
 
