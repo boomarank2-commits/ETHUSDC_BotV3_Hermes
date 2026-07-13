@@ -49,7 +49,7 @@ def validate_protocol_v3_contract(payload: Mapping[str, Any]) -> None:
     _expect(payload, "protocol_version", PROTOCOL_VERSION)
     _expect(payload, "contract_generation", CONTRACT_GENERATION)
     _expect(payload, "protocol_status", "executable_contract")
-    _expect(payload, "canonical_contract_document", str(CANONICAL_DOCUMENT))
+    _expect(payload, "canonical_contract_document", CANONICAL_DOCUMENT.as_posix())
     _expect(payload, "champion_type", "monthly_refit_selection_pipeline")
 
     market = _mapping(payload, "market")
