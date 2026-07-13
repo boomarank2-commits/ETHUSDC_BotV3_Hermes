@@ -1,9 +1,9 @@
 # 42 - Protocol v3: versionierter ausfuehrbarer Vertrag
 
-Stand: 2026-07-13  
-Protocol-v3-Vertragsgeneration: `3.0.0`  
-Manifest: `configs/protocol_v3_contract.json`  
-Blueprint: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`  
+Stand: 2026-07-13
+Protocol-v3-Vertragsgeneration: `3.0.0`
+Manifest: `configs/protocol_v3_contract.json`
+Blueprint: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
 Umsetzungsfolge: `docs/41_PROTOCOL_V3_IMPLEMENTATION_SEQUENCE.md`
 
 ## 1. Status und Vorrang
