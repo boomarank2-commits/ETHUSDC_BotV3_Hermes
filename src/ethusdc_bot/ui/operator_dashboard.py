@@ -448,6 +448,7 @@ class OperatorDashboardApp(_base_dashboard.DashboardApp):
     ) -> None:
         _install_runtime_guards()
         self._refresh_gate = RefreshGate()
+        self._requested_view: str | None = None
         super().__init__(root, repository_root=repository_root, local_root=local_root)
 
     def _build_widgets(self) -> None:
@@ -505,6 +506,11 @@ class OperatorDashboardApp(_base_dashboard.DashboardApp):
                     backtest_mode=str(display.get("mode", "idle")),
                     runtime_phase=str(effective_runtime.get("phase", "idle")),
                 )
+                requested_view = self._requested_view
+                if requested_view == "download":
+                    view_mode = "download"
+                elif requested_view == "backtest_running":
+                    view_mode = "backtest_running"
                 if view_mode == "backtest_running":
                     text = format_running_backtest_view(display)
                 elif view_mode == "backtest_result":
@@ -603,6 +609,21 @@ class OperatorDashboardApp(_base_dashboard.DashboardApp):
         self._show_before_overview(self._data_toolbar)
         self._show_before_overview(self._backtest_action_bar)
         self._show_before_overview(self._shadow_action_bar)
+
+    def start_data_check_and_load(self) -> None:
+        self._requested_view = "download"
+        super().start_data_check_and_load()
+        self.refresh_status(log_refresh=False)
+
+    def start_check_without_download(self) -> None:
+        self._requested_view = "download"
+        super().start_check_without_download()
+        self.refresh_status(log_refresh=False)
+
+    def start_training_research(self) -> None:
+        self._requested_view = "backtest_running"
+        super().start_training_research()
+        self.refresh_status(log_refresh=False)
 
     def _show_before_overview(self, frame: tk.Misc) -> None:
         if frame.winfo_manager():
