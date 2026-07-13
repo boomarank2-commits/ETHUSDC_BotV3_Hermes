@@ -233,7 +233,7 @@ class DashboardApp:
         self.bot_state_var = tk.StringVar(value="Bot-Status: Bereit")
         self.phase_var = tk.StringVar(value="Datenstatus: wird ermittelt")
         self.mode_var = tk.StringVar(value="Modus: bereit")
-        self.progress_var = tk.IntVar(value=0)
+        self.progress_var = tk.DoubleVar(value=0.0)
         self.task_var = tk.StringVar(value="Aktueller Vorgang: keiner")
         self.count_var = tk.StringVar(value="Gesamtfortschritt: 0%")
         self.file_var = tk.StringVar(value="Dateien: 0/0")
@@ -818,6 +818,8 @@ class DashboardApp:
         maximum = int(status.get("max_cycles", 8) or 8)
         active_cycle = status.get("active_cycle")
         progress = float(status.get("progress_pct", 0.0) or 0.0)
+        cycle_progress = float(status.get("cycle_progress_pct", 0.0) or 0.0)
+        progress_message = status.get("progress_message") or status.get("progress_stage")
         elapsed = int(status.get("elapsed_seconds", 0) or 0)
         latest = status.get("latest_cycle")
         latest_row = latest if isinstance(latest, dict) else {}
@@ -835,9 +837,11 @@ class DashboardApp:
             self.phase_var.set(f"Backteststatus: {phase}")
             self.mode_var.set("Modus: PR12 Protocol v2 / Kontext aktiv / kein V1")
             self.count_var.set(
-                f"Backtestfortschritt: {progress:.1f}% ({completed}/{maximum} Zyklen vollständig)"
+                f"Backtestfortschritt: {progress:.2f}% gesamt / "
+                f"{cycle_progress:.1f}% im aktiven Zyklus "
+                f"({completed}/{maximum} Zyklen vollständig)"
             )
-            self.task_var.set(f"Aktueller Schritt: {phase}")
+            self.task_var.set(f"Aktueller Schritt: {progress_message or phase}")
             self.file_var.set(
                 "Kandidaten letzter Zyklus: "
                 f"{latest_row.get('generated', '–')} erzeugt / "
@@ -880,7 +884,7 @@ class DashboardApp:
             self.task_var.set(f"Fehler/Unterbrechung: {status.get('error') or 'siehe Laufprotokoll'}")
             self.file_var.set(f"Child-Exit-Code: {status.get('child_exit_code')}")
 
-        self.progress_var.set(int(progress))
+        self.progress_var.set(progress)
         self._set_progress_visible(bool(status.get("progress_visible")))
         self.elapsed_var.set(f"Backtest-Laufzeit: {self._format_duration(elapsed)}")
         self.last_run_var.set(
@@ -969,7 +973,7 @@ class DashboardApp:
 
     def _apply_overall_data_status(self, snapshot: dict[str, object]) -> None:
         progress = float(snapshot.get("overall_data_progress_pct", 0) or 0)
-        self.progress_var.set(int(progress))
+        self.progress_var.set(progress)
         self.count_var.set(f"Gesamtdatenstand: {progress}%")
 
     def _apply_last_run_status(self, status: dict[str, object]) -> None:

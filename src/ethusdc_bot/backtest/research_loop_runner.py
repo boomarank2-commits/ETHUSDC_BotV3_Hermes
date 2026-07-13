@@ -27,6 +27,7 @@ from ethusdc_bot.backtest.exit_reason_analysis import analyze_exit_reasons
 from ethusdc_bot.backtest.experiment_registry import ExperimentPaths
 from ethusdc_bot.backtest.features import build_feature_rows
 from ethusdc_bot.backtest.quality_gates import QUALITY_GATE_V1, evaluate_quality_gates
+from ethusdc_bot.backtest.research_progress import ResearchProgressEmitter
 from ethusdc_bot.backtest.research_protocol import (
     CANDIDATE_STAGE_BUDGETS,
     CONSUMED_AUDIT_WINDOWS,
@@ -93,6 +94,10 @@ MAX_SELECTION_EVIDENCE_CANDIDATE_DAYS_PER_CYCLE = (
         * MAX_PARAMETER_STABILITY_NUMERIC_PARAMETERS
         * INTERNAL_VALIDATION_DAYS
     )
+)
+TOTAL_CYCLE_PROGRESS_UNITS = (
+    MAX_SELECTION_CANDIDATE_DAYS_PER_CYCLE
+    + MAX_SELECTION_EVIDENCE_CANDIDATE_DAYS_PER_CYCLE
 )
 
 
@@ -215,6 +220,7 @@ def run_research_loop(
     git_commit = _git_commit()
     run_id = config.run_id or datetime.now(UTC).strftime("research_loop_%Y%m%dT%H%M%SZ")
     resume_path = _resume_state_path(config, run_id)
+    progress = ResearchProgressEmitter(config.reports_root, run_id, config.max_cycles)
     (
         cycles,
         state,
@@ -222,11 +228,16 @@ def run_research_loop(
         best_candidate,
         no_improvement,
     ) = _load_resume_state(config, run_id, git_commit, resume_path)
+    progress.restore_completed(len(cycles))
     start_cycle = len(cycles) + 1
     stop_reason = "max_cycles_reached"
-    runner = cycle_runner or _build_real_cycle_runner(config)
+    runner = cycle_runner or _build_real_cycle_runner(config, progress=progress)
 
     for cycle_index in range(start_cycle, config.max_cycles + 1):
+        progress.start_cycle(
+            cycle_index,
+            total_work_units=TOTAL_CYCLE_PROGRESS_UNITS,
+        )
         print(f"cycle {cycle_index}/{config.max_cycles}: starting", flush=True)
         cycle = dict(runner(cycle_index, state))
         cycle["cycle_id"] = cycle_index
@@ -248,6 +259,7 @@ def run_research_loop(
             status="running",
         )
         current_selection_rank = _cycle_selected_rank(cycle)
+        progress.complete_cycle(cycle_index)
         print(
             f"cycle {cycle_index}/{config.max_cycles}: generated={cycle['generated_candidates']} "
             f"tested={cycle['tested_candidates']} walk_forward={cycle['walk_forward_candidates']} "
@@ -290,6 +302,7 @@ def run_research_loop(
         status="completed",
     )
     paths = _record_loop_report(report, config.reports_root)
+    progress.complete_run(stop_reason=stop_reason, cycles_executed=len(cycles))
     return LoopRunResult(run_id, len(cycles), stop_reason, False, best_candidate, paths)
 
 
@@ -434,7 +447,11 @@ def _load_resume_state(
     )
 
 
-def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceState], dict[str, Any]]:
+def _build_real_cycle_runner(
+    config: LoopConfig,
+    *,
+    progress: ResearchProgressEmitter | None = None,
+) -> Callable[[int, SearchSpaceState], dict[str, Any]]:
     raw_root = Path(config.raw_root)
     if config.required_days == REQUIRED_DAYS:
         readiness = build_data_readiness_report(raw_root)
@@ -481,6 +498,19 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
     )
 
     def runner(cycle_index: int, state: SearchSpaceState) -> dict[str, Any]:
+        completed_work_units = 0
+
+        def advance_progress(units: int, stage: str, message: str) -> None:
+            nonlocal completed_work_units
+            completed_work_units += max(0, int(units))
+            if progress is not None:
+                progress.update_cycle(
+                    cycle_index,
+                    stage=stage,
+                    completed_work_units=completed_work_units,
+                    message=message,
+                )
+
         generated = generate_search_space(
             state,
             max_candidates=config.max_candidates_per_cycle,
@@ -512,7 +542,7 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
         tested_rows = [rows_by_signature[canonical_candidate_signature(candidate)] for candidate in selected_for_testing]
 
         records: list[dict[str, Any]] = []
-        for row in tested_rows:
+        for tested_index, row in enumerate(tested_rows, start=1):
             candidate = row["candidate"]
             train_result = simulate_strategy(
                 subtrain,
@@ -548,6 +578,11 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
                     "validation_metrics": validation_result.metrics,
                 }
             )
+            advance_progress(
+                subtrain_days + validation_days,
+                "training_validation",
+                f"Training/Validation Kandidat {tested_index}/{len(tested_rows)} abgeschlossen",
+            )
         if not records:
             raise RuntimeError("Research cycle has no eligible candidates to test")
 
@@ -563,9 +598,14 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
             expected_candles_per_day=1440,
             market_context=training_context,
         )
+        advance_progress(
+            len(wfv_records) * TRAINING_DAYS,
+            "walk_forward",
+            f"Walk-Forward {len(wfv_records)}/{config.walk_forward_candidates_per_cycle} Kandidaten abgeschlossen",
+        )
         wfv_ranked = rank_with_walk_forward(wfv_records)
         finalist_records = wfv_ranked[: config.finalists_per_cycle]
-        for record in finalist_records:
+        for finalist_index, record in enumerate(finalist_records, start=1):
             full_training_result = simulate_strategy(
                 split.training,
                 record["candidate"],
@@ -579,11 +619,21 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
                 ),
             )
             record["full_training_result"] = full_training_result
+            advance_progress(
+                TRAINING_DAYS,
+                "finalist_full_training",
+                f"Finalist {finalist_index}/{len(finalist_records)}: volles Training abgeschlossen",
+            )
             record["rolling_origin_summary"] = evaluate_rolling_origins(
                 list(plan.historical_origins),
                 record["candidate"],
                 origin_limit=config.rolling_origin_limit,
                 market_context=market_context,
+            )
+            advance_progress(
+                config.rolling_origin_limit * config.rolling_origin_step_days,
+                "rolling_origins",
+                f"Finalist {finalist_index}/{len(finalist_records)}: Rolling-Origin-Prüfung abgeschlossen",
             )
             joint_stress_wfv = evaluate_walk_forward(
                 split.training,
@@ -597,6 +647,11 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
                 include_selection_evidence=False,
                 market_context=training_context,
             )
+            advance_progress(
+                TRAINING_DAYS,
+                "joint_cost_stress",
+                f"Finalist {finalist_index}/{len(finalist_records)}: kombinierter Kostenstress abgeschlossen",
+            )
             slippage_stress_wfv = evaluate_walk_forward(
                 split.training,
                 record["candidate"],
@@ -608,6 +663,11 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
                 slippage_bps=QUALITY_GATE_V1.slippage_stress_slippage_bps_per_side,
                 include_selection_evidence=False,
                 market_context=training_context,
+            )
+            advance_progress(
+                TRAINING_DAYS,
+                "slippage_stress",
+                f"Finalist {finalist_index}/{len(finalist_records)}: Slippage-Stress abgeschlossen",
             )
             baseline_selection = record["walk_forward_summary"].get(
                 "selection_evidence", {}
@@ -660,6 +720,13 @@ def _build_real_cycle_runner(config: LoopConfig) -> Callable[[int, SearchSpaceSt
                     "stress_source": "same_walk_forward_folds_fixed_cost_profiles",
                 },
             }
+            advance_progress(
+                PARAMETER_NEIGHBORS_PER_NUMERIC_PARAMETER
+                * MAX_PARAMETER_STABILITY_NUMERIC_PARAMETERS
+                * INTERNAL_VALIDATION_DAYS,
+                "parameter_stability",
+                f"Finalist {finalist_index}/{len(finalist_records)}: Parameterstabilität abgeschlossen",
+            )
             evidence = _quality_evidence(record, full_training_result)
             record["quality_gate_evidence"] = evidence
             record["quality_gate"] = _bind_quality_gate(

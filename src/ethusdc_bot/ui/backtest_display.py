@@ -87,9 +87,13 @@ def collect_backtest_display_status(
     active_cycle = _optional_positive_int(checkpoint.get("active_cycle"))
     cycles = _checkpoint_cycles(checkpoint.get("cycles"))
     best_cycle = _best_checkpoint_cycle(cycles)
-    progress = 100.0 if status == "completed" else round(
-        min(completed_cycles, max_cycles) / max_cycles * 100.0,
-        1,
+    live_progress = _read_research_progress(root, checkpoint)
+    progress, cycle_progress, progress_stage, progress_message = _running_progress_values(
+        status=status,
+        completed_cycles=completed_cycles,
+        max_cycles=max_cycles,
+        active_cycle=active_cycle,
+        live_progress=live_progress,
     )
     report_path = _checkpoint_report_path(checkpoint)
     elapsed_seconds = _elapsed_seconds(
@@ -139,6 +143,9 @@ def collect_backtest_display_status(
         "updated_at_utc": checkpoint.get("timestamp_utc"),
         "elapsed_seconds": elapsed_seconds,
         "progress_pct": progress,
+        "cycle_progress_pct": cycle_progress,
+        "progress_stage": progress_stage,
+        "progress_message": progress_message,
         "progress_visible": mode in {"starting", "running"},
         "completed_cycles": completed_cycles,
         "max_cycles": max_cycles,
@@ -154,6 +161,67 @@ def collect_backtest_display_status(
         "recent_log_lines": _tail_lines(console_path, 30),
         "child_exit_code": checkpoint.get("child_exit_code"),
     }
+
+
+
+def _read_research_progress(
+    root: Path,
+    checkpoint: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    supervisor_run_id = checkpoint.get("run_id")
+    if not isinstance(supervisor_run_id, str) or not supervisor_run_id:
+        return None
+    runner_run_id = supervisor_run_id.replace(
+        "production_research_", "research_loop_", 1
+    )
+    path = root / f"{runner_run_id}.progress.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("schema_version") != 1:
+        return None
+    if payload.get("artifact_kind") != "research_loop_progress":
+        return None
+    if payload.get("run_id") != runner_run_id:
+        return None
+    return payload
+
+
+def _running_progress_values(
+    *,
+    status: str,
+    completed_cycles: int,
+    max_cycles: int,
+    active_cycle: int | None,
+    live_progress: Mapping[str, Any] | None,
+) -> tuple[float, float, str | None, str | None]:
+    if status == "completed":
+        return 100.0, 100.0, "run_complete", "Backtest abgeschlossen"
+    baseline = min(completed_cycles, max_cycles) / max_cycles * 100.0
+    if active_cycle is None or not isinstance(live_progress, Mapping):
+        return round(baseline, 1), 0.0, None, None
+    try:
+        progress_cycle = int(live_progress.get("active_cycle"))
+        cycle_pct = float(live_progress.get("cycle_progress_pct"))
+        overall_pct = float(live_progress.get("overall_progress_pct"))
+    except (TypeError, ValueError, OverflowError):
+        return round(baseline, 1), 0.0, None, None
+    if progress_cycle != active_cycle:
+        return round(baseline, 1), 0.0, None, None
+    upper = min(100.0, (completed_cycles + 1) / max_cycles * 100.0)
+    overall_pct = min(upper, max(baseline, overall_pct))
+    cycle_pct = min(99.5, max(0.0, cycle_pct))
+    stage = live_progress.get("stage")
+    message = live_progress.get("message")
+    return (
+        round(overall_pct, 3),
+        round(cycle_pct, 3),
+        str(stage) if stage else None,
+        str(message) if message else None,
+    )
 
 
 def format_backtest_summary_for_display(status: Mapping[str, Any]) -> str:
@@ -268,6 +336,9 @@ def _completed_from_report(
             now_utc=now_utc,
         ),
         "progress_pct": 100.0,
+        "cycle_progress_pct": 100.0,
+        "progress_stage": "run_complete",
+        "progress_message": "Backtest abgeschlossen",
         "progress_visible": False,
         "completed_cycles": completed,
         "max_cycles": max_cycles,
@@ -305,6 +376,9 @@ def _base_status(
         "updated_at_utc": None,
         "elapsed_seconds": 0,
         "progress_pct": 0.0,
+        "cycle_progress_pct": 0.0,
+        "progress_stage": None,
+        "progress_message": None,
         "progress_visible": mode in {"starting", "running"},
         "completed_cycles": 0,
         "max_cycles": CANONICAL_MAX_CYCLES,

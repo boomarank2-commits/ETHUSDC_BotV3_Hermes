@@ -312,6 +312,8 @@ def format_running_backtest_view(status: Mapping[str, Any]) -> str:
         "",
         f"Status: {_text(status.get('status_text'))}",
         f"Fortschritt: {_number(status.get('progress_pct'), 1)} %",
+        f"Fortschritt aktiver Zyklus: {_number(status.get('cycle_progress_pct'), 1)} %",
+        f"Aktueller Rechenschritt: {_text(status.get('progress_message') or status.get('progress_stage'))}",
         f"Zyklen: {completed}/{maximum} vollständig; aktiv {_text(status.get('active_cycle'))}",
         f"Laufzeit: {_duration(status.get('elapsed_seconds'))}",
         f"Start / letzte Aktualisierung: {_text(status.get('started_at_utc'))} / {_text(status.get('updated_at_utc'))}",
