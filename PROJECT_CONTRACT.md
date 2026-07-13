@@ -227,8 +227,8 @@ Wenn der Zielwert nicht erreicht wird, muss das System ehrlich melden:
 
 ## 11. Protocol v3 - monatlich refittende Pipeline
 
-Protocol-v3-Vertragsgeneration: `3.0.0`  
-Maschinenlesbarer Vertrag: `configs/protocol_v3_contract.json`  
+Protocol-v3-Vertragsgeneration: `3.0.0`
+Maschinenlesbarer Vertrag: `configs/protocol_v3_contract.json`
 Kanonischer Zusatzvertrag: `docs/42_PROTOCOL_V3_EXECUTABLE_CONTRACT.md`
 
 Der Nutzer hat die im Blueprint beschriebene monatlich refittende Auswahlpipeline als naechste auszufuehrende Vertragsgeneration freigegeben. Champion von Protocol v3 ist die unveraenderte Auswahlpipeline mit zwoelf Monats-Origins, nicht ein einzelner fixer Parametersatz.
