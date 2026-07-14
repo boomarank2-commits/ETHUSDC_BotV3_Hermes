@@ -8,13 +8,12 @@
     "context_policy": "three_market_context_v1",
     "cost_model": "fee_10bps_slippage_5bps_v1",
     "feature_contract": "causal_multitimeframe_features_v1",
-    "pipeline_identity": "content_addressed_pipeline_identity_v1",
     "quality_gates": [
       "quality_gate_v1",
       "monthly_quality_gate_v1"
     ],
     "ranking": "protocol_v3_lexicographic_inner_ranking_v1",
-    "search_space": "protocol_v3_bounded_search_v1",
+    "search_space": "protocol_v3_bounded_search_and_identity_v1",
     "simulator": "conservative_spot_long_only_v1"
   },
   "source_bindings": {
@@ -36,9 +35,6 @@
     "feature_contract": [
       "src/ethusdc_bot/backtest/features.py"
     ],
-    "pipeline_identity": [
-      "src/ethusdc_bot/protocol_v3/pipeline.py"
-    ],
     "quality_gates": [
       "docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md",
       "src/ethusdc_bot/backtest/quality_gates.py"
@@ -49,7 +45,8 @@
       "src/ethusdc_bot/backtest/research_runner.py"
     ],
     "search_space": [
-      "src/ethusdc_bot/backtest/search_space.py"
+      "src/ethusdc_bot/backtest/search_space.py",
+      "src/ethusdc_bot/protocol_v3/pipeline.py"
     ],
     "simulator": [
       "src/ethusdc_bot/backtest/simulator.py"
