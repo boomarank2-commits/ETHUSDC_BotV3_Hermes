@@ -10,7 +10,8 @@
     "feature_contract": "causal_multitimeframe_features_v1",
     "quality_gates": [
       "quality_gate_v1",
-      "monthly_quality_gate_v1"
+      "monthly_quality_gate_v1",
+      "permanent_trial_history_v1"
     ],
     "ranking": "protocol_v3_lexicographic_inner_ranking_v1",
     "search_space": "protocol_v3_bounded_search_and_identity_v1",
@@ -36,8 +37,10 @@
       "src/ethusdc_bot/backtest/features.py"
     ],
     "quality_gates": [
+      "configs/protocol_v3_historical_trial_lower_bound.json",
       "docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md",
-      "src/ethusdc_bot/backtest/quality_gates.py"
+      "src/ethusdc_bot/backtest/quality_gates.py",
+      "src/ethusdc_bot/protocol_v3/trial_ledger.py"
     ],
     "ranking": [
       "docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md",
@@ -54,16 +57,17 @@
   },
   "budget_policy": {
     "outer_origins": 12,
+    "current_refit_runs": 1,
     "max_cycles_per_origin": 8,
     "generated_per_cycle": 40,
     "tested_per_cycle": 12,
     "walk_forward_per_cycle": 3,
     "finalists_per_cycle": 2,
-    "max_total_cycles": 96,
-    "max_total_generated": 3840,
-    "max_total_tested": 1152,
-    "max_total_walk_forward": 288,
-    "max_total_finalists": 192
+    "max_total_cycles": 104,
+    "max_total_generated": 4160,
+    "max_total_tested": 1248,
+    "max_total_walk_forward": 312,
+    "max_total_finalists": 208
   },
   "stop_policy": {
     "maximum_cycles_reason": "max_cycles_reached",
