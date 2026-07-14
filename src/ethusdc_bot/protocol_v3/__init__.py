@@ -73,17 +73,20 @@ from .trial_ledger import (
     build_canonical_historical_import_digest,
     build_trial_record,
     import_canonical_historical_lower_bound,
-    import_historical_reports,
     initialize_trial_ledger,
     read_trial_ledger,
     record_cache_reuse,
     validate_historical_lower_bound_manifest,
     validate_trial_record,
 )
-from .trial_history_gate import attest_complete_trial_inventory
+from .trial_history_gate import (
+    attest_complete_trial_inventory,
+    import_historical_reports,
+)
 
-# Make even direct submodule imports resolve to the reconciled fail-closed gate.
+# Direct submodule imports must use the same reconciled fail-closed gates.
 _trial_ledger.attest_complete_trial_inventory = attest_complete_trial_inventory
+_trial_ledger.import_historical_reports = import_historical_reports
 
 __all__ = [
     "ACTIVATION_DELAY_HOURS",
