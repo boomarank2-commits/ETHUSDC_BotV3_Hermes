@@ -8,6 +8,7 @@
     "context_policy": "three_market_context_v1",
     "cost_model": "fee_10bps_slippage_5bps_v1",
     "feature_contract": "causal_multitimeframe_features_v1",
+    "pipeline_identity": "content_addressed_pipeline_identity_v1",
     "quality_gates": [
       "quality_gate_v1",
       "monthly_quality_gate_v1"
@@ -34,6 +35,9 @@
     ],
     "feature_contract": [
       "src/ethusdc_bot/backtest/features.py"
+    ],
+    "pipeline_identity": [
+      "src/ethusdc_bot/protocol_v3/pipeline.py"
     ],
     "quality_gates": [
       "docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md",
