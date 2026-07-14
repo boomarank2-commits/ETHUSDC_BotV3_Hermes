@@ -1,0 +1,67 @@
+{
+  "schema_version": "protocol_v3_data_snapshot_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "dynamic_three_market_snapshot_v1",
+  "timezone": "UTC",
+  "source_interval": "1m",
+  "source_bar_seconds": 60,
+  "full_utc_day_minutes": 1440,
+  "fit_process_days": 1095,
+  "markets": [
+    {
+      "symbol": "ETHUSDC",
+      "role": "trade_market",
+      "may_trigger_orders": true
+    },
+    {
+      "symbol": "BTCUSDC",
+      "role": "context_only",
+      "may_trigger_orders": false
+    },
+    {
+      "symbol": "ETHBTC",
+      "role": "context_only",
+      "may_trigger_orders": false
+    }
+  ],
+  "watermark_policy": {
+    "rule": "latest_common_fully_audited_utc_day",
+    "process_end_rule": "task2_latest_supported_monthly_anchor",
+    "required_complete_markets": 3,
+    "trailing_incomplete_days_may_be_ignored": true,
+    "incomplete_day_inside_snapshot_blocks": true
+  },
+  "warmup_policy": {
+    "rule": "max_active_lookback_seconds_plus_one_smallest_source_bar",
+    "active_lookback_set_required": true,
+    "all_three_markets_must_be_represented": true,
+    "warmup_may_feed_features_only": true,
+    "warmup_may_feed_scalers_quantiles_labels_or_pnl": false,
+    "missing_warmup_blocks": true
+  },
+  "quality_policy": {
+    "exact_minute_grid_required": true,
+    "duplicate_minutes_allowed": false,
+    "gaps_allowed": false,
+    "positive_prices_required": true,
+    "ohlc_consistency_required": true,
+    "negative_volume_allowed": false,
+    "zero_volume_bars": "count_and_expose",
+    "all_zero_volume_day_blocks": true
+  },
+  "snapshot_policy": {
+    "canonical_json": true,
+    "sha256_bound": true,
+    "archive_inventory_digest_required": true,
+    "market_content_digest_required": true,
+    "immutable_write_only": true
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}
