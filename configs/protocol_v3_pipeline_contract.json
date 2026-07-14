@@ -40,6 +40,7 @@
       "configs/protocol_v3_historical_trial_lower_bound.json",
       "docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md",
       "src/ethusdc_bot/backtest/quality_gates.py",
+      "src/ethusdc_bot/protocol_v3/trial_history_gate.py",
       "src/ethusdc_bot/protocol_v3/trial_ledger.py"
     ],
     "ranking": [
