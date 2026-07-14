@@ -1,0 +1,101 @@
+{
+  "schema_version": "protocol_v3_pipeline_contract_v1",
+  "protocol_version": "3.0.0",
+  "pipeline_contract_version": "monthly_refit_pipeline_v3.0.0",
+  "component_contracts": {
+    "boundary_rules": "protocol_v3_monthly_boundary_v1",
+    "candidate_families": "bounded_regime_specialists_v1",
+    "context_policy": "three_market_context_v1",
+    "cost_model": "fee_10bps_slippage_5bps_v1",
+    "feature_contract": "causal_multitimeframe_features_v1",
+    "quality_gates": [
+      "quality_gate_v1",
+      "monthly_quality_gate_v1"
+    ],
+    "ranking": "protocol_v3_lexicographic_inner_ranking_v1",
+    "search_space": "protocol_v3_bounded_search_v1",
+    "simulator": "conservative_spot_long_only_v1"
+  },
+  "source_bindings": {
+    "boundary_rules": [
+      "src/ethusdc_bot/protocol_v3/boundaries.py"
+    ],
+    "candidate_families": [
+      "src/ethusdc_bot/backtest/search_space.py",
+      "src/ethusdc_bot/backtest/simulator.py"
+    ],
+    "context_policy": [
+      "src/ethusdc_bot/backtest/context_features.py",
+      "src/ethusdc_bot/backtest/context_research.py"
+    ],
+    "cost_model": [
+      "docs/31_PORTFOLIO_SHADOW_PRODUCT_CONTRACT.md",
+      "src/ethusdc_bot/backtest/simulator.py"
+    ],
+    "feature_contract": [
+      "src/ethusdc_bot/backtest/features.py"
+    ],
+    "quality_gates": [
+      "docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md",
+      "src/ethusdc_bot/backtest/quality_gates.py"
+    ],
+    "ranking": [
+      "docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md",
+      "src/ethusdc_bot/backtest/research_loop_runner.py",
+      "src/ethusdc_bot/backtest/research_runner.py"
+    ],
+    "search_space": [
+      "src/ethusdc_bot/backtest/search_space.py"
+    ],
+    "simulator": [
+      "src/ethusdc_bot/backtest/simulator.py"
+    ]
+  },
+  "budget_policy": {
+    "outer_origins": 12,
+    "max_cycles_per_origin": 8,
+    "generated_per_cycle": 40,
+    "tested_per_cycle": 12,
+    "walk_forward_per_cycle": 3,
+    "finalists_per_cycle": 2,
+    "max_total_cycles": 96,
+    "max_total_generated": 3840,
+    "max_total_tested": 1152,
+    "max_total_walk_forward": 288,
+    "max_total_finalists": 192
+  },
+  "stop_policy": {
+    "maximum_cycles_reason": "max_cycles_reached",
+    "stagnation_reason": "selection_stagnation_3_cycles",
+    "stagnation_patience_cycles": 3,
+    "minimum_completed_cycles_before_stagnation": 3,
+    "may_expand_budget": false,
+    "target_hit_may_stop_search": false
+  },
+  "seed_policy": {
+    "algorithm": "sha256_canonical_pre_run_manifest_namespace_v1",
+    "seed_bits": 64,
+    "timestamps_forbidden": true,
+    "system_random_forbidden": true
+  },
+  "ledger_policy": {
+    "forward_ledger_namespace_prefix": "protocol_v3_forward_generation",
+    "permanent_trial_counter_namespace": "protocol_v3_permanent_trial_counter_v1",
+    "new_generation_resets_forward_ledger": true,
+    "new_generation_resets_permanent_trial_counter": false
+  },
+  "target_policy": {
+    "target_usdc_per_calendar_day": 3.0,
+    "target_is_acceptance_metric": true,
+    "target_is_search_loss": false,
+    "target_hit_may_stop_search": false
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}
