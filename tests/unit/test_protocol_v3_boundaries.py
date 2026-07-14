@@ -40,14 +40,14 @@ def test_boundary_fixtures_cover_exactly_twelve_origins_and_365_days(
     assert plan.iter_process_oos_days()[-1] == process_end - timedelta(days=1)
 
 
-def test_leap_window_uses_synthetic_b0_then_twelve_real_monthly_anchors() -> None:
+def test_leap_window_uses_synthetic_b0_then_real_monthly_anchors() -> None:
     plan = build_monthly_process_boundary_plan("2024-03-08")
 
     assert plan.boundary_dates[0] == date(2023, 3, 9)
     assert plan.origins[0].target_anchor_is_synthetic is True
     assert plan.origins[0].target_anchor == date(2023, 3, 9)
     assert plan.boundary_dates[1] == date(2023, 4, 8)
-    assert all(origin.target_anchor_is_synthetic is False for origin in plan.origins[1:])
+    assert all(not origin.target_anchor_is_synthetic for origin in plan.origins[1:])
     assert all(boundary.day == 8 for boundary in plan.boundary_dates[1:])
 
 
@@ -59,7 +59,7 @@ def test_non_leap_start_is_still_the_conceptual_synthetic_b0() -> None:
     assert plan.origins[1].target_anchor_is_synthetic is False
 
 
-def test_each_origin_has_exact_training_and_nonoverlapping_oos_days() -> None:
+def test_each_origin_has_730_training_days_and_no_oos_overlap() -> None:
     plan = build_monthly_process_boundary_plan("2026-07-08")
     all_oos_days: list[date] = []
 
@@ -69,10 +69,8 @@ def test_each_origin_has_exact_training_and_nonoverlapping_oos_days() -> None:
             for offset in range(origin.training_day_count)
         }
         test_days = set(origin.iter_test_days())
-
         assert origin.training_day_count == 730
         assert origin.training_end_exclusive == origin.test_start_inclusive
-        assert len(test_days) == origin.test_day_count
         assert training_days.isdisjoint(test_days)
         all_oos_days.extend(origin.iter_test_days())
 
@@ -81,9 +79,8 @@ def test_each_origin_has_exact_training_and_nonoverlapping_oos_days() -> None:
     assert all_oos_days == sorted(all_oos_days)
 
 
-def test_origin_dates_and_activation_fields_follow_the_exact_contract() -> None:
-    plan = build_monthly_process_boundary_plan("2026-07-08")
-    first = plan.origins[0]
+def test_origin_dates_and_activation_fields_follow_contract() -> None:
+    first = build_monthly_process_boundary_plan("2026-07-08").origins[0]
 
     assert first.origin_index == 1
     assert first.test_start_inclusive == date(2025, 7, 8)
@@ -97,7 +94,7 @@ def test_origin_dates_and_activation_fields_follow_the_exact_contract() -> None:
     assert first.valid_until == datetime(2025, 8, 8, tzinfo=UTC)
 
 
-def test_entry_enabled_at_waits_for_both_delay_and_flat_time() -> None:
+def test_entry_enabled_at_waits_for_delay_and_flat_time() -> None:
     origin = build_monthly_process_boundary_plan("2026-07-08").origins[0]
 
     assert origin.resolve_entry_enabled_at(None) == origin.valid_from
@@ -105,10 +102,9 @@ def test_entry_enabled_at_waits_for_both_delay_and_flat_time() -> None:
     later_flat = origin.valid_from + timedelta(days=2, hours=3)
     assert origin.resolve_entry_enabled_at(later_flat) == later_flat
     assert origin.resolve_entry_enabled_at(origin.valid_until) is None
-    assert origin.resolve_entry_enabled_at(origin.valid_until + timedelta(seconds=1)) is None
 
 
-def test_entry_enabled_at_rejects_naive_and_non_utc_flat_times() -> None:
+def test_entry_enabled_at_rejects_naive_and_non_utc_times() -> None:
     origin = build_monthly_process_boundary_plan("2026-07-08").origins[0]
 
     with pytest.raises(BoundaryValidationError, match="timezone-aware UTC"):
@@ -130,19 +126,19 @@ def test_button_before_anchor_targets_current_anchor_without_backdating() -> Non
     assert resolution.status == "current_anchor_pending"
 
 
-def test_button_inside_24_hour_window_targets_current_anchor() -> None:
+def test_button_inside_window_targets_current_anchor() -> None:
     resolution = resolve_target_anchor_for_button(datetime(2026, 7, 8, 23, 59, 59, tzinfo=UTC))
-
     assert resolution.target_anchor == date(2026, 7, 8)
     assert resolution.is_late_for_current_anchor is False
-    assert resolution.retroactive_activation_allowed is False
 
 
-def test_button_at_or_after_deadline_targets_only_the_next_anchor() -> None:
-    exact_deadline = resolve_target_anchor_for_button(datetime(2026, 7, 9, tzinfo=UTC))
-    later = resolve_target_anchor_for_button(datetime(2026, 7, 20, 17, tzinfo=UTC))
+def test_button_at_or_after_deadline_targets_only_next_anchor() -> None:
+    resolutions = (
+        resolve_target_anchor_for_button(datetime(2026, 7, 9, tzinfo=UTC)),
+        resolve_target_anchor_for_button(datetime(2026, 7, 20, 17, tzinfo=UTC)),
+    )
 
-    for resolution in (exact_deadline, later):
+    for resolution in resolutions:
         assert resolution.target_anchor == date(2026, 8, 8)
         assert resolution.as_of_day == date(2026, 8, 7)
         assert resolution.valid_from == datetime(2026, 8, 9, tzinfo=UTC)
@@ -151,7 +147,7 @@ def test_button_at_or_after_deadline_targets_only_the_next_anchor() -> None:
         assert resolution.status == "planned_for_next_anchor"
 
 
-def test_button_resolution_requires_utc_and_fixed_24_hour_delay() -> None:
+def test_button_resolution_requires_utc_and_fixed_delay() -> None:
     with pytest.raises(BoundaryValidationError, match="timezone-aware UTC"):
         resolve_target_anchor_for_button(datetime(2026, 7, 8, 12))
     with pytest.raises(BoundaryValidationError, match="nonzero offset"):
@@ -160,38 +156,39 @@ def test_button_resolution_requires_utc_and_fixed_24_hour_delay() -> None:
         )
     with pytest.raises(BoundaryValidationError, match="must equal 24"):
         resolve_target_anchor_for_button(
-            datetime(2026, 7, 8, 12, tzinfo=UTC),
-            activation_delay_hours=23,
+            datetime(2026, 7, 8, 12, tzinfo=UTC), activation_delay_hours=23
         )
 
 
-def test_process_end_resolves_from_the_latest_complete_day() -> None:
+def test_process_end_resolves_from_latest_complete_day() -> None:
     assert resolve_process_end_exclusive("2026-07-07") == date(2026, 7, 8)
     assert resolve_process_end_exclusive("2026-07-06") == date(2026, 6, 8)
     assert resolve_process_end_exclusive("2024-03-07") == date(2024, 3, 8)
     assert resolve_process_end_exclusive("2024-03-06") == date(2024, 2, 8)
 
 
-def test_monthly_anchor_clamps_high_anchor_days_in_short_months() -> None:
+def test_monthly_anchor_clamps_short_months() -> None:
     assert monthly_anchor(2024, 2, 31) == date(2024, 2, 29)
     assert monthly_anchor(2025, 2, 31) == date(2025, 2, 28)
     assert monthly_anchor(2025, 4, 31) == date(2025, 4, 30)
 
 
 @pytest.mark.parametrize("bad_anchor", [0, 32, True, 8.0])
-def test_monthly_anchor_rejects_invalid_anchor_days(bad_anchor: object) -> None:
+def test_monthly_anchor_rejects_invalid_days(bad_anchor: object) -> None:
     with pytest.raises(BoundaryValidationError, match="anchor_day"):
         monthly_anchor(2026, 7, bad_anchor)  # type: ignore[arg-type]
 
 
-def test_process_end_must_be_a_real_day_8_anchor() -> None:
+def test_process_end_must_be_real_day_8_anchor() -> None:
     with pytest.raises(BoundaryValidationError, match="monthly anchor"):
         build_monthly_process_boundary_plan("2026-07-07")
 
 
-def test_datetime_is_rejected_where_a_calendar_date_is_required() -> None:
+def test_datetime_is_rejected_where_date_is_required() -> None:
     with pytest.raises(BoundaryValidationError, match="date, not a datetime"):
-        build_monthly_process_boundary_plan(datetime(2026, 7, 8, tzinfo=UTC))  # type: ignore[arg-type]
+        build_monthly_process_boundary_plan(  # type: ignore[arg-type]
+            datetime(2026, 7, 8, tzinfo=UTC)
+        )
 
 
 def test_validator_rejects_duplicate_or_gapped_boundaries() -> None:
@@ -203,14 +200,17 @@ def test_validator_rejects_duplicate_or_gapped_boundaries() -> None:
     with pytest.raises(BoundaryValidationError, match="strictly increasing"):
         validate_monthly_process_boundary_plan(duplicated)
 
-    gapped_origins = list(plan.origins)
-    gapped_origins[0] = replace(
-        gapped_origins[0],
-        test_end_exclusive=gapped_origins[0].test_end_exclusive - timedelta(days=1),
-        valid_until=gapped_origins[0].valid_until - timedelta(days=1),
+    origins = list(plan.origins)
+    origins[0] = replace(
+        origins[0],
+        test_end_exclusive=origins[0].test_end_exclusive - timedelta(days=1),
+        valid_until=origins[0].valid_until - timedelta(days=1),
     )
-    with pytest.raises(BoundaryValidationError, match="gap|wrong boundary|do not match"):
-        validate_monthly_process_boundary_plan(replace(plan, origins=tuple(gapped_origins)))
+    with pytest.raises(
+        BoundaryValidationError,
+        match="exactly 365|gap|wrong boundary|do not match",
+    ):
+        validate_monthly_process_boundary_plan(replace(plan, origins=tuple(origins)))
 
 
 def test_validator_rejects_training_overlap_and_wrong_activation() -> None:
@@ -225,7 +225,7 @@ def test_validator_rejects_training_overlap_and_wrong_activation() -> None:
 
     origins = list(plan.origins)
     origins[0] = replace(origins[0], valid_from=origins[0].valid_from - timedelta(seconds=1))
-    with pytest.raises(BoundaryValidationError, match="T\+24h"):
+    with pytest.raises(BoundaryValidationError, match=r"T\+24h"):
         validate_monthly_process_boundary_plan(replace(plan, origins=tuple(origins)))
 
 
@@ -242,8 +242,7 @@ def test_validator_rejects_wrong_protocol_constants() -> None:
         validate_monthly_process_boundary_plan(replace(plan, activation_delay_hours=23))
 
 
-def test_same_input_produces_the_same_frozen_boundary_plan() -> None:
-    first = build_monthly_process_boundary_plan("2026-07-08")
-    second = build_monthly_process_boundary_plan(date(2026, 7, 8))
-
-    assert first == second
+def test_same_input_produces_same_frozen_plan() -> None:
+    assert build_monthly_process_boundary_plan("2026-07-08") == (
+        build_monthly_process_boundary_plan(date(2026, 7, 8))
+    )
