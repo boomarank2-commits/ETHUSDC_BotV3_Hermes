@@ -2,7 +2,7 @@
 
 Stand: 2026-07-14
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 4/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 5/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -82,20 +82,27 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 ## Aufgabe 5 – Dynamischen Drei-Markt-Datensnapshot und Warmup herstellen
 
-**Status:** `NOT_STARTED` – exakt nächste Aufgabe
+**Status:** `DONE_100`
 
 **Ziel:** Gemeinsamen letzten vollständigen UTC-Tag und erforderlichen Warmup für ETHUSDC, BTCUSDC und ETHBTC dynamisch bestimmen und einfrieren.
 
-**DONE_100:**
+**Abnahme:**
 
-- Kein Produktions-Hardcode auf `2026-07-07` bleibt.
-- Watermark, 1.440-Minuten-Raster, Duplikate, Lücken, OHLC und Nullvolumen werden geprüft.
-- `warmup_duration` folgt allen aktiven Lookbacks plus einer kleinsten Quellbar.
-- Fehlender Warmup oder ein unvollständiger Markt blockiert.
+- Kein Produktions-Hardcode auf `2026-07-07` oder einen anderen festen Datenendtag bleibt.
+- Die Watermark ist der neueste in allen drei Märkten vollständig auditierte UTC-Tag; das Prozessende folgt ausschließlich der Task-2-Ankerregel.
+- Jeder Pflicht-UTC-Tag besitzt exakt 1.440 fortlaufende 1m-Kerzen ohne Duplikate oder Lücken und mit endlichen, positiven und konsistenten OHLC-Werten.
+- Einzelne Nullvolumenkerzen werden gezählt und sichtbar gemacht; ein vollständiger Nullvolumentag blockiert.
+- `warmup_duration = max(alle aktiven ETH-/BTC-/ETHBTC-Lookbacks) + 1 kleinste Quellbar` ist technisch erzwungen.
+- Die aktive Lookback-Menge muss alle drei Märkte enthalten; fehlender Warmup oder ein unvollständiger Markt blockiert.
+- Warmup darf Features speisen, aber niemals Scaler, Quantile, Regimefits, Labels oder PnL.
+- Der immutable Snapshot bindet Vertrag, Watermark, Task-2-Grenzen, Warmup, Rohintervall, Marktrollen, Tagesbestand sowie Zeitraster-, Marktinhalt- und ZIP-/CHECKSUM-Digests.
+- Der bekannte aktuelle 1.095-Tage-Bestand bleibt ehrlich `BLOCKED_MISSING_WARMUP`, bis in allen drei Märkten zusätzliche vollständige Historie vor D1 vorhanden ist.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_05_2026-07-14.md`
 
 ## Aufgabe 6 – Exchange-Info-Snapshot und vollständige Run-Fingerprints bauen
 
-**Status:** `NOT_STARTED`
+**Status:** `NOT_STARTED` – exakt nächste Aufgabe
 
 **Ziel:** Binance-Filter und sämtliche Laufidentitäten versioniert und resume-sicher binden.
 
@@ -328,9 +335,9 @@ Protocol v3: Aufgabe X/33 – <Titel> – NOT_STARTED | IN_PROGRESS | BLOCKED | 
 Aktueller Stand:
 
 ```text
-Protocol v3: Aufgabe 4/33 – Permanentes Trial-Ledger und historischen Import bauen – DONE_100
-Protocol v3: Aufgabe 5/33 – Dynamischen Drei-Markt-Datensnapshot und Warmup herstellen – NOT_STARTED
-Gesamt: 4/33 DONE_100 = 12,12 %
+Protocol v3: Aufgabe 5/33 – Dynamischen Drei-Markt-Datensnapshot und Warmup herstellen – DONE_100
+Protocol v3: Aufgabe 6/33 – Exchange-Info-Snapshot und vollständige Run-Fingerprints bauen – NOT_STARTED
+Gesamt: 5/33 DONE_100 = 15,15 %
 ```
 
 Nach jeder Aufgabe werden ausschließlich der abgeschlossene Schritt und die exakt nächste Aufgabe freigegeben. Fortschritt wird nicht nach Zeit oder Token geschätzt, sondern als `DONE_100 / 33` ausgewiesen.
