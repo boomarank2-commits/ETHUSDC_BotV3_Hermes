@@ -24,7 +24,7 @@
       "MARKET_LOT_SIZE"
     ],
     "positive_step_intersection_required": true,
-    "zero_market_step_falls_back_to_lot_size": true,
+    "both_step_sizes_must_be_positive": true,
     "min_quantity_uses_stricter_bound": true,
     "max_quantity_uses_stricter_bound": true,
     "exit_quantity_equals_entry_quantity": true
