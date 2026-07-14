@@ -2,7 +2,7 @@
 
 Stand: 2026-07-14
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 5/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 6/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -102,15 +102,26 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 ## Aufgabe 6 – Exchange-Info-Snapshot und vollständige Run-Fingerprints bauen
 
-**Status:** `NOT_STARTED` – exakt nächste Aufgabe
+**Status:** `DONE_100`
 
 **Ziel:** Binance-Filter und sämtliche Laufidentitäten versioniert und resume-sicher binden.
 
-**DONE_100:** PRICE_FILTER, LOT_SIZE/MARKET_LOT_SIZE und MIN_NOTIONAL/NOTIONAL sind versioniert; Fingerprints binden Rohdaten, Stichtag, Code, Pipeline, Features, Kontext, Gates, Kosten, Simulator, Boundary, Trial-Head und Exchange Info; jede Änderung verhindert Resume und Cache-Hit.
+**Abnahme:**
+
+- Ein öffentlicher, unveränderlicher ETHUSDC-Exchange-Info-Snapshot bindet `PRICE_FILTER`, `LOT_SIZE`, `MARKET_LOT_SIZE` sowie mindestens `MIN_NOTIONAL` oder `NOTIONAL`; beide werden erhalten, wenn Binance beide liefert.
+- Status, ETH/USDC-Assets, Spot-Freigabe, kanonische Dezimalwerte, Herkunft, Zeitpunkt und Safety sind SHA-256-gebunden; private oder kontobezogene Daten blockieren.
+- Der timestamp-freie Run-Fingerprint bindet Rohdaten, Stichtag, Git-Commit, Pipeline, Features, Kontext, Gates, Kosten, Simulator, Boundary, Trial-Ledger-Head und Exchange Info.
+- Drei-Markt-Raster-, Inhalts-, Archiv- und Tagesdigests bleiben Bestandteil der Rohdatenidentität.
+- `resume_key` und `cache_key` sind derselbe content-addressed Fingerprint; jede Änderung einer der zwölf Identitätsklassen verhindert Resume und Cache-Hit.
+- Exchange-Info- und Fingerprint-Artefakte sind create-only und werden semantisch sowie per Digest revalidiert.
+- Der Identity-Vertrag und die Implementierung sind an die Pipelinegeneration gebunden; der permanente Trial-Counter wird nicht zurückgesetzt.
+- Keine Mengenrundung, Gebühren-, Notional- oder Simulatorparität aus Aufgabe 7 wurde vorgezogen.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_06_2026-07-14.md`
 
 ## Aufgabe 7 – Notional-, Mengen-, Gebühren- und Rundungsparität herstellen
 
-**Status:** `NOT_STARTED`
+**Status:** `NOT_STARTED` – exakt nächste Aufgabe
 
 **Ziel:** Das 100-USDC-Lot realistisch gemäß Produktvertrag und Exchange-Filtern simulieren.
 
@@ -335,9 +346,9 @@ Protocol v3: Aufgabe X/33 – <Titel> – NOT_STARTED | IN_PROGRESS | BLOCKED | 
 Aktueller Stand:
 
 ```text
-Protocol v3: Aufgabe 5/33 – Dynamischen Drei-Markt-Datensnapshot und Warmup herstellen – DONE_100
-Protocol v3: Aufgabe 6/33 – Exchange-Info-Snapshot und vollständige Run-Fingerprints bauen – NOT_STARTED
-Gesamt: 5/33 DONE_100 = 15,15 %
+Protocol v3: Aufgabe 6/33 – Exchange-Info-Snapshot und vollständige Run-Fingerprints bauen – DONE_100
+Protocol v3: Aufgabe 7/33 – Notional-, Mengen-, Gebühren- und Rundungsparität herstellen – NOT_STARTED
+Gesamt: 6/33 DONE_100 = 18,18 %
 ```
 
 Nach jeder Aufgabe werden ausschließlich der abgeschlossene Schritt und die exakt nächste Aufgabe freigegeben. Fortschritt wird nicht nach Zeit oder Token geschätzt, sondern als `DONE_100 / 33` ausgewiesen.
