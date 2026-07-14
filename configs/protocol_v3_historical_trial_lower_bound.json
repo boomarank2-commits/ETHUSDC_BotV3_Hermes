@@ -1,0 +1,45 @@
+{
+  "schema_version": "protocol_v3_historical_trial_lower_bound_v1",
+  "protocol_version": "3.0.0",
+  "historical_trial_count_is_lower_bound": true,
+  "identity_inventory_complete": false,
+  "daily_series_complete": false,
+  "known_observed_evaluation_rows": 180,
+  "independent_trial_count_resolved": 0,
+  "sources": [
+    {
+      "source_id": "production_research_supervisor_20260712T081650Z",
+      "source_kind": "protocol_v2_supervisor_checkpoint",
+      "observed_cycles": 8,
+      "observed_tested_rows_per_cycle": 12,
+      "observed_evaluation_rows": 96,
+      "candidate_identity_inventory_available": false,
+      "causal_daily_series_available": false,
+      "evidence_reference": "production_research_supervisor_20260712T081650Z.checkpoint.json"
+    },
+    {
+      "source_id": "research_loop_supervisor_20260713T172938Z",
+      "source_kind": "protocol_v2_research_loop_summary",
+      "observed_cycles": 7,
+      "observed_tested_rows_per_cycle": 12,
+      "observed_evaluation_rows": 84,
+      "candidate_identity_inventory_available": false,
+      "causal_daily_series_available": false,
+      "evidence_reference": "docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md#7.1"
+    }
+  ],
+  "interpretation": {
+    "observed_evaluation_rows_are_not_independent_trial_count": true,
+    "duplicates_or_cache_equivalents_may_exist": true,
+    "development_dsr_status": "INSUFFICIENT_TRIAL_HISTORY",
+    "only_release_decision_allowed": "NO_TRADE"
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}
