@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+import json
 from pathlib import Path
 
 import pytest
@@ -14,7 +15,10 @@ from ethusdc_bot.protocol_v3.intrabar_execution import (
     IntrabarExecutionError,
     simulate_protocol_v3_intrabar_strategy,
 )
-from ethusdc_bot.protocol_v3.pipeline import build_pipeline_generation
+from ethusdc_bot.protocol_v3.pipeline import (
+    PIPELINE_CONTRACT_PATH,
+    build_pipeline_generation,
+)
 from ethusdc_bot.protocol_v3.run_identity import build_exchange_info_snapshot
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -104,15 +108,30 @@ def test_trailing_stop_uses_only_the_previous_survived_bar_high() -> None:
     assert trade.exit_price == 100.92
 
 
-def test_task8_sources_and_versions_are_pipeline_bound() -> None:
+def test_task8_sources_remain_bound_inside_the_task9_pipeline_identity() -> None:
     basis = build_pipeline_generation(REPO_ROOT).basis()
     assert (
         basis["component_contracts"]["simulator"]
-        == "next_tradable_price_pessimistic_intrabar_v1"
+        == "next_tradable_price_pessimistic_intrabar_with_fold_outer_state_v1"
     )
     assert (
         basis["component_contracts"]["cost_model"]
         == "protocol_v3_actual_notional_baseline_and_stress_costs_v1"
+    )
+    contract = json.loads(
+        (REPO_ROOT / PIPELINE_CONTRACT_PATH).read_text(encoding="utf-8")
+    )
+    assert (
+        "configs/protocol_v3_intrabar_execution_contract.json"
+        in contract["source_bindings"]["simulator"]
+    )
+    assert (
+        "src/ethusdc_bot/protocol_v3/intrabar_execution.py"
+        in contract["source_bindings"]["simulator"]
+    )
+    assert (
+        "src/ethusdc_bot/protocol_v3/runtime_state.py"
+        in contract["source_bindings"]["simulator"]
     )
     assert len(basis["component_source_sha256"]["simulator"]) == 64
     assert len(basis["component_source_sha256"]["cost_model"]) == 64
