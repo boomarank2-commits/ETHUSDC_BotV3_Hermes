@@ -1,8 +1,8 @@
 """Protocol v3 warmup, purge, fold-end, and outer rotation state.
 
-This module is a pure state/boundary layer.  It reuses Task-8 sell-fill timing
-and Task-7 quantity/notional/fee validation.  It does not select candidates,
-fit models, create orders, access private endpoints, or persist resume data.
+This is a pure temporal-state layer. It reuses the Task-8 adverse sell fill and
+Task-7 quantity/notional/fee validation. It does not select candidates, fit
+models, persist resume data, create orders, or access private endpoints.
 """
 
 from __future__ import annotations
@@ -30,7 +30,6 @@ from ethusdc_bot.protocol_v3.intrabar_execution import (
     _validate_cost_profile,
 )
 
-
 RUNTIME_STATE_CONTRACT_PATH: Final = Path(
     "configs/protocol_v3_runtime_state_contract.json"
 )
@@ -38,7 +37,7 @@ RUNTIME_STATE_CONTRACT_SCHEMA: Final = "protocol_v3_runtime_state_contract_v1"
 RUNTIME_STATE_CONTRACT_VERSION: Final = "warmup_purge_fold_outer_state_v1"
 RUNTIME_STATE_SCHEMA: Final = "protocol_v3_outer_rotation_state_v1"
 SOURCE_BAR_MINUTES: Final = 1
-_BUNDLE_SHA_RE = re.compile(r"^[0-9a-f]{64}$")
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 _CANONICAL_SAFETY = {
     "api_keys": "forbidden",
@@ -137,7 +136,7 @@ _CANONICAL_CONTRACT: dict[str, Any] = {
 
 
 class RuntimeStateError(RuntimeError):
-    """Raised when Protocol-v3 temporal state would be ambiguous or optimistic."""
+    """Raised when temporal state would become ambiguous or optimistic."""
 
 
 @dataclass(frozen=True)
@@ -192,7 +191,7 @@ class InformationInterval:
     information_end_ms: int
 
     def __post_init__(self) -> None:
-        if not self.event_id.strip():
+        if not isinstance(self.event_id, str) or not self.event_id.strip():
             raise RuntimeStateError("event_id must be non-empty")
         _nonnegative_int(self.signal_time_ms, "signal_time_ms")
         _nonnegative_int(self.information_end_ms, "information_end_ms")
@@ -230,7 +229,7 @@ class WarmupWindow:
 
     def assert_use(self, timestamp_ms: int, purpose: str) -> None:
         _nonnegative_int(timestamp_ms, "timestamp_ms")
-        allowed_purposes = {
+        allowed = {
             "feature_read",
             "signal",
             "label",
@@ -239,7 +238,7 @@ class WarmupWindow:
             "quantile_fit",
             "regime_fit",
         }
-        if purpose not in allowed_purposes:
+        if purpose not in allowed:
             raise RuntimeStateError(f"unsupported warmup purpose: {purpose}")
         if timestamp_ms < self.warmup_start_ms:
             raise RuntimeStateError("timestamp lies before the frozen warmup window")
@@ -283,9 +282,7 @@ class OpenPositionState:
         quantity = _decimal(self.quantity, "quantity")
         entry = _decimal(self.entry_price, "entry_price")
         fees = _decimal(
-            self.accrued_entry_fees,
-            "accrued_entry_fees",
-            allow_zero=True,
+            self.accrued_entry_fees, "accrued_entry_fees", allow_zero=True
         )
         stop = _decimal(self.stop_price, "stop_price")
         target = _decimal(self.target_price, "target_price")
@@ -359,7 +356,7 @@ class FoldRuntimeState:
     runtime_model_state_sha256: str | None = None
 
     def __post_init__(self) -> None:
-        if not self.fold_id.strip():
+        if not isinstance(self.fold_id, str) or not self.fold_id.strip():
             raise RuntimeStateError("fold_id must be non-empty")
         if self.cooldown_until_ms is not None:
             _nonnegative_int(self.cooldown_until_ms, "cooldown_until_ms")
@@ -659,12 +656,11 @@ def finalize_inner_fold(
             cost_profile,
             reason="fold_end",
         )
-    final_state = FoldRuntimeState(fold_id=state.fold_id)
     return FoldFinalization(
         fold_id=state.fold_id,
         pending_entry_cancelled=state.pending_entry is not None,
         liquidation=liquidation,
-        final_state=final_state,
+        final_state=FoldRuntimeState(fold_id=state.fold_id),
     )
 
 
@@ -819,8 +815,9 @@ def validate_outer_rotation_state(
 ) -> None:
     if not isinstance(state, OuterRotationState):
         raise TypeError("state must be OuterRotationState")
-    # Reconstructing runs dataclass semantic checks even after unsafe replacement.
-    OuterRotationState(**asdict(state))
+    # ``replace`` reconstructs the dataclass while preserving nested dataclasses,
+    # so unsafe mutation or deserialization cannot bypass semantic validation.
+    replace(state)
     if origin is not None:
         if state.origin_index != origin.origin_index:
             raise RuntimeStateError("rotation origin index does not match boundary")
@@ -866,8 +863,6 @@ def _terminal_liquidation(
             rules,
         )
     except Exception as exc:
-        if isinstance(exc, RuntimeStateError):
-            raise
         raise RuntimeStateError("terminal liquidation failed closed") from exc
     return TerminalLiquidation(
         reason=reason,
@@ -918,15 +913,14 @@ def _decimal(
 
 
 def _canonical_decimal(value: Decimal) -> str:
-    normalized = value.normalize()
-    text = format(normalized, "f")
+    text = format(value.normalize(), "f")
     if "." in text:
         text = text.rstrip("0").rstrip(".")
     return text or "0"
 
 
 def _sha256(value: Any, label: str) -> str:
-    if not isinstance(value, str) or _BUNDLE_SHA_RE.fullmatch(value) is None:
+    if not isinstance(value, str) or _SHA256_RE.fullmatch(value) is None:
         raise RuntimeStateError(f"{label} must be a lowercase 64-character sha256")
     return value
 
@@ -934,10 +928,9 @@ def _sha256(value: Any, label: str) -> str:
 def _utc(value: datetime, label: str) -> datetime:
     if not isinstance(value, datetime) or value.tzinfo is None:
         raise RuntimeStateError(f"{label} must be a timezone-aware UTC datetime")
-    normalized = value.astimezone(UTC)
-    if value.utcoffset() != normalized.utcoffset():
+    if value.utcoffset() != UTC.utcoffset(value):
         raise RuntimeStateError(f"{label} must be expressed in UTC")
-    return normalized
+    return value.astimezone(UTC)
 
 
 def _iso(value: datetime) -> str:
