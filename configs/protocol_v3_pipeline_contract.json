@@ -3,7 +3,7 @@
   "protocol_version": "3.0.0",
   "pipeline_contract_version": "monthly_refit_pipeline_v3.0.0",
   "component_contracts": {
-    "boundary_rules": "protocol_v3_monthly_boundary_v1",
+    "boundary_rules": "protocol_v3_monthly_boundary_and_runtime_state_v1",
     "candidate_families": "bounded_regime_specialists_v1",
     "context_policy": "three_market_context_and_dynamic_snapshot_v1",
     "cost_model": "protocol_v3_actual_notional_baseline_and_stress_costs_v1",
@@ -15,11 +15,13 @@
     ],
     "ranking": "protocol_v3_lexicographic_inner_ranking_v1",
     "search_space": "protocol_v3_bounded_search_identity_global_budget_and_run_fingerprint_v1",
-    "simulator": "next_tradable_price_pessimistic_intrabar_v1"
+    "simulator": "next_tradable_price_pessimistic_intrabar_with_fold_outer_state_v1"
   },
   "source_bindings": {
     "boundary_rules": [
-      "src/ethusdc_bot/protocol_v3/boundaries.py"
+      "configs/protocol_v3_runtime_state_contract.json",
+      "src/ethusdc_bot/protocol_v3/boundaries.py",
+      "src/ethusdc_bot/protocol_v3/runtime_state.py"
     ],
     "candidate_families": [
       "src/ethusdc_bot/backtest/search_space.py",
@@ -67,10 +69,12 @@
     "simulator": [
       "configs/protocol_v3_execution_parity_contract.json",
       "configs/protocol_v3_intrabar_execution_contract.json",
+      "configs/protocol_v3_runtime_state_contract.json",
       "src/ethusdc_bot/backtest/portfolio_simulator.py",
       "src/ethusdc_bot/backtest/simulator.py",
       "src/ethusdc_bot/protocol_v3/execution_parity.py",
-      "src/ethusdc_bot/protocol_v3/intrabar_execution.py"
+      "src/ethusdc_bot/protocol_v3/intrabar_execution.py",
+      "src/ethusdc_bot/protocol_v3/runtime_state.py"
     ]
   },
   "budget_policy": {
