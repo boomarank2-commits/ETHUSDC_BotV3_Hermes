@@ -2,7 +2,7 @@
 
 Stand: 2026-07-14
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 7/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 8/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -141,15 +141,31 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 ## Aufgabe 8 – Next-Tradable-Price und pessimistische Intrabar-Ausführung
 
-**Status:** `NOT_STARTED` – exakt nächste Aufgabe
+**Status:** `DONE_100`
 
 **Ziel:** Signal-, Entry-, Stop-, TP-, Trail-, Gap- und Time-Exit-Reihenfolge realistisch festlegen.
 
-**DONE_100:** Entry frühestens nach abgeschlossener Signalbar; Stop gewinnt bei Berührung in derselben 1m-Kerze; Gaps füllen zum schlechteren Preis; perfekte Extremfills sind ausgeschlossen; Basis und Stress verwenden dieselbe Engine.
+**Abnahme:**
+
+- Ein Signal kann erst nach vollständig abgeschlossener Signalbar einen Pending Entry erzeugen; Fill frühestens am nächsten positiven Volumen-1m-Open.
+- Buy-Fills erhalten adverse Slippage und Tick-Rundung nach oben; Sell-Fills adverse Slippage und Tick-Rundung nach unten.
+- Stop und Target sind bereits nach einem Entry am Kerzen-Open innerhalb derselben Entry-Bar aktiv.
+- Time Exit wird am Bar-Open vor Intrabar-Berührungen geprüft; Stop gewinnt ausnahmslos, wenn Stop und Target in derselben 1m-Kerze berührt werden.
+- Stop-Gaps füllen am schlechteren nächsten Open; günstige Target-Gaps werden konservativ auf das Target begrenzt.
+- Fills verwenden nie das Kerzen-High oder -Low, sondern ausschließlich Open, Stop, Target oder terminalen Close plus Slippage und Tick-Rundung.
+- Break-even und Trailing verwenden nur zuvor abgeschlossene, überlebte Bars und werden erst für die nächste handelbare Kerze aktiv.
+- Nullvolumenkerzen können weder Entry/Exit füllen noch Break-even-/Trailing-State fortschreiben; fehlender positiver terminaler Fill blockiert.
+- Baseline, Slippage-Stress und Joint Stress verwenden exakt dieselbe Engine; nicht kanonische Kostenprofile blockieren.
+- Task-7-Menge, requested/reserved/executed Notional, tatsächliche Fee-Basen und exakte Exit-Menge werden unverändert wiederverwendet.
+- Single- und orderfreier Portfolio-/Shadow-Ausgabepfad serialisieren dieselben Kerntrades; der kanonische Task-8-Pfad bleibt 100 USDC und maximal ein offenes Lot.
+- Intrabar-Vertrag und Implementierung sind an Kostenmodell, Simulator, Pipelinegeneration und Run-Fingerprint gebunden.
+- Keine Purge-, Fold-, Outer-State-, Kontext-, Cache-, Report- oder UI-Arbeit aus Aufgabe 9 oder später wurde vorgezogen.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_08_2026-07-14.md`
 
 ## Aufgabe 9 – Warmup-, Purge-, Fold-End- und Outer-State-Maschine
 
-**Status:** `NOT_STARTED`
+**Status:** `NOT_STARTED` – exakt nächste Aufgabe
 
 **Ziel:** Informationsintervalle, Pending Entry, Cooldown, offene Position und Modellwechsel kausal behandeln.
 
@@ -358,9 +374,9 @@ Protocol v3: Aufgabe X/33 – <Titel> – NOT_STARTED | IN_PROGRESS | BLOCKED | 
 Aktueller Stand:
 
 ```text
-Protocol v3: Aufgabe 7/33 – Notional-, Mengen-, Gebühren- und Rundungsparität herstellen – DONE_100
-Protocol v3: Aufgabe 8/33 – Next-Tradable-Price und pessimistische Intrabar-Ausführung – NOT_STARTED
-Gesamt: 7/33 DONE_100 = 21,21 %
+Protocol v3: Aufgabe 8/33 – Next-Tradable-Price und pessimistische Intrabar-Ausführung – DONE_100
+Protocol v3: Aufgabe 9/33 – Warmup-, Purge-, Fold-End- und Outer-State-Maschine – NOT_STARTED
+Gesamt: 8/33 DONE_100 = 24,24 %
 ```
 
 Nach jeder Aufgabe werden ausschließlich der abgeschlossene Schritt und die exakt nächste Aufgabe freigegeben. Fortschritt wird nicht nach Zeit oder Token geschätzt, sondern als `DONE_100 / 33` ausgewiesen.
