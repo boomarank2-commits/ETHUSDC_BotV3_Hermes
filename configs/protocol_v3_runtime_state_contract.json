@@ -1,0 +1,96 @@
+{
+  "schema_version": "protocol_v3_runtime_state_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "warmup_purge_fold_outer_state_v1",
+  "timebase": {
+    "timezone": "UTC",
+    "source_bar_minutes": 1,
+    "interval_semantics": "half_open_except_boundary_touch_purges"
+  },
+  "warmup_policy": {
+    "feature_reads_allowed": true,
+    "signals_forbidden": true,
+    "labels_forbidden": true,
+    "pnl_forbidden": true,
+    "scaler_fit_forbidden": true,
+    "quantile_fit_forbidden": true,
+    "regime_fit_forbidden": true
+  },
+  "purge_policy": {
+    "formula": "max(max_label_horizon_minutes,max_holding_period_minutes+pending_entry_latency_minutes)+execution_bar_minutes",
+    "execution_bar_minutes": 1,
+    "boundary_touch_purges": true,
+    "training_event_may_not_reach_validation_or_test_start": true,
+    "horizon_extension_creates_new_pipeline_generation": true
+  },
+  "inner_fold_policy": {
+    "starts_flat": true,
+    "pending_entry_at_start": "forbidden",
+    "cooldown_at_start": "forbidden",
+    "inherited_runtime_model_state": "forbidden",
+    "inherited_scaler_state": "forbidden",
+    "open_position_at_start": "forbidden",
+    "pending_entry_at_end": "cancel",
+    "open_position_at_end": "conservative_terminal_liquidation",
+    "terminal_reference": "last_positive_volume_bar_close",
+    "uses_task8_sell_fill": true,
+    "uses_task7_exact_quantity_and_fees": true
+  },
+  "outer_rotation_policy": {
+    "first_origin_starts_flat": true,
+    "carry_open_position_only": true,
+    "max_open_positions": 1,
+    "carry_pending_entry": false,
+    "carry_cooldown": false,
+    "carry_scaler_state": false,
+    "carry_runtime_model_state": false,
+    "retiring_configuration_mode": "exit_only",
+    "new_configuration_waits_for": [
+      "valid_from",
+      "flat_time"
+    ],
+    "entry_enabled_at_formula": "max(valid_from,flat_time)",
+    "monthly_boundary_liquidation": false,
+    "process_end_liquidation": true,
+    "expired_waiting_configuration": "NO_TRADE"
+  },
+  "required_open_position_fields": [
+    "candidate_bundle_sha256",
+    "quantity",
+    "entry_price",
+    "accrued_entry_fees",
+    "stop_price",
+    "target_price",
+    "trailing_state",
+    "high_watermark",
+    "time_stop_deadline_ms",
+    "execution_rules_sha256",
+    "cost_profile"
+  ],
+  "state_identity": {
+    "canonical_json": true,
+    "sha256": true,
+    "timestamps_forbidden_from_identity": false,
+    "runtime_state_must_be_semantically_revalidated": true
+  },
+  "task_dependencies": {
+    "boundary_contract": "protocol_v3_monthly_boundary_v1",
+    "execution_contract": "next_tradable_price_pessimistic_intrabar_v1",
+    "execution_parity_contract": "ethusdc_spot_fixed_lot_execution_parity_v1"
+  },
+  "deferred_scope": {
+    "exact_6x60_fold_planner_task": 14,
+    "context_parity_task": 10,
+    "content_addressed_resume_task": 13,
+    "outer_origin_orchestration_task": 23,
+    "rotation_persistence_task": 24
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}
