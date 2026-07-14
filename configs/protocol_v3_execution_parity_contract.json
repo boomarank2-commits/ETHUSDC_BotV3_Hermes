@@ -1,0 +1,61 @@
+{
+  "schema_version": "protocol_v3_execution_parity_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "ethusdc_spot_fixed_lot_execution_parity_v1",
+  "market": {
+    "exchange": "binance",
+    "market_type": "spot",
+    "symbol": "ETHUSDC",
+    "side": "LONG"
+  },
+  "lot_policy": {
+    "requested_entry_notional_usdc": "100",
+    "reserved_entry_notional_usdc": "100",
+    "executed_entry_notional_must_not_exceed_requested": true,
+    "fees_are_additional": true,
+    "compounding_enabled": false,
+    "max_open_lots_for_research_profile": 1
+  },
+  "quantity_policy": {
+    "arithmetic": "decimal_exact",
+    "rounding": "ROUND_DOWN",
+    "required_filters": [
+      "LOT_SIZE",
+      "MARKET_LOT_SIZE"
+    ],
+    "positive_step_intersection_required": true,
+    "zero_market_step_falls_back_to_lot_size": true,
+    "min_quantity_uses_stricter_bound": true,
+    "max_quantity_uses_stricter_bound": true,
+    "exit_quantity_equals_entry_quantity": true
+  },
+  "notional_policy": {
+    "required_filter_any_of": [
+      "MIN_NOTIONAL",
+      "NOTIONAL"
+    ],
+    "market_applicability_flags_are_respected": true,
+    "actual_simulated_fill_price_is_notional_reference": true,
+    "entry_and_exit_are_validated": true
+  },
+  "cost_policy": {
+    "baseline_fee_bps_per_side": "10",
+    "baseline_slippage_bps_per_side": "5",
+    "entry_fee_base": "executed_entry_notional",
+    "exit_fee_base": "executed_exit_notional",
+    "fee_is_not_deducted_from_requested_notional": true
+  },
+  "price_policy": {
+    "positive_price_required": true,
+    "price_filter_min_max_validated": true,
+    "tick_rounding_deferred_to_task_8": true
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}
