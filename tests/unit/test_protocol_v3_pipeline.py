@@ -7,6 +7,7 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
+from typing import Any
 
 import pytest
 
@@ -16,6 +17,7 @@ from ethusdc_bot.protocol_v3.pipeline import (
     BudgetUsage,
     PipelineContractError,
     PipelineGeneration,
+    PreRunManifest,
     SearchBudgetPolicy,
     build_pipeline_generation,
     build_pre_run_manifest,
@@ -49,15 +51,26 @@ def _copy_pipeline_sources(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _manifest() -> tuple[PipelineGeneration, object]:
+def _manifest() -> tuple[PipelineGeneration, PreRunManifest]:
     generation = build_pipeline_generation(REPO_ROOT)
     plan = build_monthly_process_boundary_plan("2026-07-08")
     return generation, build_pre_run_manifest(generation, plan, code_commit=COMMIT)
 
 
+def _all_object_keys(value: Any) -> set[str]:
+    keys: set[str] = set()
+    if isinstance(value, dict):
+        for key, item in value.items():
+            keys.add(str(key))
+            keys.update(_all_object_keys(item))
+    elif isinstance(value, list):
+        for item in value:
+            keys.update(_all_object_keys(item))
+    return keys
+
+
 def test_task2_boundary_contract_remains_valid_before_task3_identity() -> None:
     plan = build_monthly_process_boundary_plan("2026-07-08")
-
     assert len(plan.origins) == 12
     assert len(plan.iter_process_oos_days()) == 365
     assert all(origin.training_day_count == 730 for origin in plan.origins)
@@ -71,7 +84,7 @@ def test_pipeline_generation_is_deterministic_and_binds_all_components() -> None
     assert first.generation_id.startswith("protocol_v3_pipeline_sha256:")
     assert len(first.generation_id.rsplit(":", 1)[1]) == 64
     basis = first.basis()
-    assert set(basis["component_contracts"]) == {
+    expected_components = {
         "boundary_rules",
         "candidate_families",
         "context_policy",
@@ -82,20 +95,20 @@ def test_pipeline_generation_is_deterministic_and_binds_all_components() -> None
         "search_space",
         "simulator",
     }
-    assert set(basis["component_source_sha256"]) == set(basis["component_contracts"])
+    assert set(basis["component_contracts"]) == expected_components
+    assert set(basis["component_source_sha256"]) == expected_components
     assert basis["budget_policy"] == SearchBudgetPolicy.canonical().to_dict()
     assert basis["target_policy"]["target_is_search_loss"] is False
     assert basis["target_policy"]["target_hit_may_stop_search"] is False
 
 
-def test_bound_source_change_creates_new_generation_only_for_forward_namespace(
+def test_bound_source_change_creates_new_generation_and_only_new_forward_namespace(
     tmp_path: Path,
 ) -> None:
     root = _copy_pipeline_sources(tmp_path)
     first = build_pipeline_generation(root)
-
     feature_path = root / "src/ethusdc_bot/backtest/features.py"
-    feature_path.write_bytes(feature_path.read_bytes() + b"\n# generation-change-fixture\n")
+    feature_path.write_bytes(feature_path.read_bytes() + b"\n# changed\n")
     second = build_pipeline_generation(root)
 
     assert second.generation_id != first.generation_id
@@ -110,7 +123,6 @@ def test_bound_source_change_creates_new_generation_only_for_forward_namespace(
 def test_missing_bound_source_blocks_generation_fail_closed(tmp_path: Path) -> None:
     root = _copy_pipeline_sources(tmp_path)
     (root / "src/ethusdc_bot/backtest/features.py").unlink()
-
     with pytest.raises(PipelineContractError, match="missing or unreadable"):
         build_pipeline_generation(root)
 
@@ -156,10 +168,9 @@ def test_pipeline_contract_rejects_path_escape_and_missing_component() -> None:
         validate_pipeline_contract(missing)
 
 
-def test_budget_policy_contains_exact_global_maxima() -> None:
+def test_budget_policy_contains_exact_per_cycle_and_global_maxima() -> None:
     policy = SearchBudgetPolicy.canonical()
     policy.validate()
-
     assert policy.outer_origins == 12
     assert policy.max_cycles_per_origin == 8
     assert (
@@ -168,17 +179,18 @@ def test_budget_policy_contains_exact_global_maxima() -> None:
         policy.walk_forward_per_cycle,
         policy.finalists_per_cycle,
     ) == (40, 12, 3, 2)
-    assert policy.max_total_cycles == 96
-    assert policy.max_total_generated == 3840
-    assert policy.max_total_tested == 1152
-    assert policy.max_total_walk_forward == 288
-    assert policy.max_total_finalists == 192
+    assert (
+        policy.max_total_cycles,
+        policy.max_total_generated,
+        policy.max_total_tested,
+        policy.max_total_walk_forward,
+        policy.max_total_finalists,
+    ) == (96, 3840, 1152, 288, 192)
 
 
 def test_budget_reservations_cannot_exceed_per_origin_or_global_caps() -> None:
     policy = SearchBudgetPolicy.canonical()
     usage = BudgetUsage()
-
     for origin_index in range(1, 13):
         for _ in range(8):
             usage = usage.reserve_next_cycle(origin_index, policy)
@@ -196,7 +208,6 @@ def test_budget_reservations_cannot_exceed_per_origin_or_global_caps() -> None:
 def test_budget_usage_rejects_forged_or_noncanonical_reservations() -> None:
     policy = SearchBudgetPolicy.canonical()
     usage = BudgetUsage().reserve_next_cycle(1, policy)
-
     with pytest.raises(PipelineContractError, match="does not match"):
         validate_budget_usage(replace(usage, reserved_generated=39), policy)
     with pytest.raises(PipelineContractError, match="twelve origin"):
@@ -208,7 +219,6 @@ def test_budget_usage_rejects_forged_or_noncanonical_reservations() -> None:
 def test_actual_cycle_counts_are_nested_and_never_above_40_12_3_2() -> None:
     validate_actual_cycle_counts(generated=40, tested=12, walk_forward=3, finalists=2)
     validate_actual_cycle_counts(generated=10, tested=5, walk_forward=2, finalists=1)
-
     with pytest.raises(PipelineContractError, match="40/12/3/2"):
         validate_actual_cycle_counts(generated=41, tested=12, walk_forward=3, finalists=2)
     with pytest.raises(PipelineContractError, match="nested"):
@@ -224,14 +234,11 @@ def test_stagnation_can_only_shorten_and_never_expand_budget() -> None:
         usage = usage.reserve_next_cycle(1, policy)
     before = usage
 
-    assert (
-        stagnation_stop_reason(
-            completed_cycles=2,
-            consecutive_non_improving_cycles=2,
-            policy=policy,
-        )
-        is None
-    )
+    assert stagnation_stop_reason(
+        completed_cycles=2,
+        consecutive_non_improving_cycles=2,
+        policy=policy,
+    ) is None
     assert stagnation_stop_reason(
         completed_cycles=3,
         consecutive_non_improving_cycles=3,
@@ -257,13 +264,13 @@ def test_pre_run_manifest_is_timestamp_free_deterministic_and_self_validating() 
     )
 
     assert manifest == same
-    assert "timestamp" not in manifest.canonical_payload_json
-    assert "created_at" not in manifest.canonical_payload_json
+    forbidden = {"timestamp", "created_at", "generated_at", "started_at", "wall_clock_time"}
+    assert _all_object_keys(manifest.payload()).isdisjoint(forbidden)
     validate_pre_run_manifest(manifest)
     assert len(manifest.manifest_sha256) == 64
 
 
-def test_pre_run_manifest_rejects_invalid_commit_and_tampering() -> None:
+def test_pre_run_manifest_rejects_invalid_commit_and_digest_tampering() -> None:
     generation = build_pipeline_generation(REPO_ROOT)
     plan = build_monthly_process_boundary_plan("2026-07-08")
     with pytest.raises(PipelineContractError, match="40-character"):
@@ -275,39 +282,34 @@ def test_pre_run_manifest_rejects_invalid_commit_and_tampering() -> None:
         validate_pre_run_manifest(manifest)
 
 
-def test_pre_run_manifest_rejects_recomputed_timestamp_or_boundary_tampering() -> None:
+def test_pre_run_manifest_rejects_recomputed_time_or_boundary_tampering() -> None:
     _, frozen = _manifest()
-    payload = frozen.payload()
-    payload["timestamp"] = "2026-07-14T00:00:00Z"
-    payload["manifest_sha256"] = hashlib.sha256(
-        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    timed = frozen.payload()
+    timed["timestamp"] = "2026-07-14T00:00:00Z"
+    timed["manifest_sha256"] = hashlib.sha256(
+        json.dumps(timed, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
     with pytest.raises(PipelineContractError, match="fields|wall-clock"):
-        validate_pre_run_manifest(payload)
+        validate_pre_run_manifest(timed)
 
-    boundary_tampered = frozen.to_dict()
-    boundary_tampered["boundary_plan"]["boundary_dates"][1] = "2025-08-09"
-    raw = dict(boundary_tampered)
-    raw.pop("manifest_sha256")
-    boundary_tampered["boundary_plan_sha256"] = hashlib.sha256(
+    tampered = frozen.to_dict()
+    tampered["boundary_plan"]["boundary_dates"][1] = "2025-08-09"
+    tampered["boundary_plan_sha256"] = hashlib.sha256(
         json.dumps(
-            boundary_tampered["boundary_plan"],
-            sort_keys=True,
-            separators=(",", ":"),
+            tampered["boundary_plan"], sort_keys=True, separators=(",", ":")
         ).encode("utf-8")
     ).hexdigest()
-    raw = dict(boundary_tampered)
+    raw = dict(tampered)
     raw.pop("manifest_sha256")
-    boundary_tampered["manifest_sha256"] = hashlib.sha256(
+    tampered["manifest_sha256"] = hashlib.sha256(
         json.dumps(raw, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
     with pytest.raises(PipelineContractError, match="canonical task-2 plan"):
-        validate_pre_run_manifest(boundary_tampered)
+        validate_pre_run_manifest(tampered)
 
 
-def test_seeds_are_stable_scoped_and_within_unsigned_64_bit_range() -> None:
+def test_seeds_are_stable_scoped_and_unsigned_64_bit() -> None:
     _, manifest = _manifest()
-
     first = origin_cycle_seed(manifest, origin_index=1, cycle_index=1)
     repeated = origin_cycle_seed(manifest, origin_index=1, cycle_index=1)
     next_cycle = origin_cycle_seed(manifest, origin_index=1, cycle_index=2)
@@ -327,7 +329,6 @@ def test_seeds_are_stable_scoped_and_within_unsigned_64_bit_range() -> None:
 
 def test_seed_scope_and_indexes_are_fail_closed() -> None:
     _, manifest = _manifest()
-
     with pytest.raises(PipelineContractError, match="origin_index"):
         origin_cycle_seed(manifest, origin_index=13, cycle_index=1)
     with pytest.raises(PipelineContractError, match="cycle_index"):
@@ -338,7 +339,6 @@ def test_seed_scope_and_indexes_are_fail_closed() -> None:
 
 def test_pipeline_generation_identity_and_namespaces_detect_tampering() -> None:
     generation = build_pipeline_generation(REPO_ROOT)
-
     with pytest.raises(PipelineContractError, match="generation id"):
         validate_pipeline_generation(
             replace(generation, generation_id="protocol_v3_pipeline_sha256:" + "0" * 64)
