@@ -82,7 +82,7 @@ _CANONICAL_CONTRACT: dict[str, Any] = {
         "rounding": "ROUND_DOWN",
         "required_filters": ["LOT_SIZE", "MARKET_LOT_SIZE"],
         "positive_step_intersection_required": True,
-        "zero_market_step_falls_back_to_lot_size": True,
+        "both_step_sizes_must_be_positive": True,
         "min_quantity_uses_stricter_bound": True,
         "max_quantity_uses_stricter_bound": True,
         "exit_quantity_equals_entry_quantity": True,
@@ -248,13 +248,12 @@ def build_market_execution_rules(
 
     lot_step = _decimal(lot_filter.get("step_size"), "LOT_SIZE.step_size")
     market_step = _decimal(
-        market_filter.get("step_size"),
-        "MARKET_LOT_SIZE.step_size",
-        allow_zero=True,
+        market_filter.get("step_size"), "MARKET_LOT_SIZE.step_size"
     )
-    positive_steps: list[tuple[str, Decimal]] = [("LOT_SIZE", lot_step)]
-    if market_step > 0:
-        positive_steps.append(("MARKET_LOT_SIZE", market_step))
+    positive_steps: list[tuple[str, Decimal]] = [
+        ("LOT_SIZE", lot_step),
+        ("MARKET_LOT_SIZE", market_step),
+    ]
     effective_step = _decimal_lcm([step for _, step in positive_steps])
 
     minimum_quantity = max(
