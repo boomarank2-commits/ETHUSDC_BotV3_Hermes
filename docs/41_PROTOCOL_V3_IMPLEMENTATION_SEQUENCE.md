@@ -2,7 +2,7 @@
 
 Stand: 2026-07-14
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 6/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 7/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -121,15 +121,27 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 ## Aufgabe 7 – Notional-, Mengen-, Gebühren- und Rundungsparität herstellen
 
-**Status:** `NOT_STARTED` – exakt nächste Aufgabe
+**Status:** `DONE_100`
 
 **Ziel:** Das 100-USDC-Lot realistisch gemäß Produktvertrag und Exchange-Filtern simulieren.
 
-**DONE_100:** Angefordertes, reserviertes und ausgeführtes Entry-Notional werden getrennt; Menge wird auf Step Size abgerundet; Gebühren werden zusätzlich auf tatsächlichem Notional verbucht; Verkauf verwendet exakt die gekaufte Menge; Golden Trades sind bitgleich.
+**Abnahme:**
+
+- Das logische Lot berichtet `requested_entry_notional_usdc=100`, `reserved_entry_notional_usdc=100` und ein separat berechnetes `executed_entry_notional_usdc<=100`.
+- Die Menge wird mit exakter Decimal-Arithmetik ausschließlich nach unten auf den gemeinsamen positiven `LOT_SIZE`-/`MARKET_LOT_SIZE`-Raster abgerundet.
+- Gemeinsame Min-/Max-Mengengrenzen und anwendbare `MIN_NOTIONAL`-/`NOTIONAL`-Grenzen werden für Entry und Exit fail-closed geprüft.
+- Entry-Fee basiert auf dem tatsächlich ausgeführten Entry-Notional; Exit-Fee basiert auf dem tatsächlichen Exit-Notional und wird jeweils zusätzlich verbucht.
+- Der Exit verwendet exakt die gekaufte Entry-Menge; eine zweite Mengenrundung ist ausgeschlossen.
+- Single-Position- und Portfolio-/Shadow-Pfad verwenden dieselbe Task-7-Repricing- und MTM-Logik; gemeinsame Golden-Trade-Felder sind bitgleich.
+- Sequentielle Trades verwenden unverändert jeweils 100 USDC requested/reserved; Compounding bleibt aus.
+- Kosten- und Simulatorvertrag sowie neue Ausführungsquellen sind an Pipelinegeneration und Run-Fingerprint gebunden.
+- Tick-Rundung, Next-Tradable-Price, Intrabar-Priorität und Gap-Fills aus Aufgabe 8 wurden nicht vorgezogen.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_07_2026-07-14.md`
 
 ## Aufgabe 8 – Next-Tradable-Price und pessimistische Intrabar-Ausführung
 
-**Status:** `NOT_STARTED`
+**Status:** `NOT_STARTED` – exakt nächste Aufgabe
 
 **Ziel:** Signal-, Entry-, Stop-, TP-, Trail-, Gap- und Time-Exit-Reihenfolge realistisch festlegen.
 
@@ -346,9 +358,9 @@ Protocol v3: Aufgabe X/33 – <Titel> – NOT_STARTED | IN_PROGRESS | BLOCKED | 
 Aktueller Stand:
 
 ```text
-Protocol v3: Aufgabe 6/33 – Exchange-Info-Snapshot und vollständige Run-Fingerprints bauen – DONE_100
-Protocol v3: Aufgabe 7/33 – Notional-, Mengen-, Gebühren- und Rundungsparität herstellen – NOT_STARTED
-Gesamt: 6/33 DONE_100 = 18,18 %
+Protocol v3: Aufgabe 7/33 – Notional-, Mengen-, Gebühren- und Rundungsparität herstellen – DONE_100
+Protocol v3: Aufgabe 8/33 – Next-Tradable-Price und pessimistische Intrabar-Ausführung – NOT_STARTED
+Gesamt: 7/33 DONE_100 = 21,21 %
 ```
 
 Nach jeder Aufgabe werden ausschließlich der abgeschlossene Schritt und die exakt nächste Aufgabe freigegeben. Fortschritt wird nicht nach Zeit oder Token geschätzt, sondern als `DONE_100 / 33` ausgewiesen.
