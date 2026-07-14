@@ -132,23 +132,23 @@ def test_task6_exchange_snapshot_and_task7_contract_remain_fail_closed() -> None
         validate_execution_parity_contract(changed)
 
 
-def test_quantity_uses_positive_step_intersection_and_zero_market_fallback() -> None:
+def test_quantity_uses_positive_step_intersection() -> None:
     intersection = build_market_execution_rules(
         _snapshot(lot_step="0.0001", market_step="0.001")
     )
     assert str(intersection.effective_quantity_step) == "0.001"
     assert intersection.quantity_step_sources == ("LOT_SIZE", "MARKET_LOT_SIZE")
 
-    fallback = build_market_execution_rules(
-        _snapshot(lot_step="0.0001", market_step="0")
+    equal_steps = build_market_execution_rules(
+        _snapshot(lot_step="0.0001", market_step="0.0001")
     )
-    assert str(fallback.effective_quantity_step) == "0.0001"
-    assert fallback.quantity_step_sources == ("LOT_SIZE",)
+    assert str(equal_steps.effective_quantity_step) == "0.0001"
+    assert equal_steps.quantity_step_sources == ("LOT_SIZE", "MARKET_LOT_SIZE")
 
 
 def test_requested_reserved_and_executed_notional_are_separate_and_fees_additional() -> None:
     rules = build_market_execution_rules(
-        _snapshot(lot_step="0.001", market_step="0")
+        _snapshot(lot_step="0.001", market_step="0.001")
     )
     entry = prepare_market_entry("1000", "0.001", rules)
 
