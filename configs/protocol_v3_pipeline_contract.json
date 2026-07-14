@@ -6,7 +6,7 @@
     "boundary_rules": "protocol_v3_monthly_boundary_v1",
     "candidate_families": "bounded_regime_specialists_v1",
     "context_policy": "three_market_context_and_dynamic_snapshot_v1",
-    "cost_model": "fee_10bps_slippage_5bps_v1",
+    "cost_model": "fee_10bps_slippage_5bps_actual_notional_v1",
     "feature_contract": "causal_multitimeframe_features_with_dynamic_warmup_v1",
     "quality_gates": [
       "quality_gate_v1",
@@ -15,7 +15,7 @@
     ],
     "ranking": "protocol_v3_lexicographic_inner_ranking_v1",
     "search_space": "protocol_v3_bounded_search_identity_global_budget_and_run_fingerprint_v1",
-    "simulator": "conservative_spot_long_only_v1"
+    "simulator": "conservative_spot_long_only_execution_parity_v1"
   },
   "source_bindings": {
     "boundary_rules": [
@@ -33,8 +33,10 @@
       "src/ethusdc_bot/protocol_v3/data_snapshot.py"
     ],
     "cost_model": [
+      "configs/protocol_v3_execution_parity_contract.json",
       "docs/31_PORTFOLIO_SHADOW_PRODUCT_CONTRACT.md",
-      "src/ethusdc_bot/backtest/simulator.py"
+      "src/ethusdc_bot/backtest/simulator.py",
+      "src/ethusdc_bot/protocol_v3/execution_parity.py"
     ],
     "feature_contract": [
       "configs/protocol_v3_data_snapshot_contract.json",
@@ -61,7 +63,10 @@
       "src/ethusdc_bot/protocol_v3/run_identity.py"
     ],
     "simulator": [
-      "src/ethusdc_bot/backtest/simulator.py"
+      "configs/protocol_v3_execution_parity_contract.json",
+      "src/ethusdc_bot/backtest/portfolio_simulator.py",
+      "src/ethusdc_bot/backtest/simulator.py",
+      "src/ethusdc_bot/protocol_v3/execution_parity.py"
     ]
   },
   "budget_policy": {
