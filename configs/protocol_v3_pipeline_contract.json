@@ -14,7 +14,7 @@
       "permanent_trial_history_v1"
     ],
     "ranking": "protocol_v3_lexicographic_inner_ranking_v1",
-    "search_space": "protocol_v3_bounded_search_identity_and_global_budget_v1",
+    "search_space": "protocol_v3_bounded_search_identity_global_budget_and_run_fingerprint_v1",
     "simulator": "conservative_spot_long_only_v1"
   },
   "source_bindings": {
@@ -54,9 +54,11 @@
       "src/ethusdc_bot/backtest/research_runner.py"
     ],
     "search_space": [
+      "configs/protocol_v3_run_identity_contract.json",
       "src/ethusdc_bot/backtest/search_space.py",
       "src/ethusdc_bot/protocol_v3/global_budget.py",
-      "src/ethusdc_bot/protocol_v3/pipeline.py"
+      "src/ethusdc_bot/protocol_v3/pipeline.py",
+      "src/ethusdc_bot/protocol_v3/run_identity.py"
     ],
     "simulator": [
       "src/ethusdc_bot/backtest/simulator.py"
