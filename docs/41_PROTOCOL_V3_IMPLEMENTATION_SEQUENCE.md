@@ -2,7 +2,7 @@
 
 Stand: 2026-07-14
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 8/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 9/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -165,15 +165,31 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 ## Aufgabe 9 – Warmup-, Purge-, Fold-End- und Outer-State-Maschine
 
-**Status:** `NOT_STARTED` – exakt nächste Aufgabe
+**Status:** `DONE_100`
 
 **Ziel:** Informationsintervalle, Pending Entry, Cooldown, offene Position und Modellwechsel kausal behandeln.
 
-**DONE_100:** Purge folgt maximalem Horizont plus Latenz und Ausführungsbar; innere Folds starten flat und liquidieren konservativ; zwischen Origins wird nur eine offene Altposition mit alter Exitlogik übertragen; alte Konfiguration ist exit-only, neue wartet auf `valid_from` und `flat_time`.
+**Abnahme:**
+
+- Warmup darf ausschließlich kausale Feature-Reads speisen; Signal, Label, PnL, Scaler-, Quantile- und Regimefit aus Warmup sind technisch blockiert.
+- `purge_duration=max(max_label_horizon,max_holding_period+pending_entry_latency)+1 Ausführungsbar` ist eingefroren; Boundary-Touch purgt und längere Ist-Horizonte blockieren.
+- Innere Folds starten vollständig flat ohne Position, Pending Entry, Cooldown, Scaler oder Runtime-Modellzustand.
+- Pending Entries werden am Fold-Ende verworfen; offene Fold-Positionen werden am letzten positiven Volumen-Bar-Close mit Task-8-Sell-Fill sowie Task-7-Menge und Fees konservativ liquidiert.
+- Der Open-Position-State bindet Bundle, Menge, Entry, Entry-Fees, Stop, Target, Trail, Break-even, High-Watermark, Time-Stop, Execution-Rules und Kostenprofil.
+- Die erste Outer-Origin startet vollständig flat; zwischen späteren Origins wird ausschließlich höchstens eine offene Position mit ihrer ursprünglichen Bundle- und Exitlogik übertragen.
+- Pending Entry, Cooldown, Scaler und Runtime-Modellzustand werden an Outer-Grenzen ausdrücklich verworfen.
+- Die alte Konfiguration ist `exit_only`; die neue Konfiguration kann keinen Entry erzeugen, solange die Altposition offen ist.
+- Nach dem Altpositions-Exit gilt `entry_enabled_at=max(valid_from,flat_time)`; ein erst bei `valid_until` flach werdender Kandidat verfällt als `NO_TRADE_EXPIRED`.
+- Monatsgrenzen liquidieren nie künstlich; nur am Ende des gesamten Prozessfensters ist eine explizite konservative Prozessliquidation zulässig.
+- Rotation-State ist semantisch revalidierbar, kanonisch serialisierbar und SHA-256-identifizierbar.
+- Runtime-Vertrag und Implementierung sind in Boundary- und Simulator-Digest, Pipelinegeneration und Run-Fingerprint gebunden; Task-8-Ausführung und Kostenmodell bleiben unverändert.
+- Keine Kontext-, exakte Fold-Planer-, Cache-, Outer-Orchestrierungs-, Report- oder UI-Arbeit aus späteren Aufgaben wurde vorgezogen.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_09_2026-07-14.md`
 
 ## Aufgabe 10 – Kontextparität und Drei-Markt-Watermark
 
-**Status:** `NOT_STARTED`
+**Status:** `NOT_STARTED` – exakt nächste Aufgabe
 
 **Ziel:** Kontext in Research, Replay, Finalpfad und Challenger identisch als reines Veto/Bestätigung verwenden.
 
@@ -374,9 +390,9 @@ Protocol v3: Aufgabe X/33 – <Titel> – NOT_STARTED | IN_PROGRESS | BLOCKED | 
 Aktueller Stand:
 
 ```text
-Protocol v3: Aufgabe 8/33 – Next-Tradable-Price und pessimistische Intrabar-Ausführung – DONE_100
-Protocol v3: Aufgabe 9/33 – Warmup-, Purge-, Fold-End- und Outer-State-Maschine – NOT_STARTED
-Gesamt: 8/33 DONE_100 = 24,24 %
+Protocol v3: Aufgabe 9/33 – Warmup-, Purge-, Fold-End- und Outer-State-Maschine – DONE_100
+Protocol v3: Aufgabe 10/33 – Kontextparität und Drei-Markt-Watermark – NOT_STARTED
+Gesamt: 9/33 DONE_100 = 27,27 %
 ```
 
 Nach jeder Aufgabe werden ausschließlich der abgeschlossene Schritt und die exakt nächste Aufgabe freigegeben. Fortschritt wird nicht nach Zeit oder Token geschätzt, sondern als `DONE_100 / 33` ausgewiesen.
