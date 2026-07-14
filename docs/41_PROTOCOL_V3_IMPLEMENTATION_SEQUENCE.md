@@ -2,7 +2,7 @@
 
 Stand: 2026-07-14
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 3/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 4/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -50,33 +50,48 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 - Pipelinegeneration bindet Feature-, Familien-, Kontext-, Suchraum-, Ranking-, Gate-, Kosten-, Simulator-, Boundary- und Identitätsquellen per SHA-256.
 - Ein timestamp-freies kanonisches Pre-Run-Manifest bindet Git-Commit, Pipelinegeneration und Task-2-Boundary-Plan.
 - Seeds entstehen deterministisch als unsigned 64 Bit aus Manifest plus Origin/Cycle/Stage-Namespace.
-- Grenzen 12 Origins, 8 Cycles, 40/12/3/2 und globale Maxima 96/3840/1152/288/192 sind technisch unüberschreitbar.
+- Der reine 12-Origin-Prozess erzwingt maximal 96 Cycles und 3.840/1.152/288/192 Stufenreservierungen.
+- Die gebundene globale Hülle ergänzt genau einen aktuellen Refit und erzwingt insgesamt 104/4.160/1.248/312/208.
 - `selection_stagnation_3_cycles` kann nur verkürzen und niemals Budgets erweitern; das 3-USDC-Ziel ist keine Stopregel.
 - Eine neue Generation erhält nur einen neuen Forward-Ledger-Namespace; der permanente Trial-Counter bleibt generationsübergreifend.
 
-**Bericht:** `handoff/PROTOCOL_V3_TASK_03_2026-07-14.md`
+**Berichte:**
+
+- `handoff/PROTOCOL_V3_TASK_03_2026-07-14.md`
+- `handoff/PROTOCOL_V3_TASK_03_BUDGET_CORRECTION_2026-07-14.md`
 
 ## Aufgabe 4 – Permanentes Trial-Ledger und historischen Import bauen
 
-**Status:** `NOT_STARTED` – exakt nächste Aufgabe
+**Status:** `DONE_100`
 
 **Ziel:** Jeden dateninformierten Versuch append-only und generationsübergreifend erfassen.
 
-**DONE_100:**
+**Abnahme:**
 
-- Deterministische Trial-ID, Kandidat, Parameter, Featurevariante, Seed, Ranking-/Gate-Version, Codehash und kausale Tagesreihe werden gespeichert.
-- Cache-Hits bleiben als Wiederverwendung sichtbar und werden nicht als unabhängiger neuer Versuch gezählt.
-- Rekonstruierbare historische Trials werden importiert und mit `historical_trial_count_is_lower_bound=true` markiert.
-- Unvollständige Trial-Historie oder fehlende Tagesreihen erzwingen `DSR=INSUFFICIENT_TRIAL_HISTORY`; nur `NO_TRADE` ist dann freigabefähig.
-- Ein bewerteter Trial kann weder gelöscht noch unprotokolliert verändert werden.
+- Deterministische Trial-ID bindet Kandidat, Parameter, Featurevariante, Seed, Ranking-/Gate-/Simulator-/Kosten-/Boundary-Version, Codehash, Scope und kausale Tagesreihe.
+- Hashverkettete, sequenzierte Eventdateien plus digest-gebundener Head erkennen Mutation, Löschung, Lücke, Umbenennung und gebrochene Kette.
+- Manuelle Änderungen nach Ergebnissicht zählen als eigener Trial.
+- Cache-Hits und byte-identische Reportkopien bleiben sichtbare Wiederverwendung und zählen nicht als unabhängiger Trial.
+- Protocol-v2- und ältere Research-Reports können nur mit rekonstruierbarer Identität importiert werden; fehlende Felder werden nicht erfunden.
+- Der belegbare Altbestand bleibt ehrlich `historical_trial_count_is_lower_bound=true`: 180 bekannte Bewertungszeilen, aber derzeit 0 vollständig aufgelöste unabhängige Alt-Trials.
+- Unvollständige Historie oder fehlende Tagesreihen erzwingen `development_dsr_status=INSUFFICIENT_TRIAL_HISTORY`; nur `NO_TRADE` ist freigabefähig.
+- Eine spätere Completion erfordert vollständiges Mapping aller historischen Zeilen, Duplikat-/Cache-Reconciliation, alle kausalen Tagesreihen und kombinierte SHA-256-Attestierung.
+- Keine DSR- oder PBO-Berechnung wurde vorgezogen.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_04_2026-07-14.md`
 
 ## Aufgabe 5 – Dynamischen Drei-Markt-Datensnapshot und Warmup herstellen
 
-**Status:** `NOT_STARTED`
+**Status:** `NOT_STARTED` – exakt nächste Aufgabe
 
 **Ziel:** Gemeinsamen letzten vollständigen UTC-Tag und erforderlichen Warmup für ETHUSDC, BTCUSDC und ETHBTC dynamisch bestimmen und einfrieren.
 
-**DONE_100:** Kein Produktions-Hardcode auf `2026-07-07`; Watermark, 1.440-Minuten-Raster, Duplikate, Lücken, OHLC und Nullvolumen geprüft; Warmup aus aktiven Lookbacks; fehlender Markt blockiert.
+**DONE_100:**
+
+- Kein Produktions-Hardcode auf `2026-07-07` bleibt.
+- Watermark, 1.440-Minuten-Raster, Duplikate, Lücken, OHLC und Nullvolumen werden geprüft.
+- `warmup_duration` folgt allen aktiven Lookbacks plus einer kleinsten Quellbar.
+- Fehlender Warmup oder ein unvollständiger Markt blockiert.
 
 ## Aufgabe 6 – Exchange-Info-Snapshot und vollständige Run-Fingerprints bauen
 
@@ -84,7 +99,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** Binance-Filter und sämtliche Laufidentitäten versioniert und resume-sicher binden.
 
-**DONE_100:** PRICE_FILTER, LOT_SIZE/MARKET_LOT_SIZE und MIN_NOTIONAL/NOTIONAL versioniert; Fingerprints binden alle Daten-, Code-, Pipeline-, Feature-, Kontext-, Gate-, Kosten-, Simulator-, Boundary-, Trial- und Exchange-Info-Identitäten; Änderungen verhindern Resume/Cache-Hit.
+**DONE_100:** PRICE_FILTER, LOT_SIZE/MARKET_LOT_SIZE und MIN_NOTIONAL/NOTIONAL sind versioniert; Fingerprints binden Rohdaten, Stichtag, Code, Pipeline, Features, Kontext, Gates, Kosten, Simulator, Boundary, Trial-Head und Exchange Info; jede Änderung verhindert Resume und Cache-Hit.
 
 ## Aufgabe 7 – Notional-, Mengen-, Gebühren- und Rundungsparität herstellen
 
@@ -92,7 +107,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** Das 100-USDC-Lot realistisch gemäß Produktvertrag und Exchange-Filtern simulieren.
 
-**DONE_100:** Angefordertes, reserviertes und ausgeführtes Notional getrennt; Step-Size-Abrundung und Filter; Gebühren auf tatsächlichem Notional; Verkauf exakt der gekauften Menge; Golden Trades bitgleich.
+**DONE_100:** Angefordertes, reserviertes und ausgeführtes Entry-Notional werden getrennt; Menge wird auf Step Size abgerundet; Gebühren werden zusätzlich auf tatsächlichem Notional verbucht; Verkauf verwendet exakt die gekaufte Menge; Golden Trades sind bitgleich.
 
 ## Aufgabe 8 – Next-Tradable-Price und pessimistische Intrabar-Ausführung
 
@@ -100,7 +115,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** Signal-, Entry-, Stop-, TP-, Trail-, Gap- und Time-Exit-Reihenfolge realistisch festlegen.
 
-**DONE_100:** Entry frühestens nach abgeschlossener Signalbar; Stop gewinnt bei gleicher 1m-Kerze; Gaps zum schlechteren Preis; keine perfekten Extremfills; Basis und Stress nutzen dieselbe Engine.
+**DONE_100:** Entry frühestens nach abgeschlossener Signalbar; Stop gewinnt bei Berührung in derselben 1m-Kerze; Gaps füllen zum schlechteren Preis; perfekte Extremfills sind ausgeschlossen; Basis und Stress verwenden dieselbe Engine.
 
 ## Aufgabe 9 – Warmup-, Purge-, Fold-End- und Outer-State-Maschine
 
@@ -108,7 +123,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** Informationsintervalle, Pending Entry, Cooldown, offene Position und Modellwechsel kausal behandeln.
 
-**DONE_100:** Purge aus maximalem Horizont; innere Folds flat mit konservativem Ende; zwischen Origins nur offene Altposition mit alter Exitlogik; alte Konfiguration exit-only, neue wartet auf `valid_from` und `flat_time`.
+**DONE_100:** Purge folgt maximalem Horizont plus Latenz und Ausführungsbar; innere Folds starten flat und liquidieren konservativ; zwischen Origins wird nur eine offene Altposition mit alter Exitlogik übertragen; alte Konfiguration ist exit-only, neue wartet auf `valid_from` und `flat_time`.
 
 ## Aufgabe 10 – Kontextparität und Drei-Markt-Watermark
 
@@ -116,7 +131,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** Kontext in Research, Replay, Finalpfad und Challenger identisch als reines Veto/Bestätigung verwenden.
 
-**DONE_100:** Nur drei ausgerichtete geschlossene Bars; fehlende/stale Daten blockieren; BTCUSDC/ETHBTC können nie handeln; Kontextidentität in Fingerprints/Cache-Keys.
+**DONE_100:** Zeitpunkt `t` wird nur mit drei ausgerichteten geschlossenen Bars verarbeitet; fehlende, versetzte oder stale Daten blockieren; BTCUSDC und ETHBTC können nie handeln; Kontextidentität ist Bestandteil aller Fingerprints und Cache-Keys.
 
 ## Aufgabe 11 – Protocol-v3-Report-Schemas und Evidenzbedeutung
 
@@ -124,7 +139,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** Research-, Monatsprozess-, Challenger-, Forward- und Pipeline-Finalberichte getrennt versionieren.
 
-**DONE_100:** Eigene Schemas/Storage-Roots; Freshness, historische Zielerreichung, statistische Unterstützung und Adoption nicht falsch setzbar; sichtbare Forward-Monate nie nachträglich Finalfenster.
+**DONE_100:** Eigene Schemas und Storage-Roots verhindern Legacy-Verwechslung; Freshness, historische Zielerreichung, statistische Unterstützung und Adoption können nicht falsch gesetzt werden; sichtbare Forward-Monate können nie nachträglich Finalfenster werden.
 
 ## Aufgabe 12 – Kompakte Artefaktarchitektur
 
@@ -132,7 +147,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** Zwölf Monatsrefits ohne mehrfach eingebettete Großartefakte speicher- und lesbar machen.
 
-**DONE_100:** Kleiner Index; deduplizierte Trade-, Daily-PnL-, Equity- und Diagnostikartefakte; Digest/Schema/Provenienz; Größenbudgets; UI liest nur kleine Statusartefakte.
+**DONE_100:** Kleiner JSON-Index; getrennte deduplizierte Trade-, Daily-PnL-, Equity- und Diagnostikartefakte; Referenzen besitzen Digest, Schema und Provenienz; Größenbudgets werden geprüft; UI liest nur kleine Statusartefakte.
 
 ## Aufgabe 13 – Content-addressed Cache und transaktionales Resume
 
@@ -140,7 +155,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** Abbruch, Neustart und Cache-Wiederverwendung dürfen keine Entscheidung verändern.
 
-**DONE_100:** Cache-Key bindet alle Identitäten; Checkpoint bindet Code, Snapshot, Exchange Info, Pipeline, Trial-Head, Origins, Rotation und Store-Head; Atomic Replace, Lock und Digestprüfung verhindern Teilstände/Doppelungen; Resume bitgleich.
+**DONE_100:** Cache-Key bindet alle Daten-, Kontext-, Feature-, Kandidaten-, Fold-, Boundary-, Execution-, Simulator- und Kostenidentitäten; Checkpoints binden Code, Snapshot, Exchange Info, Pipeline, Trial-Head, Origins, Rotation und Store-Head; Atomic Replace, Lock und Digestprüfung verhindern Teilstände und doppelte Origins.
 
 ## Aufgabe 14 – Exakten inneren 6×60-Tage-Fold-Planer bauen
 
@@ -148,7 +163,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** Sechs nicht überlappende Validation-Folds auf den letzten 360 Entwicklungstagen bilden.
 
-**DONE_100:** Blueprint-Boundaries exakt; Fits wachsen ab 370 Tagen vor Purging in 60-Tage-Schritten; Timestamp-Spies beweisen keine Validation-/Outer-Sicht; fehlende Raster blockieren.
+**DONE_100:** Boundary-Objekte entsprechen exakt Blueprint Abschnitt 6.3; Fits wachsen ab 370 Tagen vor Purging in 60-Tage-Schritten; Timestamp-Spies beweisen, dass kein Fit Validation oder Outer-Test sieht; fehlende Raster blockieren.
 
 ## Aufgabe 15 – Reine innere Auswahlfunktion extrahieren
 
@@ -156,7 +171,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** `select_candidate(training_window, frozen_pipeline_config)` deterministisch und ohne UI-/Laufzeitabhängigkeit bereitstellen.
 
-**DONE_100:** Kein Zugriff nach `training_end`; gleiche Inputs/Hashes gleiche Auswahl; vorhandene Engine und 40/12/3/2 wiederverwendet; Fehler/fehlende Evidenz liefern `NO_TRADE`.
+**DONE_100:** Kein Zugriff nach `training_end` und kein Outer-Ergebnis als Input; gleiche Inputs und Hashes erzeugen dieselbe Auswahl; vorhandene Engine und 40/12/3/2-Stufen werden wiederverwendet; Fehler oder fehlende Evidenz liefern `NO_TRADE`.
 
 ## Aufgabe 16 – Vollständige Kandidaten-Tagesmatrix und Promotion-Budgets
 
@@ -164,7 +179,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** Allen zwölf getesteten Profilen dieselbe 360-Tage-OOS-Basisreihe geben.
 
-**DONE_100:** Netto-MTM inklusive Nulltage; Cash als Nullbaseline; Promotion 12 → 3 → 2 nachvollziehbar und budgetfest; jeder datenbewertete Kandidat im Trial-Ledger.
+**DONE_100:** Tägliche Netto-MTM-Reihe inklusive Nulltage je Profil; Cash als Nullbaseline; Promotion 12 Basisreihen → 3 Full-WFV → 2 Finalisten ist budgetfest; jeder datenbewertete Kandidat wird im Trial-Ledger gespeichert.
 
 ## Aufgabe 17 – PBO/CSCV exakt implementieren
 
@@ -172,7 +187,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** `development_pbo` nach 12 Blöcken und 924 Splits berechnen.
 
-**DONE_100:** IS-Ties, OOS-Ränge, Omega, Lambda und PBO vertragsgemäß; unvollständige/ungleiche Reihen liefern `INSUFFICIENT_EVIDENCE`; keine Outer-Rückkopplung.
+**DONE_100:** IS-Ties, OOS-Ränge, Omega, Lambda und PBO entsprechen dem Vertrag; unvollständige oder ungleiche Reihen liefern `INSUFFICIENT_EVIDENCE`; Outer-Ergebnisse werden nie zurückgespielt.
 
 ## Aufgabe 18 – DSR und Multiple-Testing-Diagnostik implementieren
 
@@ -180,7 +195,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** DSR mit permanenten Trials, Autokorrelation, Schiefe und Kurtosis berechnen.
 
-**DONE_100:** N, K, VIF, effektive Stichprobe, SR0, z und Phi reportierbar; Gate nutzt `N_raw`; unvollständige Historie oder ungültige Statistik blockiert; WRC/SPA getrennte Warnleuchte.
+**DONE_100:** N, K, VIF, effektive Stichprobe, SR0, z und Phi sind reportierbar; das Gate nutzt `N_raw`; unvollständige Historie oder ungültige Statistik blockiert; WRC/SPA bleibt getrennte Warnleuchte.
 
 ## Aufgabe 19 – Kausalen Multi-Timeframe-Feature-Store bauen
 
@@ -188,7 +203,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** Abgeschlossene 5m/15m/30m/1h/4h/1d-Features und Wochen-/Monatskontext fold-sicher bereitstellen.
 
-**DONE_100:** Unfertige Bars unsichtbar; Normalisierung/Quantile nur Fold-Training; Feature-State hashbar/replaybar; Warmup ohne Signal/Label/PnL; Leakage-Tests grün.
+**DONE_100:** Unfertige Bars sind unsichtbar; Normalisierung und Quantile werden ausschließlich im Fold-Training fitten; Feature-State ist hashbar und replaybar; Warmup erzeugt kein Signal, Label oder PnL; Leakage-Tests sind grün.
 
 ## Aufgabe 20 – Opportunity- und Regime-Schicht implementieren
 
@@ -196,7 +211,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** Bewegungskapazität, Trend, Range, Kompression und Stress kausal erkennen.
 
-**DONE_100:** Regimegrenzen nur Fold-Training; Entscheidungen erklärbar; keine zukünftige MFE/MAE; unbekanntes Regime führt `NO_TRADE`.
+**DONE_100:** Regimegrenzen werden nur auf Fold-Training gelernt; Entscheidungen sind erklärbar; keine zukünftige MFE/MAE wird Feature; unbekanntes oder widersprüchliches Regime führt `NO_TRADE`.
 
 ## Aufgabe 21 – Lokale Spezialisten hinter der bestehenden Engine bauen
 
@@ -204,7 +219,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** Pullback/Reclaim, Breakout/Retest, bestätigte Range-Reversion und Mehrtagesswing als kleine Challenger-Familien integrieren.
 
-**DONE_100:** Vorhandene Familien/Engine wiederverwendet; Entry/Stop/TP/Trail/Time-Exit/Tradezahl/Haltedauer begrenzt; Signal-Funnel/Ablehnungsgründe; lokale Development-Evidenz Pflicht.
+**DONE_100:** Vorhandene Familien und dieselbe Simulationsengine werden wiederverwendet; Entry, Stop, TP, Trail, Time-Exit, Tradezahl und Haltedauer sind begrenzt; jeder Spezialist hat klare Ablehnungsgründe und lokale Development-Evidenz.
 
 ## Aufgabe 22 – Router, NO_TRADE und FrozenCandidateBundle verbinden
 
@@ -212,7 +227,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** Router, Spezialisten, Fit-State und Ausführungsvertrag als gehashtes Bundle einfrieren.
 
-**DONE_100:** Router wählt Spezialist oder `NO_TRADE`; maximal ein Lot; Bundle enthält Parameter, Quantile, Scaler, Features, Kontext, Kosten, Rotation und Gültigkeit; jede Entscheidung rückführbar.
+**DONE_100:** Router wählt genau einen Spezialisten oder `NO_TRADE`; maximal ein Lot insgesamt; Bundle enthält Parameter, Quantile, Scaler, Features, Kontext, Kosten, Rotation und Gültigkeit; jede Entscheidung ist rückführbar.
 
 ## Aufgabe 23 – Zwölf äußere Monats-Origins orchestrieren
 
@@ -220,7 +235,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** Die unveränderte Auswahlpipeline an jeder Origin vollständig auf den vorherigen 730 Tagen neu ausführen.
 
-**DONE_100:** Zwölf Fit-Stichtage und genau ein Bundle/`NO_TRADE` je Origin; OOS späteren Fits unsichtbar; 365 Tage lückenlos/duplikatfrei; Origin-Fehler führt `NO_TRADE`.
+**DONE_100:** Zwölf Fit-Stichtage und genau ein Bundle oder `NO_TRADE` je Origin; OOS bleibt späteren Fits unsichtbar; 365 Tage sind lückenlos und duplikatfrei; Origin-Fehler führt `NO_TRADE`.
 
 ## Aufgabe 24 – 24h-Aktivierung und Outer-Rotation-State
 
@@ -228,7 +243,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** Alte Exitlogik und neue wartende Entrylogik deterministisch über Monatsgrenzen führen.
 
-**DONE_100:** Neue Entries frühestens `T+24h` und nach `flat_time`; altes Bundle exit-only; Rotation-State versioniert/hashbar/resume-fähig; keine Doppelentries.
+**DONE_100:** Neue Entries frühestens `T+24h` und nach `flat_time`; altes Bundle exit-only; Rotation-State versioniert, hashbar und resume-fähig; keine Doppelentries.
 
 ## Aufgabe 25 – Tägliches MTM-Ledger und zwei Zeitaggregationen
 
@@ -236,7 +251,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** Deployment-Intervalle und UTC-Kalenderperioden ohne Doppelzählung getrennt auswerten.
 
-**DONE_100:** Daily MTM inklusive Nulltage; Trade-PnL dem Exit und Kosten dem Ausführungstag; Intervalle/Monate/Quartale getrennt; Grenzpositionen genau einmal; Konsistenztests.
+**DONE_100:** Daily MTM inklusive Nulltage; Trade-PnL dem Exit und Kosten dem Ausführungstag; Intervalle, Monate und Quartale getrennt; Grenzpositionen genau einmal; Konsistenztests grün.
 
 ## Aufgabe 26 – Monthly Quality Gate, Stress und Pflichtmetriken
 
@@ -244,7 +259,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** `monthly_quality_gate_v1` ergänzend zum unveränderten Quality-Gate-v1 umsetzen.
 
-**DONE_100:** Alle inneren/Outer/Kalender/Konzentrations/Stress/Nachbarschaft/Regime/DSR/PBO/Integritätsgates; fehlende Evidenz besteht nicht; Grün/Gelb/Rot ehrlich; Gates vor Lauf eingefroren.
+**DONE_100:** Alle inneren, Outer-, Kalender-, Konzentrations-, Stress-, Nachbarschafts-, Regime-, DSR-, PBO- und Integritätsgates sind vorhanden; fehlende Evidenz besteht nicht; Grün/Gelb/Rot bleibt ehrlich; Gates sind vor dem Lauf eingefroren.
 
 ## Aufgabe 27 – Hindsight-Benchmarks, Capture-Ratios und Bootstrap
 
@@ -252,7 +267,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** Historische Zielerreichung ehrlich von frischer statistischer Unterstützung trennen.
 
-**DONE_100:** Hindsight-Solver reine Diagnostik; Capture-Ratios/Overfit-Sperren; Stationary Bootstrap 5/10/20 mit 10.000 Replikationen reproduzierbar; verbrauchte Historie nie `statistically_supported=true`.
+**DONE_100:** Hindsight-Solver ist reine Diagnostik; Capture-Ratios und Overfit-Sperren; Stationary Bootstrap 5/10/20 mit 10.000 Replikationen reproduzierbar; verbrauchte Historie kann nie `statistically_supported=true` erzeugen.
 
 ## Aufgabe 28 – Aktuellen 730-Tage-Refit und Champion/Challenger/Cash-Entscheidung
 
@@ -260,7 +275,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** Für den nächsten Anker deterministisch Bundle oder `NO_TRADE` einfrieren.
 
-**DONE_100:** Fenster `[T-730,T)`; Report mit Gültigkeit/Hashes/Bundle/Vorgänger/Wechselgrund/Stress; Champion/Challenger/Cash deterministisch; bis frische Evidenz `diagnostic_only`; keine Rückdatierung.
+**DONE_100:** Fenster `[T-730,T)`; Report mit Gültigkeit, Hashes, Bundle, Vorgänger, Wechselgrund und Stress; Champion/Challenger/Cash deterministisch; bis frische Evidenz `diagnostic_only`; keine Rückdatierung.
 
 ## Aufgabe 29 – Orderfreien Research-Challenger-Shadow bauen
 
@@ -268,7 +283,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** Retrospektive Challenger strikt getrennt vom kanonischen Adoption-Shadow virtuell beobachten.
 
-**DONE_100:** Eigener Reporttyp/Storage/Controller/Aktion/Forward-Ledger; keine Orders/API/Kontodaten/Keys; Drei-Markt-Parität; Lücken/Hashabweichung blockieren; `adopt_for_shadow` kann ihn nicht annehmen.
+**DONE_100:** Eigener Reporttyp, Storage, Controller, Aktion und Forward-Ledger; keine Orders, API, Kontodaten oder Keys; Drei-Markt-Parität; Lücken oder Hashabweichung blockieren; `adopt_for_shadow` kann ihn nicht annehmen.
 
 ## Aufgabe 30 – UI und Bedienzustände vollständig anschließen
 
@@ -276,7 +291,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** Origins, Folds, Fortschritt, Safety, Ergebnisbedeutung und manuelle Challenger-Aktion korrekt anzeigen.
 
-**DONE_100:** Keine vorzeitige Outer-PnL; vorhandene Bedienbuttons funktionieren; Ergebnis/Freshness/Champion sichtbar; Paper/Testtrade/Live/Orders gesperrt; Refresh zustandsneutral.
+**DONE_100:** Keine vorzeitige Outer-PnL; vorhandene Bedienbuttons funktionieren; Ergebnis, Freshness und Champion sichtbar; Paper, Testtrade, Live und Orders gesperrt; Refresh ist zustandsneutral.
 
 ## Aufgabe 31 – Pipeline-Final-Evaluator für ein frisches versiegeltes Jahr
 
@@ -292,7 +307,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Ziel:** Die gesamte Pipeline vor dem langen Lauf technisch beweisen.
 
-**DONE_100:** Research/Replay/Cache/Resume/Challenger bitgleich; Fehler-Injektionen vollständig; alle Tests grün; fixture-basierter 12-Origin-Dry-Run reproduzierbar; keine offene P0-Abweichung.
+**DONE_100:** Research, Replay, Cache, Resume und Challenger sind bitgleich; Fehler-Injektionen vollständig; alle Tests grün; fixture-basierter 12-Origin-Dry-Run reproduzierbar; keine offene P0-Abweichung.
 
 ## Aufgabe 33 – Erster vollständiger Protocol-v3-Research-Lauf und Abschlussbericht
 
@@ -313,9 +328,9 @@ Protocol v3: Aufgabe X/33 – <Titel> – NOT_STARTED | IN_PROGRESS | BLOCKED | 
 Aktueller Stand:
 
 ```text
-Protocol v3: Aufgabe 3/33 – Pipelinegeneration, Seeds, Budgets und Stopregeln einfrieren – DONE_100
-Protocol v3: Aufgabe 4/33 – Permanentes Trial-Ledger und historischen Import bauen – NOT_STARTED
-Gesamt: 3/33 DONE_100 = 9,09 %
+Protocol v3: Aufgabe 4/33 – Permanentes Trial-Ledger und historischen Import bauen – DONE_100
+Protocol v3: Aufgabe 5/33 – Dynamischen Drei-Markt-Datensnapshot und Warmup herstellen – NOT_STARTED
+Gesamt: 4/33 DONE_100 = 12,12 %
 ```
 
 Nach jeder Aufgabe werden ausschließlich der abgeschlossene Schritt und die exakt nächste Aufgabe freigegeben. Fortschritt wird nicht nach Zeit oder Token geschätzt, sondern als `DONE_100 / 33` ausgewiesen.
