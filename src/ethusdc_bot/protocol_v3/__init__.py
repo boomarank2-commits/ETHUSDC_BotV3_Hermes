@@ -54,6 +54,7 @@ from .pipeline import (
     validate_pipeline_generation,
     validate_pre_run_manifest,
 )
+from . import trial_ledger as _trial_ledger
 from .trial_ledger import (
     CANONICAL_HISTORICAL_IMPORT_PATH,
     DEVELOPMENT_DSR_INSUFFICIENT,
@@ -69,7 +70,6 @@ from .trial_ledger import (
     append_trial,
     assert_release_decision_allowed,
     attach_trial_daily_series,
-    attest_complete_trial_inventory,
     build_canonical_historical_import_digest,
     build_trial_record,
     import_canonical_historical_lower_bound,
@@ -80,6 +80,10 @@ from .trial_ledger import (
     validate_historical_lower_bound_manifest,
     validate_trial_record,
 )
+from .trial_history_gate import attest_complete_trial_inventory
+
+# Make even direct submodule imports resolve to the reconciled fail-closed gate.
+_trial_ledger.attest_complete_trial_inventory = attest_complete_trial_inventory
 
 __all__ = [
     "ACTIVATION_DELAY_HOURS",
