@@ -1,0 +1,84 @@
+{
+  "schema_version": "protocol_v3_intrabar_execution_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "next_tradable_price_pessimistic_intrabar_v1",
+  "market": {
+    "exchange": "binance",
+    "market_type": "spot",
+    "symbol": "ETHUSDC",
+    "side": "LONG",
+    "source_bar": "1m"
+  },
+  "entry_policy": {
+    "signal_bar_must_be_closed": true,
+    "earliest_fill": "next_positive_volume_1m_open",
+    "entry_reference": "next_tradable_open",
+    "adverse_slippage_direction": "up_for_buy",
+    "price_tick_rounding": "ROUND_CEILING",
+    "same_entry_bar_exit_checks_enabled": true,
+    "pending_entry_does_not_fill_on_zero_volume": true
+  },
+  "exit_policy": {
+    "stop_and_target_resolved_on": "positive_volume_1m_ohlc",
+    "simultaneous_stop_target_priority": "stop_first",
+    "time_exit_priority": "bar_open_before_intrabar",
+    "stop_gap_reference": "worse_next_tradable_open",
+    "target_gap_reference": "target_level_not_better_gap_open",
+    "intrabar_stop_reference": "active_stop_level",
+    "intrabar_target_reference": "target_level",
+    "adverse_slippage_direction": "down_for_sell",
+    "price_tick_rounding": "ROUND_FLOOR",
+    "perfect_high_low_fills_forbidden": true,
+    "exit_quantity_equals_task7_entry_quantity": true,
+    "zero_volume_bar_cannot_fill_or_advance_trailing_state": true
+  },
+  "level_policy": {
+    "initial_stop_tick_rounding": "ROUND_FLOOR",
+    "target_tick_rounding": "ROUND_CEILING",
+    "break_even_and_trailing_use_completed_prior_bars_only": true,
+    "break_even_becomes_active_next_tradable_bar": true,
+    "trailing_high_watermark_updates_after_survived_bar": true,
+    "trailing_stop_tick_rounding": "ROUND_FLOOR"
+  },
+  "terminal_policy": {
+    "finite_run_liquidation_reference": "last_positive_volume_bar_close",
+    "terminal_liquidation_is_explicit": true,
+    "missing_tradable_terminal_price_blocks": true
+  },
+  "cost_profiles": {
+    "baseline": {
+      "fee_bps_per_side": "10",
+      "slippage_bps_per_side": "5"
+    },
+    "slippage_stress": {
+      "fee_bps_per_side": "10",
+      "slippage_bps_per_side": "15"
+    },
+    "joint_stress": {
+      "fee_bps_per_side": "15",
+      "slippage_bps_per_side": "10"
+    },
+    "all_profiles_use_same_engine": true
+  },
+  "task7_dependency": {
+    "contract_version": "ethusdc_spot_fixed_lot_execution_parity_v1",
+    "requested_entry_notional_usdc": "100",
+    "reserved_entry_notional_usdc": "100",
+    "quantity_rounding": "ROUND_DOWN",
+    "fees_use_actual_notional": true
+  },
+  "scope": {
+    "fold_state_machine_deferred_to_task_9": true,
+    "context_parity_deferred_to_task_10": true,
+    "partial_fills_forbidden": true,
+    "order_book_execution_not_implemented": true
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}
