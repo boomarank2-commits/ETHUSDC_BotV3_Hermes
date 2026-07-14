@@ -1,15 +1,15 @@
 """Protocol v3 next-tradable-price and pessimistic intrabar execution.
 
-This module reuses the existing strategy signal decision and Task-7 quantity,
-notional and fee rules.  It adds exactly one Protocol-v3 execution path for
-baseline and stress profiles.  It creates no orders and never accesses private
-or account data.
+The existing strategy signal decision is reused.  Task-7 quantity, notional and
+fee rules remain the only fill-accounting implementation.  This module adds one
+Protocol-v3 timing path shared by baseline and stress profiles.  It creates no
+orders and never accesses private or account data.
 """
 
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_FLOOR
 import json
 from math import isclose, isfinite
@@ -43,7 +43,6 @@ from ethusdc_bot.protocol_v3.execution_parity import (
     EXECUTION_PARITY_CONTRACT_VERSION,
     MarketEntryExecution,
     MarketExecutionRules,
-    ProtocolV3PortfolioTrade,
     ProtocolV3Trade,
     build_market_execution_rules,
     load_execution_parity_contract,
@@ -148,7 +147,7 @@ _CANONICAL_CONTRACT: dict[str, Any] = {
 
 
 class IntrabarExecutionError(RuntimeError):
-    """Raised when Task-8 execution cannot remain deterministic and conservative."""
+    """Raised when execution cannot remain deterministic and conservative."""
 
 
 @dataclass(frozen=True)
@@ -172,8 +171,8 @@ JOINT_STRESS_COST_PROFILE: Final = ExecutionCostProfile(
     "joint_stress", Decimal("15"), Decimal("10")
 )
 _ALLOWED_COST_PROFILES: Final = {
-    profile.name: profile
-    for profile in (
+    value.name: value
+    for value in (
         BASELINE_COST_PROFILE,
         SLIPPAGE_STRESS_COST_PROFILE,
         JOINT_STRESS_COST_PROFILE,
@@ -183,6 +182,7 @@ _ALLOWED_COST_PROFILES: Final = {
 
 @dataclass(frozen=True)
 class IntrabarExitDecision:
+    exit_time: int
     reason: str
     reference_price: Decimal
     fill_price: Decimal
@@ -202,7 +202,7 @@ class ProtocolV3IntrabarTrade(ProtocolV3Trade):
     active_stop_price: float = 0.0
     target_price: float = 0.0
     high_watermark_price: float = 0.0
-    active_stop_source: str = "initial_stop"
+    active_stop_source: str = "stop_loss"
     entry_tick_rounding: str = "ROUND_CEILING"
     exit_tick_rounding: str = "ROUND_FLOOR"
     gap_fill: bool = False
@@ -251,8 +251,16 @@ def load_intrabar_execution_contract(
     *,
     contract_path: str | Path | None = None,
 ) -> dict[str, Any]:
-    root = Path(repo_root).resolve() if repo_root is not None else Path(__file__).resolve().parents[3]
-    path = Path(contract_path) if contract_path is not None else root / INTRABAR_EXECUTION_CONTRACT_PATH
+    root = (
+        Path(repo_root).resolve()
+        if repo_root is not None
+        else Path(__file__).resolve().parents[3]
+    )
+    path = (
+        Path(contract_path)
+        if contract_path is not None
+        else root / INTRABAR_EXECUTION_CONTRACT_PATH
+    )
     if not path.is_absolute():
         path = root / path
     try:
@@ -283,7 +291,7 @@ def simulate_protocol_v3_intrabar_strategy(
     blindtest_days: int = 0,
     market_context: AlignedMarketCandles | None = None,
 ) -> SimulationResult:
-    """Simulate one fixed 100-USDC LONG lot with the canonical Task-8 engine."""
+    """Simulate one fixed 100-USDC LONG lot with the Task-8 engine."""
 
     core = _simulate_core(
         candles,
@@ -298,12 +306,7 @@ def simulate_protocol_v3_intrabar_strategy(
         training_days=training_days,
         blindtest_days=blindtest_days,
     )
-    metrics = metrics.__class__(
-        **{
-            **vars(metrics),
-            "max_drawdown_usdc": max_drawdown_usdc(core.equity_curve),
-        }
-    )
+    metrics = replace(metrics, max_drawdown_usdc=max_drawdown_usdc(core.equity_curve))
     _assert_equity_endpoint(core.equity_curve, metrics.net_profit_usdc)
     return SimulationResult(
         strategy=strategy,
@@ -329,11 +332,14 @@ def simulate_protocol_v3_intrabar_portfolio_strategy(
     blindtest_days: int = 0,
     market_context: AlignedMarketCandles | None = None,
 ) -> PortfolioSimulationResult:
-    """Return the same Task-8 trades through the order-free portfolio result type."""
+    """Expose the same Task-8 core through the order-free portfolio result type."""
 
     if not isinstance(policy, PortfolioPolicy):
         raise TypeError("policy must be a PortfolioPolicy")
-    if policy.max_concurrent_lots != 1 or policy.lot_notional_usdc != FIXED_LOT_NOTIONAL_USDC:
+    if (
+        policy.max_concurrent_lots != 1
+        or policy.lot_notional_usdc != FIXED_LOT_NOTIONAL_USDC
+    ):
         raise IntrabarExecutionError(
             "Task-8 canonical Protocol v3 profile must remain 100 USDC with one open lot"
         )
@@ -358,12 +364,7 @@ def simulate_protocol_v3_intrabar_portfolio_strategy(
         training_days=training_days,
         blindtest_days=blindtest_days,
     )
-    metrics = metrics.__class__(
-        **{
-            **vars(metrics),
-            "max_drawdown_usdc": max_drawdown_usdc(core.equity_curve),
-        }
-    )
+    metrics = replace(metrics, max_drawdown_usdc=max_drawdown_usdc(core.equity_curve))
     _assert_equity_endpoint(core.equity_curve, metrics.net_profit_usdc)
     return PortfolioSimulationResult(
         strategy=strategy,
@@ -458,7 +459,7 @@ def _simulate_core(
                 funnel["blocked.zero_volume_pending_entry"] += 1
 
         if position is not None and candle.volume > 0:
-            decision = _exit_decision(
+            exit_decision = _exit_decision(
                 candle,
                 index,
                 position,
@@ -466,8 +467,8 @@ def _simulate_core(
                 rules,
                 profile,
             )
-            if decision is not None:
-                trade = _close_position(position, decision, rules, profile)
+            if exit_decision is not None:
+                trade = _close_position(position, exit_decision, rules, profile)
                 trades.append(trade)
                 realized += _decimal(
                     trade.net_profit_usdc,
@@ -487,8 +488,8 @@ def _simulate_core(
                 raise IntrabarExecutionError(
                     "finite run cannot liquidate an open lot without a positive-volume terminal bar"
                 )
-            decision = _terminal_decision(candle, position, rules, profile)
-            trade = _close_position(position, decision, rules, profile)
+            terminal = _terminal_decision(candle, position, rules, profile)
+            trade = _close_position(position, terminal, rules, profile)
             trades.append(trade)
             realized += _decimal(
                 trade.net_profit_usdc,
@@ -501,7 +502,7 @@ def _simulate_core(
             funnel["exits.end_of_data"] += 1
 
         if position is not None and not exited and candle.volume > 0:
-            _advance_completed_bar_state(position, candle, strategy, rules)
+            _advance_completed_bar_state(position, candle, rules)
 
         if position is not None:
             funnel["blocked.position_open"] += 1
@@ -513,21 +514,21 @@ def _simulate_core(
             funnel["blocked.cooldown"] += 1
         else:
             funnel["entry_evaluations"] += 1
-            decision = _entry_decision(
+            entry_decision = _entry_decision(
                 candles,
                 index,
                 strategy,
                 market_context=market_context,
                 context_policy=context_policy,
             )
-            if decision.raw_signal:
+            if entry_decision.raw_signal:
                 funnel["raw_entry_signals"] += 1
-            if decision.allowed:
+            if entry_decision.allowed:
                 funnel["accepted_entry_signals"] += 1
                 pending_signal_time = candle.open_time + EXPECTED_STEP_MS - 1
                 max_reserved = max(max_reserved, Decimal("100"))
             else:
-                reason = decision.reason or "entry_signal_absent"
+                reason = entry_decision.reason or "entry_signal_absent"
                 rejections[reason] += 1
                 funnel["rejected_signals"] += 1
                 funnel[f"rejected.{reason}"] += 1
@@ -585,7 +586,9 @@ def _open_position(
     entry_reference = _decimal(candle.open, "entry_reference_price")
     entry_fill = _buy_fill(entry_reference, profile.slippage_bps_per_side, rules)
     entry = prepare_market_entry(entry_fill, profile.fee_rate, rules)
-    stop_bps = _positive_bps(strategy.params.get("stop_loss_bps", 60), "stop_loss_bps")
+    stop_bps = _positive_bps(
+        strategy.params.get("stop_loss_bps", 60), "stop_loss_bps"
+    )
     target_bps = _positive_bps(
         strategy.params.get("take_profit_bps", 80), "take_profit_bps"
     )
@@ -647,6 +650,7 @@ def _exit_decision(
     open_price = _decimal(candle.open, "candle.open")
     if index - position.entry_index >= max_hold:
         return _decision(
+            candle.open_time,
             "time_exit",
             open_price,
             position,
@@ -657,6 +661,7 @@ def _exit_decision(
         )
     if open_price <= position.active_stop_price:
         return _decision(
+            candle.open_time,
             position.active_stop_source,
             open_price,
             position,
@@ -667,6 +672,7 @@ def _exit_decision(
         )
     if open_price >= position.target_price:
         return _decision(
+            candle.open_time,
             "take_profit",
             position.target_price,
             position,
@@ -681,6 +687,7 @@ def _exit_decision(
     target_touch = high >= position.target_price
     if stop_touch:
         return _decision(
+            candle.open_time,
             position.active_stop_source,
             position.active_stop_price,
             position,
@@ -691,6 +698,7 @@ def _exit_decision(
         )
     if target_touch:
         return _decision(
+            candle.open_time,
             "take_profit",
             position.target_price,
             position,
@@ -703,6 +711,7 @@ def _exit_decision(
 
 
 def _decision(
+    exit_time: int,
     reason: str,
     reference: Decimal,
     position: _OpenPosition,
@@ -713,6 +722,7 @@ def _decision(
     simultaneous: bool,
 ) -> IntrabarExitDecision:
     return IntrabarExitDecision(
+        exit_time=exit_time,
         reason=reason,
         reference_price=reference,
         fill_price=_sell_fill(reference, profile.slippage_bps_per_side, rules),
@@ -732,6 +742,7 @@ def _terminal_decision(
 ) -> IntrabarExitDecision:
     reference = _decimal(candle.close, "terminal_close")
     return IntrabarExitDecision(
+        exit_time=candle.open_time + EXPECTED_STEP_MS - 1,
         reason="end_of_data",
         reference_price=reference,
         fill_price=_sell_fill(reference, profile.slippage_bps_per_side, rules),
@@ -747,7 +758,6 @@ def _terminal_decision(
 def _advance_completed_bar_state(
     position: _OpenPosition,
     candle: Candle,
-    strategy: StrategyCandidate,
     rules: MarketExecutionRules,
 ) -> None:
     high = _decimal(candle.high, "candle.high")
@@ -798,11 +808,7 @@ def _close_position(
         symbol=SYMBOL,
         side="LONG",
         entry_time=position.entry_time,
-        exit_time=(
-            position.entry_time
-            if decision.terminal_liquidation and position.entry_time < 0
-            else 0
-        ),
+        exit_time=decision.exit_time,
         entry_price=_float10(position.entry_fill_price),
         exit_price=_float10(decision.fill_price),
         quantity=_float10(quantity),
@@ -868,9 +874,7 @@ def _open_liquidation_pnl(
         profile.fee_rate,
         rules,
     )
-    gross = (
-        fill - position.entry_fill_price
-    ) * position.entry.executed_quantity
+    gross = (fill - position.entry_fill_price) * position.entry.executed_quantity
     return gross - position.entry.entry_fee - exit_fill.exit_fee
 
 
@@ -921,14 +925,22 @@ def _validate_inputs(
         if not isinstance(candle, Candle):
             raise TypeError("candles must contain only Candle values")
         if type(candle.open_time) is not int or candle.open_time < 0:
-            raise IntrabarExecutionError("candle open_time must be a non-negative integer")
+            raise IntrabarExecutionError(
+                "candle open_time must be a non-negative integer"
+            )
         if candle.open_time % EXPECTED_STEP_MS != 0:
             raise IntrabarExecutionError("candles must align to the UTC 1m grid")
         if previous is not None and candle.open_time - previous != EXPECTED_STEP_MS:
             raise IntrabarExecutionError(
                 "candles must be strict chronological 1m data without gaps or duplicates"
             )
-        values = (candle.open, candle.high, candle.low, candle.close, candle.volume)
+        values = (
+            candle.open,
+            candle.high,
+            candle.low,
+            candle.close,
+            candle.volume,
+        )
         if any(not isfinite(float(value)) for value in values):
             raise IntrabarExecutionError("candle OHLCV values must be finite")
         if min(candle.open, candle.high, candle.low, candle.close) <= 0:
@@ -941,7 +953,9 @@ def _validate_inputs(
             raise IntrabarExecutionError("candle low is inconsistent")
         previous = candle.open_time
     if market_context is not None and len(candles) != market_context.candle_count:
-        raise IntrabarExecutionError("market context length does not match trade candles")
+        raise IntrabarExecutionError(
+            "market context length does not match trade candles"
+        )
 
 
 def _validate_cost_profile(profile: ExecutionCostProfile) -> ExecutionCostProfile:
@@ -971,7 +985,9 @@ def _decimal(
     allow_zero: bool = False,
     allow_negative: bool = False,
 ) -> Decimal:
-    if isinstance(value, bool) or not isinstance(value, (Decimal, str, int, float)):
+    if isinstance(value, bool) or not isinstance(
+        value, (Decimal, str, int, float)
+    ):
         raise IntrabarExecutionError(f"{label} must be a finite decimal value")
     try:
         parsed = Decimal(str(value))
