@@ -1,28 +1,79 @@
-"""Fail-closed completion gate for the permanent trial history.
+"""Fail-closed historical import and completion gates for the trial ledger.
 
-The append-only ledger can store historical identities and later evidence, but a
-mere count must never clear ``historical_trial_count_is_lower_bound``.  This
-wrapper requires a digest-bound reconciliation of every previously observed
-legacy evaluation row before the inventory may be attested complete.
+A mere count must never clear ``historical_trial_count_is_lower_bound``.  This
+module requires a digest-bound reconciliation of every previously observed
+legacy evaluation row.  It also treats byte-identical report copies as visible
+reuse rather than independent trials.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
+from pathlib import Path
 import re
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 from .trial_ledger import (
+    HistoricalImportResult,
     TrialLedgerError,
     TrialLedgerSnapshot,
     attest_complete_trial_inventory as _attest_complete_trial_inventory,
+    import_historical_reports as _import_historical_reports,
     read_trial_ledger,
 )
 
 _HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
+def import_historical_reports(
+    root: str | Path,
+    report_paths: Iterable[str | Path],
+) -> HistoricalImportResult:
+    """Import reports once per byte digest and report later copies as reuse."""
+
+    ledger_root = Path(root)
+    sources = _expand_json_paths(report_paths)
+    imported = 0
+    reused = 0
+    skipped = 0
+    observed = 0
+    for source in sources:
+        source_sha256 = hashlib.sha256(source.read_bytes()).hexdigest()
+        snapshot = read_trial_ledger(ledger_root)
+        existing = next(
+            (
+                event["payload"]
+                for event in snapshot.events
+                if event.get("event_type") == "historical_import_summary"
+                and isinstance(event.get("payload"), dict)
+                and event["payload"].get("source_sha256") == source_sha256
+            ),
+            None,
+        )
+        if existing is not None:
+            reused += int(existing.get("imported_identity_rows", 0))
+            skipped += int(existing.get("skipped_identity_rows", 0))
+            observed += int(existing.get("observed_evaluation_rows", 0))
+            continue
+        result = _import_historical_reports(ledger_root, [source])
+        imported += result.imported_trial_count
+        reused += result.reused_trial_count
+        skipped += result.skipped_candidate_count
+        observed += result.observed_evaluation_rows
+    after = read_trial_ledger(ledger_root)
+    return HistoricalImportResult(
+        source_count=len(sources),
+        imported_trial_count=imported,
+        reused_trial_count=reused,
+        skipped_candidate_count=skipped,
+        observed_evaluation_rows=observed,
+        event_count_after=after.status.event_count,
+    )
+
+
 def attest_complete_trial_inventory(
-    root: str,
+    root: str | Path,
     *,
     expected_resolved_trial_count: int,
     inventory_sha256: str,
@@ -33,10 +84,26 @@ def attest_complete_trial_inventory(
 
     snapshot = read_trial_ledger(root)
     _validate_historical_reconciliation(snapshot, historical_reconciliation)
+    if not isinstance(inventory_sha256, str) or not _HEX64_RE.fullmatch(
+        inventory_sha256
+    ):
+        raise TrialLedgerError("inventory_sha256 must be a lowercase SHA-256")
+    reconciled_inventory_sha256 = hashlib.sha256(
+        json.dumps(
+            {
+                "inventory_sha256": inventory_sha256,
+                "historical_reconciliation": dict(historical_reconciliation),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
     return _attest_complete_trial_inventory(
         root,
         expected_resolved_trial_count=expected_resolved_trial_count,
-        inventory_sha256=inventory_sha256,
+        inventory_sha256=reconciled_inventory_sha256,
         attestor=attestor,
     )
 
@@ -72,7 +139,9 @@ def _validate_historical_reconciliation(
             or not isinstance(field_value, int)
             or field_value < 0
         ):
-            raise TrialLedgerError(f"{field_name} must be a non-negative integer")
+            raise TrialLedgerError(
+                f"{field_name} must be a non-negative integer"
+            )
     if mapped != observed:
         raise TrialLedgerError(
             "historical reconciliation must map every observed evaluation row"
@@ -92,7 +161,9 @@ def _validate_historical_reconciliation(
             "every resolved historical trial requires a causal daily series"
         )
     mapping_digest = value.get("observation_mapping_sha256")
-    if not isinstance(mapping_digest, str) or not _HEX64_RE.fullmatch(mapping_digest):
+    if not isinstance(mapping_digest, str) or not _HEX64_RE.fullmatch(
+        mapping_digest
+    ):
         raise TrialLedgerError(
             "observation_mapping_sha256 must be a lowercase SHA-256"
         )
@@ -108,4 +179,25 @@ def _validate_historical_reconciliation(
         )
 
 
-__all__ = ["attest_complete_trial_inventory"]
+def _expand_json_paths(paths: Iterable[str | Path]) -> list[Path]:
+    expanded: list[Path] = []
+    for raw in paths:
+        path = Path(raw)
+        if path.is_dir():
+            expanded.extend(sorted(path.rglob("*.json")))
+        elif path.is_file():
+            expanded.append(path)
+        else:
+            raise TrialLedgerError(
+                f"historical report path does not exist: {path}"
+            )
+    unique = sorted({path.resolve() for path in expanded})
+    if not unique:
+        raise TrialLedgerError("no historical JSON reports were found")
+    return unique
+
+
+__all__ = [
+    "attest_complete_trial_inventory",
+    "import_historical_reports",
+]
