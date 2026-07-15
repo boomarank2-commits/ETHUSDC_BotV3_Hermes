@@ -197,6 +197,22 @@ from .trial_history_gate import (
     attest_complete_trial_inventory,
     import_historical_reports,
 )
+from .context_parity import (
+    CONTEXT_PARITY_CONTRACT_PATH,
+    CONTEXT_PARITY_CONTRACT_SCHEMA,
+    CONTEXT_PARITY_CONTRACT_VERSION,
+    CONTEXT_PATHS,
+    ContextParityBinding,
+    ContextParityError,
+    assert_context_identity_compatible,
+    build_context_parity_binding,
+    evaluate_closed_bar_context,
+    load_context_parity_contract,
+    simulate_protocol_v3_context_path,
+    simulate_protocol_v3_context_portfolio_path,
+    validate_context_parity_binding,
+    validate_context_parity_contract,
+)
 
 # Direct submodule imports must use the same reconciled fail-closed gates.
 _trial_ledger.attest_complete_trial_inventory = attest_complete_trial_inventory
@@ -375,4 +391,18 @@ __all__ = [
     "write_exchange_info_snapshot",
     "write_frozen_data_snapshot",
     "write_run_fingerprint",
+    "CONTEXT_PARITY_CONTRACT_PATH",
+    "CONTEXT_PARITY_CONTRACT_SCHEMA",
+    "CONTEXT_PARITY_CONTRACT_VERSION",
+    "CONTEXT_PATHS",
+    "ContextParityBinding",
+    "ContextParityError",
+    "assert_context_identity_compatible",
+    "build_context_parity_binding",
+    "evaluate_closed_bar_context",
+    "load_context_parity_contract",
+    "simulate_protocol_v3_context_path",
+    "simulate_protocol_v3_context_portfolio_path",
+    "validate_context_parity_binding",
+    "validate_context_parity_contract",
 ]
