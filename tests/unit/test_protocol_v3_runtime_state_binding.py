@@ -27,7 +27,7 @@ def test_task9_runtime_state_is_public_and_pipeline_bound() -> None:
     )
     assert (
         basis["component_contracts"]["simulator"]
-        == "next_tradable_price_pessimistic_intrabar_with_fold_outer_state_v1"
+        == "next_tradable_price_pessimistic_intrabar_with_fold_outer_state_and_context_parity_v1"
     )
     assert len(basis["component_source_sha256"]["boundary_rules"]) == 64
     assert len(basis["component_source_sha256"]["simulator"]) == 64
