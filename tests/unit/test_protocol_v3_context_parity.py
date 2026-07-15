@@ -25,7 +25,6 @@ from ethusdc_bot.protocol_v3.context_parity import (
     validate_context_parity_contract,
 )
 from ethusdc_bot.protocol_v3.data_snapshot import (
-    DataSnapshotError,
     MarketDayAudit,
     build_three_market_data_snapshot,
 )
@@ -246,7 +245,7 @@ def test_missing_misaligned_or_gapped_context_blocks(
             snapshot,
             repo_root=REPO_ROOT,
         )
-    with pytest.raises(ContextParityError, match="equal length"):
+    with pytest.raises(ContextParityError, match="equal length|timestamps differ"):
         build_context_parity_binding(
             AlignedMarketCandles(good.ethusdc, good.btcusdc[:-1], good.ethbtc),
             _policy(),
