@@ -108,11 +108,11 @@ def test_trailing_stop_uses_only_the_previous_survived_bar_high() -> None:
     assert trade.exit_price == 100.92
 
 
-def test_task8_sources_remain_bound_inside_the_task9_pipeline_identity() -> None:
+def test_task8_sources_remain_bound_inside_the_task10_pipeline_identity() -> None:
     basis = build_pipeline_generation(REPO_ROOT).basis()
     assert (
         basis["component_contracts"]["simulator"]
-        == "next_tradable_price_pessimistic_intrabar_with_fold_outer_state_v1"
+        == "next_tradable_price_pessimistic_intrabar_with_fold_outer_state_and_context_parity_v1"
     )
     assert (
         basis["component_contracts"]["cost_model"]
