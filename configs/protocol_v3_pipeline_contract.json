@@ -13,7 +13,8 @@
       "monthly_quality_gate_v1",
       "permanent_trial_history_v1",
       "protocol_v3_evidence_reports_v1",
-      "protocol_v3_compact_artifact_store_v1"
+      "protocol_v3_compact_artifact_store_v1",
+      "protocol_v3_content_addressed_cache_and_transactional_resume_v1"
     ],
     "ranking": "protocol_v3_lexicographic_inner_ranking_v1",
     "search_space": "protocol_v3_bounded_search_identity_global_budget_and_run_fingerprint_v1",
@@ -55,6 +56,7 @@
       "configs/protocol_v3_artifact_store_contract.json",
       "configs/protocol_v3_historical_trial_lower_bound.json",
       "configs/protocol_v3_report_contract.json",
+      "configs/protocol_v3_transaction_contract.json",
       "docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md",
       "docs/42_PROTOCOL_V3_EXECUTABLE_CONTRACT.md",
       "src/ethusdc_bot/backtest/quality_gates.py",
@@ -62,6 +64,10 @@
       "src/ethusdc_bot/protocol_v3/artifact_store_api.py",
       "src/ethusdc_bot/protocol_v3/reporting.py",
       "src/ethusdc_bot/protocol_v3/reporting_api.py",
+      "src/ethusdc_bot/protocol_v3/transactional_cache.py",
+      "src/ethusdc_bot/protocol_v3/transactional_cache_api.py",
+      "src/ethusdc_bot/protocol_v3/transactional_cache_model.py",
+      "src/ethusdc_bot/protocol_v3/transactional_cache_store.py",
       "src/ethusdc_bot/protocol_v3/trial_history_gate.py",
       "src/ethusdc_bot/protocol_v3/trial_ledger.py",
       "src/ethusdc_bot/shadow/adoption.py"
