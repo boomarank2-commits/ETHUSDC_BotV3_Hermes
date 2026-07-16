@@ -32,6 +32,8 @@ data/features/
 reports/backtests/
 reports/paper/
 reports/live/
+reports/protocol_v3/artifacts/
+reports/protocol_v3/artifact_indexes/
 logs/
 *.log
 *.sqlite
