@@ -2,7 +2,7 @@
 
 Stand: 2026-07-16
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 12/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 13/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -10,7 +10,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 `DONE_100` erfordert vollständig umgesetzten Umfang, Wiederverwendung vorhandener Funktionen, grüne Unit-/Integrations-/Negativtests, Python-Kompilierung, PowerShell-Syntax, Whitespace-Prüfung, dokumentierte Grenzen, keinen Vorgriff auf spätere Aufgaben und einen eindeutigen GitHub-Handoff. Paper, Testtrade, Live, Orders, private Endpunkte und API-Keys bleiben gesperrt.
 
-## Aufgaben 1 bis 12 – abgeschlossen
+## Aufgaben 1 bis 13 – abgeschlossen
 
 ### Aufgabe 1 – Protocol-v3-Vertrag versioniert übernehmen
 
@@ -142,17 +142,32 @@ Warmup ist feature-only, Purge folgt dem maximalen Informationshorizont plus Aus
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_12_2026-07-16.md`
 
-## Aufgaben 13 bis 33 – verbindliche Reihenfolge
+**Korrekturbericht:** `handoff/PROTOCOL_V3_TASK_12_PATH_GUARD_CORRECTION_2026-07-16.md`
 
 ### Aufgabe 13 – Content-addressed Cache und transaktionales Resume
 
-**Status:** `NOT_STARTED` – exakt nächste Aufgabe
+**Status:** `DONE_100`
 
-Cache- und Checkpoint-Identität müssen alle Daten-, Kontext-, Feature-, Kandidaten-, Fold-, Boundary-, Execution-, Simulator-, Kosten-, Code-, Snapshot-, Trial- und Rotationselemente binden; Atomic Replace, Lock und Digestprüfung verhindern Teilstände.
+**Abnahme:**
+
+- Vertrag `protocol_v3_content_addressed_cache_and_transactional_resume_v1` bindet exakt 16 Pflichtidentitäten; fehlende, zusätzliche, umsortierte oder `None`-Slots blockieren.
+- Vollständiger Run-Fingerprint v2, konkrete ContextParity-Bindung, Horizon-, Execution-, Simulator-, Kosten-, Exchange-, Trial-Ledger-, Rotations- und Task-12-Store-Identitäten werden semantisch revalidiert und nicht als Aufruferdigests übernommen.
+- Kandidat und Fold besitzen bis Aufgabe 15 beziehungsweise 14 typisierte `NOT_APPLICABLE`-Zustände; Rotation besitzt einen typisierten `GENESIS`-Zustand.
+- Checkpoints binden Pre-Run-Manifest, deterministischen Seedzustand, reservierte Budgets, Stop-/Stagnationszustand, Ergebnis, Artefaktköpfe, Ledger-Receipt und eine vollständige Hashkette.
+- Same-directory Temp, Flush/`fsync`, semantischer Reload und atomarer Replace werden vor dem separaten committed `HEAD.json` erzwungen. Nur der HEAD macht einen Checkpoint für Resume sichtbar.
+- Verwaiste Temp- oder noch nicht durch HEAD veröffentlichte Checkpoints bleiben unsichtbar; die gesamte committed Kette wird bis Genesis revalidiert.
+- Writer-Locks sind create-only; blindes Stale-Overwrite ist verboten. Recovery verlangt denselben Host und einen nachweislich toten Prozess und erzeugt ein immutable Recovery-Receipt.
+- Cache-Records entstehen nur aus dem aktuellen committed HEAD. Jeder Cache-Hit revalidiert Identität, Checkpointkette, Ergebnis, Task-12-Indizes/Objekte/Reports und Trial-Ledger.
+- Cache-Reuse wird deterministisch und idempotent im permanenten Trial-Ledger erfasst, zählt nicht als unabhängiger Trial und bleibt nach einem Crash zwischen Ledger-Append und Checkpoint-HEAD exakt einmal vorhanden.
+- Fault-Injection vor und nach Temp-, Replace-, Reload-, Ledger-Append- und HEAD-Grenzen ist grün; keine Aufgabe 14 oder später wurde vorgezogen.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_13_2026-07-16.md`
+
+## Aufgaben 14 bis 33 – verbindliche Reihenfolge
 
 ### Aufgabe 14 – Exakten inneren 6×60-Tage-Fold-Planer bauen
 
-**Status:** `NOT_STARTED`
+**Status:** `NOT_STARTED` – exakt nächste Aufgabe
 
 Sechs nicht überlappende 60-Tage-Validation-Folds auf den letzten 360 Entwicklungstagen; Fits wachsen ab 370 Tagen, Purge wird angewendet und Timestamp-Spies verhindern Leakage.
 
@@ -273,9 +288,9 @@ Erst nach Aufgaben 1–32 werden zwölf Origins und 365 OOS-Tage einmalig ausgef
 ## Fortschrittsführung
 
 ```text
-Protocol v3: Aufgabe 12/33 – Kompakte Artefaktarchitektur – DONE_100
-Protocol v3: Aufgabe 13/33 – Content-addressed Cache und transaktionales Resume – NOT_STARTED
-Gesamt: 12/33 DONE_100 = 36,36 %
+Protocol v3: Aufgabe 13/33 – Content-addressed Cache und transaktionales Resume – DONE_100
+Protocol v3: Aufgabe 14/33 – Exakten inneren 6×60-Tage-Fold-Planer bauen – NOT_STARTED
+Gesamt: 13/33 DONE_100 = 39,39 %
 ```
 
 Fortschritt wird ausschließlich als `DONE_100 / 33` ausgewiesen, nicht nach Zeit oder Token geschätzt.
