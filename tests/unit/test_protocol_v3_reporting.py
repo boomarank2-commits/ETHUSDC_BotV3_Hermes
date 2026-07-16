@@ -380,7 +380,7 @@ def test_registration_content_tampering_blocks_reload(monkeypatch: pytest.Monkey
     payload = json.loads(path.read_text(encoding="utf-8"))
     payload["end_exclusive_utc"] = "2026-10-01T00:00:00Z"
     path.write_text(json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
-    with pytest.raises(ProtocolV3ReportError, match="calendar month|digest mismatch"):
+    with pytest.raises(ProtocolV3ReportError, match="next UTC month boundary|digest mismatch"):
         read_forward_window_registration(path, tmp_path)
 
 
