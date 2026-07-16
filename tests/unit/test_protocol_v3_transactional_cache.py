@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import UTC, datetime
 import hashlib
 import importlib.util
 import json
@@ -11,6 +12,8 @@ import subprocess
 import sys
 
 import pytest
+
+import ethusdc_bot.protocol_v3.reporting as reporting_module
 
 _SUPPORT_PATH = Path(__file__).with_name("protocol_v3_task13_support.py")
 _SPEC = importlib.util.spec_from_file_location("protocol_v3_task13_support", _SUPPORT_PATH)
@@ -27,6 +30,11 @@ _commit = support._commit
 
 @pytest.fixture
 def state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        reporting_module,
+        "_utc_now",
+        lambda: datetime(2026, 7, 16, tzinfo=UTC),
+    )
     return support.build_state(tmp_path, monkeypatch)
 
 
