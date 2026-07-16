@@ -9,6 +9,7 @@ parts without changing the already stable monthly-origin boundary contract.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+import re
 from typing import Any
 
 from .boundaries import OUTER_ORIGINS
@@ -26,6 +27,7 @@ MAX_TOTAL_GENERATED = 4160
 MAX_TOTAL_TESTED = 1248
 MAX_TOTAL_WALK_FORWARD = 312
 MAX_TOTAL_FINALISTS = 208
+_REFIT_ID_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 @dataclass(frozen=True)
@@ -99,6 +101,8 @@ class GlobalSearchBudgetEnvelope:
 class GlobalBudgetUsage:
     cycles_by_origin: tuple[int, ...] = (0,) * OUTER_ORIGINS
     current_refit_cycles: int = 0
+    current_refit_manifest_sha256: str | None = None
+    current_refit_completed: bool = False
     reserved_generated: int = 0
     reserved_tested: int = 0
     reserved_walk_forward: int = 0
@@ -122,16 +126,64 @@ class GlobalBudgetUsage:
         validate_global_budget_usage(updated, envelope)
         return updated
 
-    def reserve_current_refit_cycle(self) -> "GlobalBudgetUsage":
+    def start_current_refit(
+        self,
+        refit_manifest_sha256: str,
+    ) -> "GlobalBudgetUsage":
+        """Freeze the sole current-refit identity before reserving any cycle."""
+
         envelope = GlobalSearchBudgetEnvelope()
         envelope.validate()
         validate_global_budget_usage(self, envelope)
+        normalized = _validate_refit_identity(refit_manifest_sha256)
+        if self.current_refit_manifest_sha256 is None:
+            updated = replace(self, current_refit_manifest_sha256=normalized)
+            validate_global_budget_usage(updated, envelope)
+            return updated
+        if self.current_refit_manifest_sha256 != normalized:
+            raise PipelineContractError("a second current refit is forbidden")
+        if self.current_refit_completed:
+            raise PipelineContractError("the sole current refit is already completed")
+        return self
+
+    def reserve_current_refit_cycle(
+        self,
+        refit_manifest_sha256: str,
+    ) -> "GlobalBudgetUsage":
+        envelope = GlobalSearchBudgetEnvelope()
+        envelope.validate()
+        validate_global_budget_usage(self, envelope)
+        normalized = _validate_refit_identity(refit_manifest_sha256)
+        if self.current_refit_manifest_sha256 is None:
+            raise PipelineContractError("current refit must be started before reserving cycles")
+        if self.current_refit_manifest_sha256 != normalized:
+            raise PipelineContractError("a second current refit is forbidden")
+        if self.current_refit_completed:
+            raise PipelineContractError("current refit is already completed")
         if self.current_refit_cycles >= envelope.max_cycles_per_selection_run:
             raise PipelineContractError("current refit exceeds the eight-cycle cap")
         updated = _reserve(
             replace(self, current_refit_cycles=self.current_refit_cycles + 1),
             envelope,
         )
+        validate_global_budget_usage(updated, envelope)
+        return updated
+
+    def complete_current_refit(
+        self,
+        refit_manifest_sha256: str,
+    ) -> "GlobalBudgetUsage":
+        envelope = GlobalSearchBudgetEnvelope()
+        envelope.validate()
+        validate_global_budget_usage(self, envelope)
+        normalized = _validate_refit_identity(refit_manifest_sha256)
+        if self.current_refit_manifest_sha256 is None:
+            raise PipelineContractError("current refit must be started before completion")
+        if self.current_refit_manifest_sha256 != normalized:
+            raise PipelineContractError("a second current refit is forbidden")
+        if self.current_refit_completed:
+            raise PipelineContractError("current refit is already completed")
+        updated = replace(self, current_refit_completed=True)
         validate_global_budget_usage(updated, envelope)
         return updated
 
@@ -153,6 +205,15 @@ def validate_global_budget_usage(
         for value in counters
     ):
         raise PipelineContractError("selection-run cycle usage is invalid or above cap")
+    if not isinstance(usage.current_refit_completed, bool):
+        raise PipelineContractError("current refit completion state must be boolean")
+    if usage.current_refit_manifest_sha256 is None:
+        if usage.current_refit_cycles != 0 or usage.current_refit_completed:
+            raise PipelineContractError(
+                "current refit cycles or completion require a frozen refit identity"
+            )
+    else:
+        _validate_refit_identity(usage.current_refit_manifest_sha256)
     if usage.total_cycles > active.max_total_cycles:
         raise PipelineContractError("global Protocol v3 cycle budget exceeded")
     expected = {
@@ -206,6 +267,14 @@ def _validate_index(value: Any, minimum: int, maximum: int, field_name: str) -> 
         raise PipelineContractError(
             f"{field_name} must be an integer from {minimum} through {maximum}"
         )
+
+
+def _validate_refit_identity(value: Any) -> str:
+    if not isinstance(value, str) or not _REFIT_ID_RE.fullmatch(value):
+        raise PipelineContractError(
+            "current refit identity must be a lowercase 64-character manifest SHA-256"
+        )
+    return value
 
 
 __all__ = [

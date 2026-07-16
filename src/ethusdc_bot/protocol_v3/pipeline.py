@@ -17,6 +17,13 @@ from pathlib import Path, PurePosixPath
 import re
 from typing import Any, Mapping
 
+from ethusdc_bot.contracts.protocol_v3 import (
+    MANIFEST_PATH as PROTOCOL_CONTRACT_MANIFEST_PATH,
+    REQUIRED_DOCUMENTS as PROTOCOL_CONTRACT_DOCUMENTS,
+    ContractValidationError,
+    validate_repository_contracts,
+)
+
 from .boundaries import (
     OUTER_ORIGINS,
     MonthlyProcessBoundaryPlan,
@@ -97,6 +104,11 @@ _FORBIDDEN_MANIFEST_TIME_KEYS = {
 }
 _COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 _NAMESPACE_RE = re.compile(r"^[a-z0-9][a-z0-9._:/-]{0,127}$")
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_GOVERNING_CONTRACT_PATHS = (
+    PROTOCOL_CONTRACT_MANIFEST_PATH,
+    *PROTOCOL_CONTRACT_DOCUMENTS,
+)
 
 
 class PipelineContractError(ValueError):
@@ -335,6 +347,13 @@ def build_pipeline_generation(
     """Build a generation whose identity changes with any bound contract source."""
 
     root = _resolve_repo_root(repo_root)
+    try:
+        validate_repository_contracts(root)
+    except ContractValidationError as exc:
+        raise PipelineContractError(
+            f"Protocol v3 repository contract is invalid: {exc}"
+        ) from exc
+
     contract_file = (
         Path(contract_path)
         if contract_path is not None
@@ -344,6 +363,18 @@ def build_pipeline_generation(
         contract_file = root / contract_file
     contract = _load_json_object(contract_file, "pipeline contract")
     validate_pipeline_contract(contract)
+
+    governing_contract_source_sha256: dict[str, str] = {}
+    for relative in _GOVERNING_CONTRACT_PATHS:
+        source_path = root / relative
+        try:
+            governing_contract_source_sha256[relative.as_posix()] = hashlib.sha256(
+                source_path.read_bytes()
+            ).hexdigest()
+        except OSError as exc:
+            raise PipelineContractError(
+                f"governing Protocol v3 source is missing or unreadable: {relative.as_posix()}"
+            ) from exc
 
     source_file_sha256: dict[str, str] = {}
     component_source_sha256: dict[str, str] = {}
@@ -369,6 +400,9 @@ def build_pipeline_generation(
         "protocol_version": contract["protocol_version"],
         "pipeline_contract_version": contract["pipeline_contract_version"],
         "contract_sha256": contract_sha256,
+        "governing_contract_source_sha256": dict(
+            sorted(governing_contract_source_sha256.items())
+        ),
         "component_contracts": contract["component_contracts"],
         "component_source_sha256": component_source_sha256,
         "source_file_sha256": dict(sorted(source_file_sha256.items())),
@@ -472,6 +506,21 @@ def validate_pipeline_generation(generation: PipelineGeneration) -> None:
         raise PipelineContractError("pipeline generation id does not match its canonical basis")
     if basis.get("contract_sha256") != generation.contract_sha256:
         raise PipelineContractError("pipeline generation contract digest is inconsistent")
+    governing = basis.get("governing_contract_source_sha256")
+    expected_governing_paths = {
+        relative.as_posix() for relative in _GOVERNING_CONTRACT_PATHS
+    }
+    if not isinstance(governing, dict) or set(governing) != expected_governing_paths:
+        raise PipelineContractError(
+            "pipeline generation does not bind every governing Protocol v3 source"
+        )
+    if any(
+        not isinstance(digest, str) or not _SHA256_RE.fullmatch(digest)
+        for digest in governing.values()
+    ):
+        raise PipelineContractError(
+            "pipeline generation governing source digest is invalid"
+        )
     ledger = basis.get("ledger_policy")
     if not isinstance(ledger, dict) or ledger != _CANONICAL_LEDGER_POLICY:
         raise PipelineContractError("pipeline generation ledger policy is invalid")

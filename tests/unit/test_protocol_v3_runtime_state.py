@@ -134,6 +134,9 @@ def test_purge_formula_and_boundary_touch_are_fail_closed() -> None:
         pending_entry_latency_minutes=2,
     )
     assert policy.purge_duration_minutes == 183
+    assert len(policy.policy_sha256) == 64
+    assert policy.policy_sha256 == HorizonPolicy(120, 180, 2).policy_sha256
+    assert policy.policy_sha256 != HorizonPolicy(120, 180, 3).policy_sha256
 
     kept = build_information_interval(
         "kept",
@@ -317,7 +320,10 @@ def test_new_configuration_waits_for_max_of_valid_from_and_flat_time() -> None:
     state = build_outer_rotation_state(
         origin,
         new_candidate_bundle_sha256=NEW_BUNDLE,
-        previous_runtime=RuntimeCarryState(open_position=_position()),
+        previous_runtime=RuntimeCarryState(
+            candidate_bundle_sha256=OLD_BUNDLE,
+            open_position=_position(),
+        ),
     )
 
     before_valid = close_retiring_position(
@@ -331,7 +337,10 @@ def test_new_configuration_waits_for_max_of_valid_from_and_flat_time() -> None:
     state = build_outer_rotation_state(
         origin,
         new_candidate_bundle_sha256=NEW_BUNDLE,
-        previous_runtime=RuntimeCarryState(open_position=_position()),
+        previous_runtime=RuntimeCarryState(
+            candidate_bundle_sha256=OLD_BUNDLE,
+            open_position=_position(),
+        ),
     )
     after_valid_time = state.valid_from_utc + timedelta(hours=6)
     after_valid = close_retiring_position(state, exit_time_utc=after_valid_time)
@@ -345,7 +354,10 @@ def test_configuration_expiring_before_flat_becomes_no_trade() -> None:
     state = build_outer_rotation_state(
         origin,
         new_candidate_bundle_sha256=NEW_BUNDLE,
-        previous_runtime=RuntimeCarryState(open_position=_position()),
+        previous_runtime=RuntimeCarryState(
+            candidate_bundle_sha256=OLD_BUNDLE,
+            open_position=_position(),
+        ),
     )
     expired = close_retiring_position(
         state,
@@ -361,17 +373,26 @@ def test_rotation_state_identity_is_deterministic_and_semantically_validated() -
     first = build_outer_rotation_state(
         origin,
         new_candidate_bundle_sha256=NEW_BUNDLE,
-        previous_runtime=RuntimeCarryState(open_position=_position()),
+        previous_runtime=RuntimeCarryState(
+            candidate_bundle_sha256=OLD_BUNDLE,
+            open_position=_position(),
+        ),
     )
     second = build_outer_rotation_state(
         origin,
         new_candidate_bundle_sha256=NEW_BUNDLE,
-        previous_runtime=RuntimeCarryState(open_position=_position()),
+        previous_runtime=RuntimeCarryState(
+            candidate_bundle_sha256=OLD_BUNDLE,
+            open_position=_position(),
+        ),
     )
     changed = build_outer_rotation_state(
         origin,
         new_candidate_bundle_sha256=OTHER_BUNDLE,
-        previous_runtime=RuntimeCarryState(open_position=_position()),
+        previous_runtime=RuntimeCarryState(
+            candidate_bundle_sha256=OLD_BUNDLE,
+            open_position=_position(),
+        ),
     )
     assert first.state_sha256 == second.state_sha256
     assert first.state_sha256 != changed.state_sha256
@@ -389,6 +410,7 @@ def test_only_process_end_liquidates_a_remaining_outer_position() -> None:
         origin,
         new_candidate_bundle_sha256=NEW_BUNDLE,
         previous_runtime=RuntimeCarryState(
+            candidate_bundle_sha256=OLD_BUNDLE,
             open_position=_position(rules_sha=rules.rules_sha256)
         ),
     )
@@ -412,6 +434,93 @@ def test_only_process_end_liquidates_a_remaining_outer_position() -> None:
             rules=rules,
             cost_profile=BASELINE_COST_PROFILE,
         )
+
+
+def test_process_end_finalization_is_forbidden_before_origin_twelve() -> None:
+    origin = build_monthly_process_boundary_plan("2026-07-08").origins[1]
+    state = build_outer_rotation_state(
+        origin,
+        new_candidate_bundle_sha256=NEW_BUNDLE,
+        previous_runtime=RuntimeCarryState(
+            candidate_bundle_sha256=OLD_BUNDLE,
+            open_position=_position(),
+        ),
+    )
+    with pytest.raises(RuntimeStateError, match="requires origin 12"):
+        finalize_outer_process(
+            state,
+            terminal_bar=None,
+            rules=_rules(),
+            cost_profile=BASELINE_COST_PROFILE,
+        )
+
+    flat_state = build_outer_rotation_state(
+        origin,
+        new_candidate_bundle_sha256=NEW_BUNDLE,
+    )
+    with pytest.raises(RuntimeStateError, match="requires origin 12"):
+        finalize_outer_process(
+            flat_state,
+            terminal_bar=None,
+            rules=_rules(),
+            cost_profile=BASELINE_COST_PROFILE,
+        )
+
+    final_flat_state = build_outer_rotation_state(
+        build_monthly_process_boundary_plan("2026-07-08").origins[-1],
+        new_candidate_bundle_sha256=NEW_BUNDLE,
+    )
+    assert (
+        finalize_outer_process(
+            final_flat_state,
+            terminal_bar=None,
+            rules=_rules(),
+            cost_profile=BASELINE_COST_PROFILE,
+        )
+        is None
+    )
+
+
+def test_carry_and_rotation_modes_fail_closed_on_contradictory_identity_or_time() -> None:
+    with pytest.raises(RuntimeStateError, match="requires its candidate bundle"):
+        RuntimeCarryState(open_position=_position())
+    with pytest.raises(RuntimeStateError, match="does not match"):
+        RuntimeCarryState(
+            candidate_bundle_sha256=OTHER_BUNDLE,
+            open_position=_position(),
+        )
+
+    origin = build_monthly_process_boundary_plan("2026-07-08").origins[1]
+    waiting = build_outer_rotation_state(
+        origin,
+        new_candidate_bundle_sha256=NEW_BUNDLE,
+        previous_runtime=RuntimeCarryState(
+            candidate_bundle_sha256=OLD_BUNDLE,
+            open_position=_position(),
+        ),
+    )
+    with pytest.raises(RuntimeStateError, match="requires waiting_for_flat"):
+        replace(waiting, new_configuration_mode="entry_enabled")
+
+    flat = close_retiring_position(
+        waiting,
+        exit_time_utc=waiting.anchor_utc + timedelta(hours=12),
+    )
+    with pytest.raises(RuntimeStateError, match="contradicts"):
+        replace(flat, new_configuration_mode="entry_enabled")
+    with pytest.raises(RuntimeStateError, match="must equal max"):
+        replace(
+            flat,
+            entry_enabled_at_utc=flat.valid_from_utc + timedelta(minutes=1),
+        )
+
+    expired = close_retiring_position(
+        waiting,
+        exit_time_utc=waiting.valid_until_utc,
+    )
+    assert expired.entry_allowed_at(expired.valid_until_utc) is False
+    with pytest.raises(RuntimeStateError, match="expired flat rotation"):
+        replace(expired, new_configuration_mode="waiting_for_valid_from")
 
 
 def test_terminal_liquidation_revalidates_execution_identity() -> None:

@@ -17,7 +17,7 @@ import re
 from typing import Any, Final, Mapping, Sequence
 
 from ethusdc_bot.backtest.data_loader import Candle, EXPECTED_STEP_MS
-from ethusdc_bot.protocol_v3.boundaries import MonthlyOriginBoundary
+from ethusdc_bot.protocol_v3.boundaries import OUTER_ORIGINS, MonthlyOriginBoundary
 from ethusdc_bot.protocol_v3.execution_parity import (
     EXECUTION_PARITY_CONTRACT_VERSION,
     MarketExecutionRules,
@@ -71,6 +71,9 @@ _CANONICAL_CONTRACT: dict[str, Any] = {
         "boundary_touch_purges": True,
         "training_event_may_not_reach_validation_or_test_start": True,
         "horizon_extension_creates_new_pipeline_generation": True,
+        "pending_entry_execution_binding": (
+            "HorizonPolicy.policy_sha256_shared_with_task8"
+        ),
     },
     "inner_fold_policy": {
         "starts_flat": True,
@@ -161,6 +164,19 @@ class HorizonPolicy:
             self.max_label_horizon_minutes,
             self.max_holding_period_minutes + self.pending_entry_latency_minutes,
         ) + self.execution_bar_minutes
+
+    def basis(self) -> dict[str, Any]:
+        return {
+            "contract_version": RUNTIME_STATE_CONTRACT_VERSION,
+            "max_label_horizon_minutes": self.max_label_horizon_minutes,
+            "max_holding_period_minutes": self.max_holding_period_minutes,
+            "pending_entry_latency_minutes": self.pending_entry_latency_minutes,
+            "execution_bar_minutes": self.execution_bar_minutes,
+        }
+
+    @property
+    def policy_sha256(self) -> str:
+        return _sha256_json(self.basis())
 
     def assert_actual_horizons(
         self,
@@ -334,8 +350,37 @@ class RuntimeCarryState:
     runtime_model_state_sha256: str | None = None
 
     def __post_init__(self) -> None:
+        if self.open_position is not None and not isinstance(
+            self.open_position, OpenPositionState
+        ):
+            raise TypeError("open_position must be an OpenPositionState")
+        if self.pending_entry is not None and not isinstance(
+            self.pending_entry, PendingEntryState
+        ):
+            raise TypeError("pending_entry must be a PendingEntryState")
         if self.candidate_bundle_sha256 is not None:
             _sha256(self.candidate_bundle_sha256, "candidate_bundle_sha256")
+        if self.open_position is not None:
+            if self.candidate_bundle_sha256 is None:
+                raise RuntimeStateError(
+                    "open carry state requires its candidate bundle identity"
+                )
+            if (
+                self.candidate_bundle_sha256
+                != self.open_position.candidate_bundle_sha256
+            ):
+                raise RuntimeStateError(
+                    "open carry state candidate bundle does not match its position"
+                )
+        if (
+            self.pending_entry is not None
+            and self.candidate_bundle_sha256 is not None
+            and self.candidate_bundle_sha256
+            != self.pending_entry.candidate_bundle_sha256
+        ):
+            raise RuntimeStateError(
+                "pending carry state candidate bundle does not match its entry"
+            )
         if self.cooldown_until_ms is not None:
             _nonnegative_int(self.cooldown_until_ms, "cooldown_until_ms")
         for label, value in (
@@ -415,7 +460,15 @@ class OuterRotationState:
             raise RuntimeStateError("outer rotation state schema is not canonical")
         if self.contract_version != RUNTIME_STATE_CONTRACT_VERSION:
             raise RuntimeStateError("outer rotation state contract is not canonical")
+        if self.open_position is not None and not isinstance(
+            self.open_position, OpenPositionState
+        ):
+            raise TypeError("open_position must be an OpenPositionState")
         _positive_int(self.origin_index, "origin_index")
+        if self.origin_index > OUTER_ORIGINS:
+            raise RuntimeStateError(
+                f"origin_index cannot exceed the frozen {OUTER_ORIGINS}-origin process"
+            )
         _sha256(self.new_candidate_bundle_sha256, "new_candidate_bundle_sha256")
         if self.retiring_candidate_bundle_sha256 is not None:
             _sha256(
@@ -467,6 +520,52 @@ class OuterRotationState:
             "NO_TRADE_EXPIRED",
         }:
             raise RuntimeStateError("new configuration mode is not canonical")
+        for label, value in (
+            ("discarded_pending_entry", self.discarded_pending_entry),
+            ("discarded_cooldown", self.discarded_cooldown),
+            ("discarded_scaler_state", self.discarded_scaler_state),
+            ("discarded_runtime_model_state", self.discarded_runtime_model_state),
+        ):
+            if not isinstance(value, bool):
+                raise RuntimeStateError(f"{label} must be boolean")
+
+        if self.open_position is not None:
+            if self.flat_time_utc is not None or self.entry_enabled_at_utc is not None:
+                raise RuntimeStateError(
+                    "open retiring position cannot be flat or entry-enabled"
+                )
+            if self.new_configuration_mode != "waiting_for_flat_and_valid_from":
+                raise RuntimeStateError(
+                    "open retiring position requires waiting_for_flat_and_valid_from"
+                )
+        else:
+            if self.flat_time_utc is None:
+                raise RuntimeStateError("flat rotation requires an explicit flat_time")
+            flat = _utc(self.flat_time_utc, "flat_time_utc")
+            expected_enabled = max(valid_from, flat)
+            if expected_enabled >= valid_until:
+                if self.entry_enabled_at_utc is not None:
+                    raise RuntimeStateError(
+                        "expired rotation cannot retain an entry-enabled timestamp"
+                    )
+                if self.new_configuration_mode != "NO_TRADE_EXPIRED":
+                    raise RuntimeStateError(
+                        "expired flat rotation must be NO_TRADE_EXPIRED"
+                    )
+            else:
+                if self.entry_enabled_at_utc != expected_enabled:
+                    raise RuntimeStateError(
+                        "entry_enabled_at must equal max(valid_from, flat_time)"
+                    )
+                expected_mode = (
+                    "waiting_for_valid_from"
+                    if flat < valid_from
+                    else "entry_enabled"
+                )
+                if self.new_configuration_mode != expected_mode:
+                    raise RuntimeStateError(
+                        "new configuration mode contradicts its flat/validity times"
+                    )
         if self.monthly_boundary_liquidation is not False:
             raise RuntimeStateError("monthly boundaries may not liquidate positions")
 
@@ -510,13 +609,17 @@ class OuterRotationState:
         at = _utc(at_utc, "at_utc")
         return bool(
             self.open_position is None
+            and self.new_configuration_mode != "NO_TRADE_EXPIRED"
             and self.entry_enabled_at_utc is not None
             and self.entry_enabled_at_utc <= at < self.valid_until_utc
         )
 
     def mode_at(self, at_utc: datetime) -> str:
         at = _utc(at_utc, "at_utc")
-        if at >= self.valid_until_utc:
+        if (
+            self.new_configuration_mode == "NO_TRADE_EXPIRED"
+            or at >= self.valid_until_utc
+        ):
             return "NO_TRADE_EXPIRED"
         if self.open_position is not None:
             return "retiring_exit_only_new_waiting"
@@ -787,6 +890,10 @@ def finalize_outer_process(
     cost_profile: ExecutionCostProfile,
 ) -> TerminalLiquidation | None:
     validate_outer_rotation_state(state)
+    if state.origin_index != OUTER_ORIGINS:
+        raise RuntimeStateError(
+            f"process-end finalization requires origin {OUTER_ORIGINS}"
+        )
     if state.open_position is None:
         return None
     if terminal_bar is None:

@@ -69,14 +69,15 @@ Neue Datei `configs/protocol_v3_execution_parity_contract.json` friert ein:
 - ein offenes Lot im kanonischen Research-Profil;
 - exakte Decimal-Arithmetik;
 - Rundung ausschließlich `ROUND_DOWN`;
-- positive `LOT_SIZE`- und `MARKET_LOT_SIZE`-Steps;
-- gemeinsamer gültiger Step-Raster beider Filter;
+- ein `stepSize=0` deaktiviert den jeweiligen Binance-Filter; mindestens ein positiver wirksamer Step bleibt Pflicht;
+- gemeinsamer gültiger Step-Raster aller aktiven Filter;
 - strengere gemeinsame Min-/Max-Mengengrenzen;
 - Exit-Menge exakt gleich Entry-Menge;
 - Anwendung von `MIN_NOTIONAL`/`NOTIONAL` gemäß Market-Flags;
 - Entry- und Exit-Notionalprüfung;
 - Entry-Fee auf ausgeführtem Entry-Notional;
 - Exit-Fee auf ausgeführtem Exit-Notional;
+- kanonischer Protocol-v3-Pfad ausschließlich mit 0,1 % Gebühr und 5 bps adverser Slippage je Seite; abweichende Aufruferwerte blockieren fail-closed;
 - PRICE_FILTER-Min-/Max-Prüfung;
 - Tick-Rundung ausdrücklich auf Aufgabe 8 verschoben;
 - unveränderte Safety-Locks.
@@ -87,9 +88,9 @@ Neue Datei `src/ethusdc_bot/protocol_v3/execution_parity.py` leitet aus dem vers
 
 Mengenraster:
 
-- `LOT_SIZE.stepSize` und `MARKET_LOT_SIZE.stepSize` müssen beide positiv sein;
-- die ausgeführte Menge muss auf beiden Rastern liegen;
-- der effektive Raster wird exakt als gemeinsames Decimal-Mehrfaches bestimmt;
+- ein Step von null deaktiviert nur den jeweiligen Filter, wie es reale Binance-`MARKET_LOT_SIZE`-Payloads erlauben;
+- mindestens ein Step muss positiv sein und die ausgeführte Menge muss auf jedem aktiven Raster liegen;
+- bei zwei aktiven Rastern wird der effektive Raster exakt als gemeinsames Decimal-Mehrfaches bestimmt;
 - die Entry-Menge wird immer nach unten auf diesen Raster abgerundet;
 - niemals aufgerundet.
 
@@ -281,10 +282,10 @@ Die neue Suite prüft mindestens:
 
 CI-Historie:
 
-1. Review-CI Run 379 fand ausschließlich zwei Testfixtures mit `MARKET_LOT_SIZE.stepSize=0`. Der bereits abgeschlossene Task-6-Snapshot blockierte diese ungültige Fixture korrekt als nicht positiven Step.
-2. Die Fixtures wurden an den strengeren Task-6-Vertrag angepasst; Produktionsregeln wurden nicht gelockert.
+1. Review-CI Run 379 zeigte zwei Fixtures mit `MARKET_LOT_SIZE.stepSize=0`. Die damalige Behandlung wurde am 2026-07-16 an die reale Binance-Semantik korrigiert: Null deaktiviert den einzelnen Filter und darf den aktiven `LOT_SIZE`-Raster nicht ungültig machen.
+2. Negativtests erzwingen weiterhin, dass nicht beide Step-Raster deaktiviert sein dürfen.
 3. Review-CI Run 380 auf Head `60d07c9732f19343b8176157d2503e64117ffea4` war vollständig grün.
-4. Danach wurden Vertrag und Implementierung bereinigt: Beide Step Sizes sind ausdrücklich positiv; es wird kein unerreichbarer Null-Step-Fallback behauptet.
+4. Danach wurden Vertrag und Implementierung erneut bereinigt: aktive Step Sizes sind positiv; Null-Steps werden ausdrücklich als deaktivierter Einzelfilter behandelt.
 5. Review-CI Run 382 auf Implementierungshead `ae1ecd63e379ec52b8013483b88c966fa4c8ea72` war vollständig grün:
    - komplette Pytest-Suite;
    - Python-Kompilierung;

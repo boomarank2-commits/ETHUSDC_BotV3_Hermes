@@ -9,7 +9,7 @@ context-only and can neither create a signal nor trigger a trade.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import hashlib
 import json
 from math import isfinite
@@ -35,7 +35,9 @@ from ethusdc_bot.backtest.portfolio_simulator import PortfolioSimulationResult
 from ethusdc_bot.backtest.simulator import SimulationResult, StrategyCandidate
 from ethusdc_bot.portfolio import PortfolioPolicy
 from ethusdc_bot.protocol_v3.data_snapshot import (
+    DataSnapshotError,
     FrozenDataSnapshot,
+    compute_utc_day_content_sha256,
     validate_frozen_data_snapshot,
 )
 from ethusdc_bot.protocol_v3.intrabar_execution import (
@@ -45,16 +47,17 @@ from ethusdc_bot.protocol_v3.intrabar_execution import (
     simulate_protocol_v3_intrabar_strategy,
 )
 from ethusdc_bot.protocol_v3.run_identity import FrozenExchangeInfoSnapshot
+from ethusdc_bot.protocol_v3.runtime_state import HorizonPolicy
 
 
 CONTEXT_PARITY_CONTRACT_PATH: Final = Path(
     "configs/protocol_v3_context_parity_contract.json"
 )
 CONTEXT_PARITY_CONTRACT_SCHEMA: Final = (
-    "protocol_v3_context_parity_contract_v1"
+    "protocol_v3_context_parity_contract_v2"
 )
 CONTEXT_PARITY_CONTRACT_VERSION: Final = (
-    "three_market_closed_bar_context_parity_v1"
+    "three_market_closed_bar_context_parity_v2"
 )
 CONTEXT_PATHS: Final = (
     "research",
@@ -66,6 +69,7 @@ TRADE_SYMBOL: Final = "ETHUSDC"
 CONTEXT_SYMBOLS: Final = ("BTCUSDC", "ETHBTC")
 MARKETS: Final = (TRADE_SYMBOL, *CONTEXT_SYMBOLS)
 _HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
+_DAY_MS = 86_400_000
 
 _CANONICAL_SAFETY = {
     "api_keys": "forbidden",
@@ -128,6 +132,8 @@ _CANONICAL_CONTRACT: dict[str, Any] = {
         "window_must_lie_inside_snapshot_raw_interval": True,
         "all_three_market_content_digests_required": True,
         "common_grid_digest_required": True,
+        "complete_utc_day_windows_required": True,
+        "window_day_content_must_match_snapshot_index": True,
     },
     "identity_policy": {
         "data_snapshot_sha256_required": True,
@@ -158,6 +164,7 @@ class ContextParityError(RuntimeError):
 class ContextParityBinding:
     context: AlignedMarketCandles
     policy: ContextVetoPolicy
+    data_snapshot: FrozenDataSnapshot
     data_snapshot_sha256: str
     data_snapshot_common_grid_sha256: str
     snapshot_market_content_sha256: tuple[tuple[str, str], ...]
@@ -246,11 +253,12 @@ def build_context_parity_binding(
         raise ContextParityError("three-market context window must be non-empty")
     _validate_aligned_context(context)
 
+    frozen_snapshot = _coerce_frozen_data_snapshot(data_snapshot)
     try:
-        validate_frozen_data_snapshot(data_snapshot, repo_root=repo_root)
+        validate_frozen_data_snapshot(frozen_snapshot, repo_root=repo_root)
     except Exception as exc:
         raise ContextParityError(f"validated Task-5 snapshot required: {exc}") from exc
-    snapshot_payload, snapshot_sha = _snapshot_parts(data_snapshot)
+    snapshot_payload, snapshot_sha = _snapshot_parts(frozen_snapshot)
     raw_interval = _require_mapping(snapshot_payload.get("raw_interval"), "raw_interval")
     raw_start_ms = _utc_ms(raw_interval.get("start_inclusive"), "raw start")
     raw_end_ms = _utc_ms(raw_interval.get("end_exclusive"), "raw end")
@@ -265,28 +273,15 @@ def build_context_parity_binding(
     if last + EXPECTED_STEP_MS > latest_day_end_ms:
         raise ContextParityError("context watermark exceeds the snapshot common complete day")
 
-    common_grid = snapshot_payload.get("common_minute_grid_sha256")
-    if not isinstance(common_grid, str) or not _HEX64_RE.fullmatch(common_grid):
-        raise ContextParityError("snapshot common grid digest is invalid")
-    market_rows = snapshot_payload.get("market_data")
-    if not isinstance(market_rows, list):
-        raise ContextParityError("snapshot market_data must contain three rows")
-    snapshot_market_digests: list[tuple[str, str]] = []
-    for expected_symbol, row in zip(MARKETS, market_rows, strict=True):
-        market = _require_mapping(row, f"market_data.{expected_symbol}")
-        if market.get("symbol") != expected_symbol:
-            raise ContextParityError("snapshot market ordering is invalid")
-        digest = market.get("market_content_sha256")
-        if not isinstance(digest, str) or not _HEX64_RE.fullmatch(digest):
-            raise ContextParityError(
-                f"snapshot market content digest is invalid for {expected_symbol}"
-            )
-        snapshot_market_digests.append((expected_symbol, digest))
+    common_grid, snapshot_market_digests = _snapshot_content_identity(
+        snapshot_payload
+    )
 
     window_digests = tuple(
         (symbol, _candles_sha256(candles))
         for symbol, candles in _market_series(context)
     )
+    _validate_snapshot_window_provenance(context, snapshot_payload)
     identity = {
         "contract_version": CONTEXT_PARITY_CONTRACT_VERSION,
         "policy_version": CONTEXT_POLICY_VERSION,
@@ -303,9 +298,10 @@ def build_context_parity_binding(
     return ContextParityBinding(
         context=context,
         policy=policy,
+        data_snapshot=frozen_snapshot,
         data_snapshot_sha256=snapshot_sha,
         data_snapshot_common_grid_sha256=common_grid,
-        snapshot_market_content_sha256=tuple(snapshot_market_digests),
+        snapshot_market_content_sha256=snapshot_market_digests,
         window_market_content_sha256=window_digests,
         first_open_time_ms=first,
         common_watermark_open_time_ms=last,
@@ -317,6 +313,21 @@ def build_context_parity_binding(
 def validate_context_parity_binding(binding: ContextParityBinding) -> None:
     if not isinstance(binding, ContextParityBinding):
         raise ContextParityError("binding must be ContextParityBinding")
+    if binding.contract_version != CONTEXT_PARITY_CONTRACT_VERSION:
+        raise ContextParityError("binding context contract version is invalid")
+    if binding.policy_version != CONTEXT_POLICY_VERSION:
+        raise ContextParityError("binding context policy version is invalid")
+    if not isinstance(binding.policy, ContextVetoPolicy):
+        raise ContextParityError("binding policy must be ContextVetoPolicy")
+    try:
+        validate_frozen_data_snapshot(binding.data_snapshot)
+    except Exception as exc:
+        raise ContextParityError(
+            f"binding Task-5 snapshot is invalid: {exc}"
+        ) from exc
+    snapshot_payload, snapshot_sha = _snapshot_parts(binding.data_snapshot)
+    if binding.data_snapshot_sha256 != snapshot_sha:
+        raise ContextParityError("binding snapshot digest does not match its snapshot")
     _validate_aligned_context(binding.context)
     if binding.candle_count != binding.context.candle_count:
         raise ContextParityError("binding candle count is invalid")
@@ -328,6 +339,16 @@ def validate_context_parity_binding(binding: ContextParityBinding) -> None:
         raise ContextParityError("binding snapshot digest is invalid")
     if not _HEX64_RE.fullmatch(binding.data_snapshot_common_grid_sha256):
         raise ContextParityError("binding grid digest is invalid")
+    snapshot_grid, snapshot_market_digests = _snapshot_content_identity(
+        snapshot_payload
+    )
+    if binding.data_snapshot_common_grid_sha256 != snapshot_grid:
+        raise ContextParityError("binding grid digest does not match its snapshot")
+    if binding.snapshot_market_content_sha256 != snapshot_market_digests:
+        raise ContextParityError(
+            "binding market content digests do not match its snapshot"
+        )
+    _validate_snapshot_window_provenance(binding.context, snapshot_payload)
     expected_window = tuple(
         (symbol, _candles_sha256(candles))
         for symbol, candles in _market_series(binding.context)
@@ -350,6 +371,19 @@ def evaluate_closed_bar_context(
     """Evaluate exactly one common fully closed 1m bar, never stale or future data."""
 
     validate_context_parity_binding(binding)
+    return _evaluate_closed_bar_context_validated(
+        binding,
+        index,
+        decision_time_ms=decision_time_ms,
+    )
+
+
+def _evaluate_closed_bar_context_validated(
+    binding: ContextParityBinding,
+    index: int,
+    *,
+    decision_time_ms: int,
+) -> ContextDecision:
     if type(index) is not int or not 0 <= index < binding.candle_count:
         raise ContextParityError("context index is outside the bound window")
     expected_open = binding.context.ethusdc[index].open_time
@@ -372,6 +406,7 @@ def simulate_protocol_v3_context_path(
     *,
     days: int,
     exchange_info_snapshot: FrozenExchangeInfoSnapshot | Mapping[str, Any],
+    horizon_policy: HorizonPolicy,
     cost_profile: ExecutionCostProfile = BASELINE_COST_PROFILE,
     training_days: int = 0,
     blindtest_days: int = 0,
@@ -387,10 +422,18 @@ def simulate_protocol_v3_context_path(
         wrapped,
         days=days,
         exchange_info_snapshot=exchange_info_snapshot,
+        horizon_policy=horizon_policy,
         cost_profile=cost_profile,
         training_days=training_days,
         blindtest_days=blindtest_days,
         market_context=binding.context,
+        closed_context_decision_provider=lambda index, decision_time_ms: (
+            _evaluate_closed_bar_context_validated(
+                binding,
+                index,
+                decision_time_ms=decision_time_ms,
+            )
+        ),
     )
 
 
@@ -403,6 +446,7 @@ def simulate_protocol_v3_context_portfolio_path(
     days: int,
     policy: PortfolioPolicy,
     exchange_info_snapshot: FrozenExchangeInfoSnapshot | Mapping[str, Any],
+    horizon_policy: HorizonPolicy,
     cost_profile: ExecutionCostProfile = BASELINE_COST_PROFILE,
     training_days: int = 0,
     blindtest_days: int = 0,
@@ -419,10 +463,18 @@ def simulate_protocol_v3_context_portfolio_path(
         days=days,
         policy=policy,
         exchange_info_snapshot=exchange_info_snapshot,
+        horizon_policy=horizon_policy,
         cost_profile=cost_profile,
         training_days=training_days,
         blindtest_days=blindtest_days,
         market_context=binding.context,
+        closed_context_decision_provider=lambda index, decision_time_ms: (
+            _evaluate_closed_bar_context_validated(
+                binding,
+                index,
+                decision_time_ms=decision_time_ms,
+            )
+        ),
     )
 
 
@@ -519,6 +571,112 @@ def _candles_sha256(candles: Sequence[Candle]) -> str:
         for candle in candles
     ]
     return _sha256_json(rows)
+
+
+def _coerce_frozen_data_snapshot(
+    snapshot: FrozenDataSnapshot | Mapping[str, Any],
+) -> FrozenDataSnapshot:
+    if isinstance(snapshot, FrozenDataSnapshot):
+        return snapshot
+    if not isinstance(snapshot, Mapping):
+        raise ContextParityError("data snapshot must be a frozen snapshot object")
+    raw = dict(snapshot)
+    digest = raw.pop("snapshot_sha256", None)
+    if not isinstance(digest, str) or not _HEX64_RE.fullmatch(digest):
+        raise ContextParityError("data snapshot digest is missing or invalid")
+    return FrozenDataSnapshot(_canonical_json(raw), digest)
+
+
+def _snapshot_content_identity(
+    snapshot_payload: Mapping[str, Any],
+) -> tuple[str, tuple[tuple[str, str], ...]]:
+    common_grid = snapshot_payload.get("common_minute_grid_sha256")
+    if not isinstance(common_grid, str) or not _HEX64_RE.fullmatch(common_grid):
+        raise ContextParityError("snapshot common grid digest is invalid")
+    market_rows = snapshot_payload.get("market_data")
+    if not isinstance(market_rows, list) or len(market_rows) != len(MARKETS):
+        raise ContextParityError("snapshot market_data must contain three rows")
+    market_digests: list[tuple[str, str]] = []
+    for expected_symbol, row in zip(MARKETS, market_rows, strict=True):
+        market = _require_mapping(row, f"market_data.{expected_symbol}")
+        if market.get("symbol") != expected_symbol:
+            raise ContextParityError("snapshot market ordering is invalid")
+        digest = market.get("market_content_sha256")
+        if not isinstance(digest, str) or not _HEX64_RE.fullmatch(digest):
+            raise ContextParityError(
+                f"snapshot market content digest is invalid for {expected_symbol}"
+            )
+        market_digests.append((expected_symbol, digest))
+    return common_grid, tuple(market_digests)
+
+
+def _validate_snapshot_window_provenance(
+    context: AlignedMarketCandles,
+    snapshot_payload: Mapping[str, Any],
+) -> None:
+    """Prove each exact full UTC context day against Task-5's v2 day index."""
+
+    first = context.ethusdc[0].open_time
+    end_exclusive = context.ethusdc[-1].open_time + EXPECTED_STEP_MS
+    if first % _DAY_MS != 0 or end_exclusive % _DAY_MS != 0:
+        raise ContextParityError(
+            "context provenance requires complete midnight-to-midnight UTC days"
+        )
+    if context.candle_count % 1440 != 0:
+        raise ContextParityError(
+            "context provenance requires exactly 1,440 candles per UTC day"
+        )
+    day_count = context.candle_count // 1440
+    first_day = datetime.fromtimestamp(first / 1000, tz=UTC).date()
+    market_rows = snapshot_payload.get("market_data")
+    if not isinstance(market_rows, list) or len(market_rows) != len(MARKETS):
+        raise ContextParityError("snapshot market_data must contain three rows")
+
+    for (symbol, candles), raw_market in zip(
+        _market_series(context), market_rows, strict=True
+    ):
+        market = _require_mapping(raw_market, f"market_data.{symbol}")
+        if market.get("symbol") != symbol:
+            raise ContextParityError("snapshot market ordering is invalid")
+        raw_index = market.get("utc_day_content_sha256")
+        if not isinstance(raw_index, list):
+            raise ContextParityError(
+                f"Task-5 UTC-day content index is missing for {symbol}"
+            )
+        expected_by_day: dict[str, str] = {}
+        for item in raw_index:
+            row = _require_mapping(item, f"{symbol}.utc_day_content_sha256[]")
+            day_text = row.get("day")
+            digest = row.get("content_sha256")
+            if (
+                not isinstance(day_text, str)
+                or not isinstance(digest, str)
+                or not _HEX64_RE.fullmatch(digest)
+            ):
+                raise ContextParityError(
+                    f"Task-5 UTC-day content index is invalid for {symbol}"
+                )
+            expected_by_day[day_text] = digest
+
+        for day_offset in range(day_count):
+            day = first_day + timedelta(days=day_offset)
+            start = day_offset * 1440
+            daily_candles = candles[start : start + 1440]
+            try:
+                observed = compute_utc_day_content_sha256(
+                    symbol,
+                    day,
+                    daily_candles,
+                )
+            except DataSnapshotError as exc:
+                raise ContextParityError(
+                    f"context provenance is invalid for {symbol} {day.isoformat()}: {exc}"
+                ) from exc
+            if expected_by_day.get(day.isoformat()) != observed:
+                raise ContextParityError(
+                    f"context content is not proven by the Task-5 snapshot for "
+                    f"{symbol} {day.isoformat()}"
+                )
 
 
 def _snapshot_parts(

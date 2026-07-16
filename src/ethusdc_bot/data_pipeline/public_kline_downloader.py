@@ -13,6 +13,7 @@ from datetime import date, timedelta
 import hashlib
 import json
 from pathlib import Path
+import re
 import urllib.error
 import urllib.request
 
@@ -180,18 +181,38 @@ def download_checksum_if_available(
     }
 
 
+_SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
+
+
 def verify_checksum_file(zip_path: str | Path, checksum_path: str | Path) -> dict[str, str | bool]:
     """Verify a ZIP file against a Binance SHA256 CHECKSUM file."""
 
     zip_file = Path(zip_path)
     checksum_file = Path(checksum_path)
-    if not zip_file.exists() or not checksum_file.exists():
+    if not zip_file.is_file() or not checksum_file.is_file():
         return {"status": "missing", "verified": False}
-    expected = checksum_file.read_text(encoding="utf-8").strip().split()[0]
-    digest = hashlib.sha256(zip_file.read_bytes()).hexdigest()
+    try:
+        tokens = checksum_file.read_text(encoding="utf-8").strip().split()
+    except (OSError, UnicodeError):
+        return {"status": "malformed", "verified": False}
+    if not tokens or len(tokens) > 2 or not _SHA256_RE.fullmatch(tokens[0]):
+        return {"status": "malformed", "verified": False}
+    if len(tokens) == 2 and Path(tokens[1].lstrip("*")).name != zip_file.name:
+        return {"status": "malformed", "verified": False}
+    expected = tokens[0].lower()
+    hasher = hashlib.sha256()
+    try:
+        with zip_file.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                hasher.update(chunk)
+    except OSError:
+        return {"status": "unreadable", "verified": False}
+    digest = hasher.hexdigest()
     return {
         "status": "verified" if digest == expected else "mismatch",
         "verified": digest == expected,
+        "expected_sha256": expected,
+        "actual_sha256": digest,
     }
 
 

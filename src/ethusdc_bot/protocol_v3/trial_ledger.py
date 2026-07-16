@@ -34,6 +34,7 @@ TRADING_CANDIDATE = "TRADING_CANDIDATE"
 _ZERO_HASH = "0" * 64
 _HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 _COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
+_OBSERVATION_KEY_RE = re.compile(r"^observation_sha256:[0-9a-f]{64}$")
 _EVENT_NAME_RE = re.compile(
     r"^(?P<sequence>[0-9]{12})_(?P<digest>[0-9a-f]{64})\.json$"
 )
@@ -295,6 +296,10 @@ def import_canonical_historical_lower_bound(
         "identity_inventory_complete": False,
         "daily_series_complete": False,
         "source_ids": [row["source_id"] for row in payload["sources"]],
+        "observed_rows_by_source": {
+            row["source_id"]: row["observed_evaluation_rows"]
+            for row in payload["sources"]
+        },
     }
     _append_event_idempotent(
         Path(ledger_root), "historical_lower_bound_import", event_payload
@@ -521,6 +526,7 @@ def attest_complete_trial_inventory(
     *,
     expected_resolved_trial_count: int,
     inventory_sha256: str,
+    reconciliation_sha256: str,
     attestor: str,
 ) -> TrialLedgerSnapshot:
     ledger_root = Path(root)
@@ -535,6 +541,10 @@ def attest_complete_trial_inventory(
     if not _HEX64_RE.fullmatch(str(inventory_sha256)):
         raise TrialLedgerError(
             "inventory_sha256 must be a lowercase SHA-256"
+        )
+    if not _HEX64_RE.fullmatch(str(reconciliation_sha256)):
+        raise TrialLedgerError(
+            "reconciliation_sha256 must be a lowercase SHA-256"
         )
     normalized_attestor = _required_text(attestor, "attestor")
     with _ledger_lock(ledger_root):
@@ -551,11 +561,59 @@ def attest_complete_trial_inventory(
             raise TrialLedgerError(
                 "inventory attestation requires every causal daily series"
             )
+        incomplete_historical = _incomplete_historical_trial_ids(
+            snapshot.trials
+        )
+        if incomplete_historical:
+            raise TrialLedgerError(
+                "inventory attestation cannot resolve historical trials with "
+                "incomplete seed, versions, code, daily series, or fields"
+            )
+        (
+            observed_rows_by_source,
+            observed_artifacts_by_source,
+            observed_keys_by_source,
+        ) = _observed_evidence_by_provenance_from_events(snapshot.events)
+        _validate_historical_source_assignments(
+            snapshot.trials,
+            observed_rows_by_source,
+            observed_artifacts_by_source,
+            observed_keys_by_source,
+        )
+        if (
+            snapshot.status.historical_resolved_trial_count
+            != snapshot.status.known_observed_historical_evaluation_rows
+        ):
+            raise TrialLedgerError(
+                "inventory attestation requires immutable evidence for every "
+                "observed historical evaluation row"
+            )
+        expected_inventory_sha256 = build_trial_inventory_evidence_sha256(
+            snapshot
+        )
+        if inventory_sha256 != expected_inventory_sha256:
+            raise TrialLedgerError(
+                "inventory_sha256 does not match the immutable ledger inventory"
+            )
+        expected_reconciliation_sha256 = (
+            build_historical_reconciliation_evidence_sha256(snapshot)
+        )
+        if reconciliation_sha256 != expected_reconciliation_sha256:
+            raise TrialLedgerError(
+                "reconciliation_sha256 does not match ledger provenance"
+            )
         trial_ids_sha256 = _sha256_json(sorted(snapshot.trials))
+        attestation_key = _sha256_json(
+            {
+                "inventory_sha256": inventory_sha256,
+                "reconciliation_sha256": reconciliation_sha256,
+            }
+        )
         payload = {
-            "event_key": f"inventory_attestation:{inventory_sha256}",
+            "event_key": f"inventory_attestation:{attestation_key}",
             "expected_resolved_trial_count": expected_resolved_trial_count,
             "inventory_sha256": inventory_sha256,
+            "reconciliation_sha256": reconciliation_sha256,
             "trial_ids_sha256": trial_ids_sha256,
             "attestor": normalized_attestor,
             "historical_trial_count_is_lower_bound": False,
@@ -595,10 +653,36 @@ def import_historical_reports(
         rows, source_observed, source_skipped, report_format = (
             _extract_historical_trial_rows(report, source_sha256)
         )
+        source_id = _historical_report_source_id(report, source_sha256)
+        observation_keys = tuple(
+            _historical_observation_key(source_sha256, row_index)
+            for row_index in range(1, source_observed + 1)
+        )
+        rows = [
+            {**row, "historical_observation_key": observation_keys[index]}
+            for index, row in enumerate(rows)
+        ]
+        existing_snapshot = read_trial_ledger(ledger_root)
+        (
+            existing_source_counts,
+            existing_source_artifacts,
+            existing_observation_keys,
+        ) = _observed_evidence_by_provenance_from_events(
+            existing_snapshot.events
+        )
+        _merge_observed_source_count(
+            existing_source_counts,
+            existing_source_artifacts,
+            existing_observation_keys,
+            source_id,
+            source_observed,
+            artifact_sha256=source_sha256,
+            observation_keys=observation_keys,
+        )
         observed_rows += source_observed
         skipped += source_skipped
-        for row in rows:
-            record = _build_historical_trial_record(row)
+        records = [_build_historical_trial_record(row) for row in rows]
+        for record in records:
             before = read_trial_ledger(ledger_root)
             after = append_trial(ledger_root, record)
             if (
@@ -612,8 +696,10 @@ def import_historical_reports(
             "event_key": f"historical_report:{source_sha256}",
             "source_sha256": source_sha256,
             "source_name": source.name,
+            "source_id": source_id,
             "report_format": report_format,
             "observed_evaluation_rows": source_observed,
+            "observation_keys": list(observation_keys),
             "imported_identity_rows": len(rows),
             "skipped_identity_rows": source_skipped,
             "historical_trial_count_is_lower_bound": True,
@@ -635,6 +721,38 @@ def import_historical_reports(
 
 def read_trial_ledger(root: str | Path) -> TrialLedgerSnapshot:
     return _read_trial_ledger_unlocked(Path(root))
+
+
+def build_trial_inventory_evidence_sha256(
+    snapshot: TrialLedgerSnapshot,
+) -> str:
+    """Digest the immutable trial payloads and attached causal series."""
+
+    return _inventory_evidence_sha256(
+        snapshot.manifest,
+        snapshot.trials,
+        snapshot.attached_daily_series,
+    )
+
+
+def build_historical_reconciliation_evidence_sha256(
+    snapshot: TrialLedgerSnapshot,
+) -> str:
+    """Digest ledger-derived historical provenance, never caller claims."""
+
+    (
+        observed_rows_by_source,
+        observed_artifacts_by_source,
+        observed_keys_by_source,
+    ) = _observed_evidence_by_provenance_from_events(snapshot.events)
+    return _reconciliation_evidence_sha256(
+        snapshot.manifest,
+        snapshot.trials,
+        snapshot.attached_daily_series,
+        observed_rows_by_source,
+        observed_artifacts_by_source,
+        observed_keys_by_source,
+    )
 
 
 def assert_release_decision_allowed(
@@ -696,6 +814,35 @@ def validate_trial_record(record: TrialRecord) -> None:
         identity.get("evaluation_scope", {}), "evaluation_scope"
     )
     source_kind = identity.get("source_kind")
+    completeness = payload.get("completeness")
+    required_completeness_fields = {
+        "candidate_identity_complete",
+        "seed_complete",
+        "versions_complete",
+        "code_commit_complete",
+        "daily_series_complete",
+        "missing_fields",
+    }
+    if (
+        not isinstance(completeness, dict)
+        or set(completeness) != required_completeness_fields
+        or completeness.get("candidate_identity_complete") is not True
+        or any(
+            not isinstance(completeness.get(field), bool)
+            for field in (
+                "seed_complete",
+                "versions_complete",
+                "code_commit_complete",
+                "daily_series_complete",
+            )
+        )
+        or not isinstance(completeness.get("missing_fields"), list)
+        or any(
+            not isinstance(field, str) or not field
+            for field in completeness.get("missing_fields", [])
+        )
+    ):
+        raise TrialLedgerError("trial completeness metadata is invalid")
     if source_kind in _NATIVE_SOURCE_KINDS:
         if payload.get("historical_trial_count_is_lower_bound") is not False:
             raise TrialLedgerError(
@@ -723,12 +870,103 @@ def validate_trial_record(record: TrialRecord) -> None:
             raise TrialLedgerError(
                 "native trial daily series digest mismatch"
             )
+        if completeness != {
+            "candidate_identity_complete": True,
+            "seed_complete": True,
+            "versions_complete": True,
+            "code_commit_complete": True,
+            "daily_series_complete": True,
+            "missing_fields": [],
+        }:
+            raise TrialLedgerError(
+                "native trial completeness metadata is inconsistent"
+            )
     elif source_kind == "historical_import":
         if payload.get("historical_trial_count_is_lower_bound") is not True:
             raise TrialLedgerError(
                 "historical trial must remain marked lower bound"
             )
         _validate_versions(identity.get("versions", {}), allow_unknown=True)
+        historical_source_sha256 = payload.get("historical_source_sha256")
+        if (
+            not isinstance(historical_source_sha256, str)
+            or not _HEX64_RE.fullmatch(historical_source_sha256)
+        ):
+            raise TrialLedgerError(
+                "historical trial source digest is missing or invalid"
+            )
+        historical_observation_key = payload.get(
+            "historical_observation_key"
+        )
+        if (
+            historical_observation_key is not None
+            and (
+                not isinstance(historical_observation_key, str)
+                or not _OBSERVATION_KEY_RE.fullmatch(
+                    historical_observation_key
+                )
+            )
+        ):
+            raise TrialLedgerError(
+                "historical trial observation key is invalid"
+            )
+        if historical_observation_key is None and all(
+            completeness[field]
+            for field in (
+                "seed_complete",
+                "versions_complete",
+                "code_commit_complete",
+                "daily_series_complete",
+            )
+        ):
+            raise TrialLedgerError(
+                "complete historical trial requires an observation key"
+            )
+        if completeness["seed_complete"]:
+            seed = identity.get("seed")
+            if (
+                isinstance(seed, bool)
+                or not isinstance(seed, int)
+                or not (0 <= seed < 2**64)
+            ):
+                raise TrialLedgerError(
+                    "historical seed is not complete as claimed"
+                )
+        if completeness["versions_complete"]:
+            _validate_versions(identity.get("versions", {}), allow_unknown=False)
+        if completeness["code_commit_complete"] and not _COMMIT_RE.fullmatch(
+            str(identity.get("code_commit") or "")
+        ):
+            raise TrialLedgerError(
+                "historical code commit is not complete as claimed"
+            )
+        if completeness["daily_series_complete"]:
+            daily = payload.get("daily_net_mtm_usdc")
+            if not isinstance(daily, list) or not daily:
+                raise TrialLedgerError(
+                    "historical daily series is not complete as claimed"
+                )
+            normalized_daily = _normalize_daily_series(
+                daily, allow_empty=False
+            )
+            if payload.get("daily_series_sha256") != _sha256_json(
+                normalized_daily
+            ):
+                raise TrialLedgerError(
+                    "historical daily series digest mismatch"
+                )
+        if completeness["missing_fields"] and all(
+            completeness[field]
+            for field in (
+                "seed_complete",
+                "versions_complete",
+                "code_commit_complete",
+                "daily_series_complete",
+            )
+        ):
+            raise TrialLedgerError(
+                "historical missing fields contradict completeness claims"
+            )
     else:
         raise TrialLedgerError("trial source kind is unsupported")
 
@@ -742,6 +980,12 @@ def _build_historical_trial_record(row: Mapping[str, Any]) -> TrialRecord:
     )
     if not _HEX64_RE.fullmatch(source_sha256):
         raise TrialLedgerError("historical source digest is invalid")
+    observation_key = _required_text(
+        row.get("historical_observation_key"),
+        "historical_observation_key",
+    )
+    if not _OBSERVATION_KEY_RE.fullmatch(observation_key):
+        raise TrialLedgerError("historical observation key is invalid")
     versions = _validate_versions(
         row.get("versions", {}), allow_unknown=True
     )
@@ -790,6 +1034,7 @@ def _build_historical_trial_record(row: Mapping[str, Any]) -> TrialRecord:
             ],
         },
         "historical_source_sha256": source_sha256,
+        "historical_observation_key": observation_key,
     }
     canonical = _canonical_json(payload)
     return TrialRecord(
@@ -996,6 +1241,24 @@ def _legacy_versions(
     }
 
 
+def _historical_report_source_id(
+    report: Mapping[str, Any], source_sha256: str
+) -> str:
+    for field in ("loop_run_id", "run_id"):
+        value = report.get(field)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return f"report_sha256:{source_sha256}"
+
+
+def _historical_observation_key(
+    source_sha256: str, row_index: int
+) -> str:
+    return "observation_sha256:" + _sha256_json(
+        {"source_sha256": source_sha256, "row_index": row_index}
+    )
+
+
 def _append_event_idempotent(
     root: Path,
     event_type: str,
@@ -1088,14 +1351,18 @@ def _read_trial_ledger_unlocked(root: Path) -> TrialLedgerSnapshot:
     files = [path for path in event_files if path.is_file()]
     events: list[dict[str, Any]] = []
     previous = _ZERO_HASH
+    event_heads = [_ZERO_HASH]
+    resolved_counts = [0]
     event_keys: set[str] = set()
     trials: dict[str, dict[str, Any]] = {}
     attachments: dict[str, tuple[dict[str, Any], ...]] = {}
     cache_reuse_count = 0
-    observed_rows = 0
+    observed_rows_by_source: dict[str, int] = {}
+    observed_artifacts_by_source: dict[str, str | None] = {}
+    observed_keys_by_source: dict[str, tuple[str, ...] | None] = {}
     canonical_import_present = False
     lower_bound = False
-    attestation: dict[str, Any] | None = None
+    attested_historical_trial_ids: set[str] = set()
     for expected_sequence, path in enumerate(files, start=1):
         match = _EVENT_NAME_RE.fullmatch(path.name)
         if (
@@ -1153,6 +1420,11 @@ def _read_trial_ledger_unlocked(root: Path) -> TrialLedgerSnapshot:
                     "trial ledger contains duplicate evaluated trial"
                 )
             trials[record.trial_id] = record.to_dict()
+            if (
+                record.to_dict()["identity_basis"]["source_kind"]
+                == "historical_import"
+            ):
+                lower_bound = True
         elif event_type == "cache_reuse":
             trial_id = payload.get("trial_id")
             if (
@@ -1192,25 +1464,133 @@ def _read_trial_ledger_unlocked(root: Path) -> TrialLedgerSnapshot:
                 )
             canonical_import_present = True
             lower_bound = True
-            observed_rows = max(
-                observed_rows,
-                int(payload.get("known_observed_evaluation_rows", 0)),
-            )
+            source_counts = payload.get("observed_rows_by_source")
+            if source_counts is None:
+                source_counts = {
+                    "canonical_manifest:"
+                    f"{payload.get('manifest_sha256')}": payload.get(
+                        "known_observed_evaluation_rows", 0
+                    )
+                }
+            if not isinstance(source_counts, dict) or not source_counts:
+                raise TrialLedgerError(
+                    "canonical historical source provenance is invalid"
+                )
+            for source_id, count in source_counts.items():
+                _merge_observed_source_count(
+                    observed_rows_by_source,
+                    observed_artifacts_by_source,
+                    observed_keys_by_source,
+                    source_id,
+                    count,
+                )
         elif event_type == "historical_import_summary":
             lower_bound = True
-            observed_rows = max(
-                observed_rows,
-                int(payload.get("observed_evaluation_rows", 0)),
+            source_sha256 = payload.get("source_sha256")
+            if not isinstance(source_sha256, str) or not _HEX64_RE.fullmatch(
+                source_sha256
+            ):
+                raise TrialLedgerError(
+                    "historical import source digest is invalid"
+                )
+            source_id = payload.get(
+                "source_id", f"report_sha256:{source_sha256}"
+            )
+            observation_keys = payload.get("observation_keys")
+            if observation_keys is None:
+                # Legacy summaries did not persist per-row provenance and
+                # therefore can never support a completion attestation.
+                normalized_observation_keys = None
+            elif isinstance(observation_keys, list):
+                normalized_observation_keys = tuple(observation_keys)
+            else:
+                raise TrialLedgerError(
+                    "historical observation-key inventory is invalid"
+                )
+            _merge_observed_source_count(
+                observed_rows_by_source,
+                observed_artifacts_by_source,
+                observed_keys_by_source,
+                source_id,
+                payload.get("observed_evaluation_rows"),
+                artifact_sha256=source_sha256,
+                observation_keys=normalized_observation_keys,
             )
         elif event_type == "history_inventory_attested":
-            attestation = payload
+            # Legacy v1 attestations had no ledger-derived reconciliation
+            # digest.  They remain visible but cannot clear the lower bound.
+            if "reconciliation_sha256" not in payload:
+                lower_bound = True
+            else:
+                missing_at_attestation = _missing_daily_series_trial_ids(
+                    trials, attachments
+                )
+                incomplete_historical = _incomplete_historical_trial_ids(
+                    trials
+                )
+                historical_count_at_attestation = sum(
+                    1
+                    for trial in trials.values()
+                    if trial["identity_basis"]["source_kind"]
+                    == "historical_import"
+                )
+                observed_at_attestation = sum(
+                    observed_rows_by_source.values()
+                )
+                expected_inventory = _inventory_evidence_sha256(
+                    manifest, trials, attachments
+                )
+                expected_reconciliation = _reconciliation_evidence_sha256(
+                    manifest,
+                    trials,
+                    attachments,
+                    observed_rows_by_source,
+                    observed_artifacts_by_source,
+                    observed_keys_by_source,
+                )
+                _validate_historical_source_assignments(
+                    trials,
+                    observed_rows_by_source,
+                    observed_artifacts_by_source,
+                    observed_keys_by_source,
+                )
+                if (
+                    payload.get("expected_resolved_trial_count")
+                    != len(trials)
+                    or payload.get("trial_ids_sha256")
+                    != _sha256_json(sorted(trials))
+                    or missing_at_attestation
+                    or incomplete_historical
+                    or not canonical_import_present
+                    or historical_count_at_attestation
+                    != observed_at_attestation
+                    or payload.get("inventory_sha256")
+                    != expected_inventory
+                    or payload.get("reconciliation_sha256")
+                    != expected_reconciliation
+                    or payload.get("historical_trial_count_is_lower_bound")
+                    is not False
+                ):
+                    raise TrialLedgerError(
+                        "history inventory attestation is inconsistent"
+                    )
+                attested_historical_trial_ids = {
+                    trial_id
+                    for trial_id, trial in trials.items()
+                    if trial["identity_basis"]["source_kind"]
+                    == "historical_import"
+                }
+                lower_bound = False
         events.append(event)
+        event_heads.append(previous)
+        resolved_counts.append(len(trials))
 
     head = _read_json_object(root / "head.json", "trial ledger head")
-    _validate_head(head, len(events), previous, len(trials))
+    _validate_head(head, event_heads, resolved_counts)
     if not canonical_import_present:
         lower_bound = True
-    missing_daily: list[str] = []
+    missing_daily = _missing_daily_series_trial_ids(trials, attachments)
+    incomplete_historical = _incomplete_historical_trial_ids(trials)
     native_count = 0
     historical_count = 0
     for trial_id, trial in trials.items():
@@ -1220,34 +1600,20 @@ def _read_trial_ledger_unlocked(root: Path) -> TrialLedgerSnapshot:
             historical_count += 1
         else:
             native_count += 1
-        if (
-            trial.get("daily_net_mtm_usdc") is None
-            and trial_id not in attachments
-        ):
-            missing_daily.append(trial_id)
-    if attestation is not None:
-        if (
-            attestation.get("expected_resolved_trial_count") != len(trials)
-            or attestation.get("trial_ids_sha256")
-            != _sha256_json(sorted(trials))
-            or missing_daily
-            or not canonical_import_present
-            or attestation.get("historical_trial_count_is_lower_bound")
-            is not False
-        ):
-            raise TrialLedgerError(
-                "history inventory attestation is inconsistent"
-            )
-        lower_bound = False
+    observed_rows = sum(observed_rows_by_source.values())
+    # Native identities are independent by construction. Historical
+    # placeholders remain possible duplicates until a complete per-row
+    # attestation has covered them; observed report rows are diagnostic only.
     permanent_lower_bound = (
         len(trials)
         if not lower_bound
-        else max(observed_rows, historical_count) + native_count
+        else native_count + len(attested_historical_trial_ids)
     )
     insufficient = (
         len(trials) < 2
         or lower_bound
         or bool(missing_daily)
+        or bool(incomplete_historical)
         or not canonical_import_present
     )
     dsr_status = (
@@ -1332,6 +1698,324 @@ def _validate_ledger_manifest(manifest: Mapping[str, Any]) -> None:
         )
 
 
+def _merge_observed_source_count(
+    observed_rows_by_source: dict[str, int],
+    observed_artifacts_by_source: dict[str, str | None],
+    observed_keys_by_source: dict[str, tuple[str, ...] | None],
+    source_id: Any,
+    count: Any,
+    *,
+    artifact_sha256: str | None = None,
+    observation_keys: Sequence[str] | None = None,
+) -> None:
+    normalized_source_id = _required_text(source_id, "historical source_id")
+    if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+        raise TrialLedgerError(
+            "historical observed row count must be a non-negative integer"
+        )
+    existing = observed_rows_by_source.get(normalized_source_id)
+    if existing is not None and existing != count:
+        raise TrialLedgerError(
+            "historical source provenance has contradictory row counts"
+        )
+    if artifact_sha256 is not None and not _HEX64_RE.fullmatch(
+        artifact_sha256
+    ):
+        raise TrialLedgerError(
+            "historical source provenance artifact digest is invalid"
+        )
+    existing_artifact = observed_artifacts_by_source.get(
+        normalized_source_id
+    )
+    if (
+        artifact_sha256 is not None
+        and existing_artifact is not None
+        and existing_artifact != artifact_sha256
+    ):
+        raise TrialLedgerError(
+            "historical source provenance references conflicting artifacts"
+        )
+    normalized_observation_keys: tuple[str, ...] | None = None
+    if observation_keys is not None:
+        normalized_observation_keys = tuple(observation_keys)
+        if (
+            len(normalized_observation_keys) != count
+            or len(set(normalized_observation_keys))
+            != len(normalized_observation_keys)
+            or any(
+                not isinstance(key, str)
+                or not _OBSERVATION_KEY_RE.fullmatch(key)
+                for key in normalized_observation_keys
+            )
+        ):
+            raise TrialLedgerError(
+                "historical observation-key inventory is inconsistent"
+            )
+    existing_keys = observed_keys_by_source.get(normalized_source_id)
+    if (
+        normalized_observation_keys is not None
+        and existing_keys is not None
+        and existing_keys != normalized_observation_keys
+    ):
+        raise TrialLedgerError(
+            "historical source provenance has conflicting observation keys"
+        )
+    observed_rows_by_source[normalized_source_id] = count
+    observed_artifacts_by_source[normalized_source_id] = (
+        artifact_sha256
+        if artifact_sha256 is not None
+        else existing_artifact
+    )
+    observed_keys_by_source[normalized_source_id] = (
+        normalized_observation_keys
+        if normalized_observation_keys is not None
+        else existing_keys
+    )
+
+
+def _observed_evidence_by_provenance_from_events(
+    events: Sequence[Mapping[str, Any]],
+) -> tuple[
+    dict[str, int],
+    dict[str, str | None],
+    dict[str, tuple[str, ...] | None],
+]:
+    observed_rows_by_source: dict[str, int] = {}
+    observed_artifacts_by_source: dict[str, str | None] = {}
+    observed_keys_by_source: dict[str, tuple[str, ...] | None] = {}
+    for event in events:
+        payload = event.get("payload")
+        if not isinstance(payload, Mapping):
+            raise TrialLedgerError("trial ledger event payload is invalid")
+        if event.get("event_type") == "historical_lower_bound_import":
+            source_counts = payload.get("observed_rows_by_source")
+            if source_counts is None:
+                source_counts = {
+                    "canonical_manifest:"
+                    f"{payload.get('manifest_sha256')}": payload.get(
+                        "known_observed_evaluation_rows", 0
+                    )
+                }
+            if not isinstance(source_counts, Mapping):
+                raise TrialLedgerError(
+                    "canonical historical source provenance is invalid"
+                )
+            for source_id, count in source_counts.items():
+                _merge_observed_source_count(
+                    observed_rows_by_source,
+                    observed_artifacts_by_source,
+                    observed_keys_by_source,
+                    source_id,
+                    count,
+                )
+        elif event.get("event_type") == "historical_import_summary":
+            source_sha256 = payload.get("source_sha256")
+            source_id = payload.get(
+                "source_id", f"report_sha256:{source_sha256}"
+            )
+            _merge_observed_source_count(
+                observed_rows_by_source,
+                observed_artifacts_by_source,
+                observed_keys_by_source,
+                source_id,
+                payload.get("observed_evaluation_rows"),
+                artifact_sha256=str(source_sha256),
+                observation_keys=(
+                    tuple(payload["observation_keys"])
+                    if isinstance(payload.get("observation_keys"), list)
+                    else None
+                ),
+            )
+    return (
+        observed_rows_by_source,
+        observed_artifacts_by_source,
+        observed_keys_by_source,
+    )
+
+
+def _missing_daily_series_trial_ids(
+    trials: Mapping[str, Mapping[str, Any]],
+    attachments: Mapping[str, Sequence[Mapping[str, Any]]],
+) -> list[str]:
+    return sorted(
+        trial_id
+        for trial_id, trial in trials.items()
+        if trial.get("daily_net_mtm_usdc") is None
+        and trial_id not in attachments
+    )
+
+
+def _incomplete_historical_trial_ids(
+    trials: Mapping[str, Mapping[str, Any]],
+) -> list[str]:
+    required_true = (
+        "candidate_identity_complete",
+        "seed_complete",
+        "versions_complete",
+        "code_commit_complete",
+        "daily_series_complete",
+    )
+    incomplete: list[str] = []
+    for trial_id, trial in trials.items():
+        identity = trial.get("identity_basis")
+        if (
+            not isinstance(identity, Mapping)
+            or identity.get("source_kind") != "historical_import"
+        ):
+            continue
+        completeness = trial.get("completeness")
+        if (
+            not isinstance(completeness, Mapping)
+            or any(completeness.get(field) is not True for field in required_true)
+            or completeness.get("missing_fields") != []
+        ):
+            incomplete.append(trial_id)
+    return sorted(incomplete)
+
+
+def _validate_historical_source_assignments(
+    trials: Mapping[str, Mapping[str, Any]],
+    observed_rows_by_source: Mapping[str, int],
+    observed_artifacts_by_source: Mapping[str, str | None],
+    observed_keys_by_source: Mapping[str, Sequence[str] | None],
+) -> None:
+    expected_assignments: set[tuple[str, str]] = set()
+    seen_artifacts: dict[str, str] = {}
+    for source_id, count in observed_rows_by_source.items():
+        artifact_sha256 = observed_artifacts_by_source.get(source_id)
+        observation_keys = observed_keys_by_source.get(source_id)
+        if artifact_sha256 is None or observation_keys is None:
+            raise TrialLedgerError(
+                "historical completion lacks immutable source artifacts or "
+                "per-row observation provenance"
+            )
+        prior_source = seen_artifacts.get(artifact_sha256)
+        if prior_source is not None and prior_source != source_id:
+            raise TrialLedgerError(
+                "one historical artifact cannot attest multiple sources"
+            )
+        seen_artifacts[artifact_sha256] = source_id
+        if len(observation_keys) != count:
+            raise TrialLedgerError(
+                "historical source observation inventory is incomplete"
+            )
+        expected_assignments.update(
+            (artifact_sha256, observation_key)
+            for observation_key in observation_keys
+        )
+
+    actual_assignments: list[tuple[str, str]] = []
+    for trial in trials.values():
+        identity = trial.get("identity_basis")
+        if (
+            not isinstance(identity, Mapping)
+            or identity.get("source_kind") != "historical_import"
+        ):
+            continue
+        actual_assignments.append(
+            (
+                str(trial.get("historical_source_sha256")),
+                str(trial.get("historical_observation_key")),
+            )
+        )
+    if (
+        len(set(actual_assignments)) != len(actual_assignments)
+        or set(actual_assignments) != expected_assignments
+    ):
+        raise TrialLedgerError(
+            "historical trials are not exactly mapped to immutable source "
+            "observation rows"
+        )
+
+
+def _inventory_evidence_sha256(
+    manifest: Mapping[str, Any],
+    trials: Mapping[str, Mapping[str, Any]],
+    attachments: Mapping[str, Sequence[Mapping[str, Any]]],
+) -> str:
+    inventory: list[dict[str, Any]] = []
+    for trial_id in sorted(trials):
+        trial = trials[trial_id]
+        daily_sha256 = trial.get("daily_series_sha256")
+        if daily_sha256 is None and trial_id in attachments:
+            daily_sha256 = _sha256_json(list(attachments[trial_id]))
+        inventory.append(
+            {
+                "trial_id": trial_id,
+                "payload_sha256": trial.get("payload_sha256"),
+                "daily_series_sha256": daily_sha256,
+            }
+        )
+    return _sha256_json(
+        {
+            "schema_version": "protocol_v3_trial_inventory_evidence_v1",
+            "required_historical_import_sha256": manifest.get(
+                "required_historical_import_sha256"
+            ),
+            "trial_inventory": inventory,
+        }
+    )
+
+
+def _reconciliation_evidence_sha256(
+    manifest: Mapping[str, Any],
+    trials: Mapping[str, Mapping[str, Any]],
+    attachments: Mapping[str, Sequence[Mapping[str, Any]]],
+    observed_rows_by_source: Mapping[str, int],
+    observed_artifacts_by_source: Mapping[str, str | None],
+    observed_keys_by_source: Mapping[
+        str, Sequence[str] | None
+    ],
+) -> str:
+    historical_inventory: list[dict[str, Any]] = []
+    for trial_id in sorted(trials):
+        trial = trials[trial_id]
+        identity = trial.get("identity_basis")
+        if (
+            not isinstance(identity, Mapping)
+            or identity.get("source_kind") != "historical_import"
+        ):
+            continue
+        daily_sha256 = trial.get("daily_series_sha256")
+        if daily_sha256 is None and trial_id in attachments:
+            daily_sha256 = _sha256_json(list(attachments[trial_id]))
+        historical_inventory.append(
+            {
+                "trial_id": trial_id,
+                "payload_sha256": trial.get("payload_sha256"),
+                "daily_series_sha256": daily_sha256,
+                "completeness": trial.get("completeness"),
+            }
+        )
+    return _sha256_json(
+        {
+            "schema_version": (
+                "protocol_v3_historical_reconciliation_evidence_v1"
+            ),
+            "required_historical_import_sha256": manifest.get(
+                "required_historical_import_sha256"
+            ),
+            "observed_sources": {
+                source_id: {
+                    "observed_evaluation_rows": (
+                        observed_rows_by_source[source_id]
+                    ),
+                    "artifact_sha256": observed_artifacts_by_source.get(
+                        source_id
+                    ),
+                    "observation_keys": (
+                        list(observed_keys_by_source[source_id])
+                        if observed_keys_by_source.get(source_id) is not None
+                        else None
+                    ),
+                }
+                for source_id in sorted(observed_rows_by_source)
+            },
+            "historical_trial_inventory": historical_inventory,
+        }
+    )
+
+
 def _head_payload(
     event_count: int,
     event_head_sha256: str,
@@ -1348,20 +2032,32 @@ def _head_payload(
 
 def _validate_head(
     head: Mapping[str, Any],
-    event_count: int,
-    event_head_sha256: str,
-    resolved_trial_count: int,
+    event_heads: Sequence[str],
+    resolved_counts: Sequence[int],
 ) -> None:
     body = dict(head)
     digest = body.pop("head_sha256", None)
     if digest != _sha256_json(body):
         raise TrialLedgerError("trial ledger head digest is invalid")
+    head_event_count = head.get("event_count")
+    if (
+        isinstance(head_event_count, bool)
+        or not isinstance(head_event_count, int)
+        or head_event_count < 0
+        or head_event_count >= len(event_heads)
+        or len(event_heads) != len(resolved_counts)
+    ):
+        raise TrialLedgerError(
+            "trial ledger head is ahead of or unrelated to immutable events"
+        )
     expected = _head_payload(
-        event_count, event_head_sha256, resolved_trial_count
+        head_event_count,
+        event_heads[head_event_count],
+        resolved_counts[head_event_count],
     )
     if dict(head) != expected:
         raise TrialLedgerError(
-            "trial ledger head does not match immutable events"
+            "trial ledger head does not match its immutable event prefix"
         )
 
 
@@ -1607,6 +2303,8 @@ __all__ = [
     "attach_trial_daily_series",
     "attest_complete_trial_inventory",
     "build_canonical_historical_import_digest",
+    "build_historical_reconciliation_evidence_sha256",
+    "build_trial_inventory_evidence_sha256",
     "build_trial_record",
     "import_canonical_historical_lower_bound",
     "import_historical_reports",

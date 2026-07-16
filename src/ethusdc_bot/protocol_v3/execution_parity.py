@@ -82,7 +82,8 @@ _CANONICAL_CONTRACT: dict[str, Any] = {
         "rounding": "ROUND_DOWN",
         "required_filters": ["LOT_SIZE", "MARKET_LOT_SIZE"],
         "positive_step_intersection_required": True,
-        "both_step_sizes_must_be_positive": True,
+        "zero_step_disables_individual_filter": True,
+        "at_least_one_positive_step_required": True,
         "min_quantity_uses_stricter_bound": True,
         "max_quantity_uses_stricter_bound": True,
         "exit_quantity_equals_entry_quantity": True,
@@ -248,12 +249,22 @@ def build_market_execution_rules(
 
     lot_step = _decimal(lot_filter.get("step_size"), "LOT_SIZE.step_size")
     market_step = _decimal(
-        market_filter.get("step_size"), "MARKET_LOT_SIZE.step_size"
+        market_filter.get("step_size"),
+        "MARKET_LOT_SIZE.step_size",
+        allow_zero=True,
     )
-    positive_steps: list[tuple[str, Decimal]] = [
-        ("LOT_SIZE", lot_step),
-        ("MARKET_LOT_SIZE", market_step),
+    positive_steps = [
+        (name, step)
+        for name, step in (
+            ("LOT_SIZE", lot_step),
+            ("MARKET_LOT_SIZE", market_step),
+        )
+        if step > 0
     ]
+    if not positive_steps:
+        raise ExecutionParityError(
+            "at least one effective quantity step must be positive"
+        )
     effective_step = _decimal_lcm([step for _, step in positive_steps])
 
     minimum_quantity = max(
@@ -415,6 +426,16 @@ def simulate_protocol_v3_strategy(
     """Run the existing timing engine and apply exact Protocol-v3 fill parity."""
 
     load_execution_parity_contract()
+    if _decimal(fee_rate, "fee_rate", allow_zero=True) != BASELINE_FEE_RATE:
+        raise ExecutionParityError(
+            "canonical Protocol-v3 strategy fee_rate must be exactly 0.001"
+        )
+    if _decimal(
+        slippage_bps, "slippage_bps", allow_zero=True
+    ) != BASELINE_SLIPPAGE_BPS:
+        raise ExecutionParityError(
+            "canonical Protocol-v3 strategy slippage_bps must be exactly 5"
+        )
     rules = build_market_execution_rules(exchange_info_snapshot)
     base = simulate_strategy(
         candles,

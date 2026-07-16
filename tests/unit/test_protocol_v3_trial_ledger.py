@@ -24,11 +24,14 @@ from ethusdc_bot.protocol_v3 import (
     GlobalBudgetUsage,
     GlobalSearchBudgetEnvelope,
     TrialLedgerError,
+    TrialRecord,
     append_trial,
     assert_release_decision_allowed,
     attach_trial_daily_series,
     attest_complete_trial_inventory,
     build_canonical_historical_import_digest,
+    build_historical_reconciliation_evidence_sha256,
+    build_trial_inventory_evidence_sha256,
     build_trial_record,
     import_canonical_historical_lower_bound,
     import_historical_reports,
@@ -90,6 +93,67 @@ def _bootstrap(tmp_path: Path):
     return root, snapshot
 
 
+def _bootstrap_two_observed_rows(tmp_path: Path):
+    repo_root = tmp_path / "fixture_repo"
+    config_path = repo_root / "configs" / "protocol_v3_historical_trial_lower_bound.json"
+    config_path.parent.mkdir(parents=True)
+    payload = json.loads(
+        (REPO_ROOT / "configs/protocol_v3_historical_trial_lower_bound.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    payload["known_observed_evaluation_rows"] = 2
+    payload["sources"] = [
+        {
+            "source_id": "legacy_loop_fixture",
+            "source_kind": "protocol_v2_research_loop_summary",
+            "observed_cycles": 1,
+            "observed_tested_rows_per_cycle": 2,
+            "observed_evaluation_rows": 2,
+            "candidate_identity_inventory_available": False,
+            "causal_daily_series_available": False,
+            "evidence_reference": "legacy.json",
+        }
+    ]
+    config_path.write_text(json.dumps(payload), encoding="utf-8")
+    root = tmp_path / "two_row_trial_ledger"
+    snapshot = import_canonical_historical_lower_bound(root, repo_root)
+    return root, snapshot
+
+
+def _complete_historical_record(
+    candidate_id: str,
+    seed: int,
+    *,
+    source_sha256: str,
+    observation_key: str,
+) -> TrialRecord:
+    native = _record(candidate_id, seed=seed)
+    payload = native.payload()
+    payload["identity_basis"]["source_kind"] = "historical_import"
+    payload["historical_trial_count_is_lower_bound"] = True
+    payload["historical_source_sha256"] = source_sha256
+    payload["historical_observation_key"] = observation_key
+    identity_json = json.dumps(
+        payload["identity_basis"],
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    )
+    canonical = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    )
+    return TrialRecord(
+        trial_id="trial_sha256:"
+        + hashlib.sha256(identity_json.encode("utf-8")).hexdigest(),
+        payload_sha256=hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+        canonical_payload_json=canonical,
+    )
+
+
 def _protocol_v2_report() -> dict[str, object]:
     def inventory(candidate_id: str, lookback: int) -> dict[str, object]:
         return {
@@ -139,7 +203,7 @@ def test_canonical_historical_import_is_an_honest_lower_bound(tmp_path: Path) ->
     assert snapshot.status.event_count == 1
     assert snapshot.status.resolved_trial_count == 0
     assert snapshot.status.known_observed_historical_evaluation_rows == 180
-    assert snapshot.status.permanent_trial_count_lower_bound == 180
+    assert snapshot.status.permanent_trial_count_lower_bound == 0
     assert snapshot.status.historical_trial_count_is_lower_bound is True
     assert snapshot.status.canonical_historical_import_present is True
     assert snapshot.status.development_dsr_status == DEVELOPMENT_DSR_INSUFFICIENT
@@ -286,7 +350,8 @@ def test_historical_protocol_v2_import_is_deterministic_and_lower_bound(
     assert snapshot.status.historical_resolved_trial_count == 2
     assert len(snapshot.status.missing_daily_series_trial_ids) == 2
     assert snapshot.status.historical_trial_count_is_lower_bound is True
-    assert snapshot.status.known_observed_historical_evaluation_rows == 180
+    assert snapshot.status.known_observed_historical_evaluation_rows == 182
+    assert snapshot.status.permanent_trial_count_lower_bound == 0
     assert snapshot.status.development_dsr_status == DEVELOPMENT_DSR_INSUFFICIENT
 
     repeated = import_historical_reports(root, [report_path])
@@ -301,6 +366,31 @@ def test_historical_protocol_v2_import_is_deterministic_and_lower_bound(
     copied = import_historical_reports(root, [copied_path])
     assert copied.imported_trial_count == 0
     assert copied.reused_trial_count == 2
+
+    conflicting_report = _protocol_v2_report()
+    conflicting_report["cycles"][0]["generated_candidate_inventory"][0][
+        "params"
+    ]["lookback"] = 21
+    conflicting_path = tmp_path / "conflicting_same_source.json"
+    conflicting_path.write_text(
+        json.dumps(conflicting_report), encoding="utf-8"
+    )
+    event_count_before_conflict = read_trial_ledger(root).status.event_count
+    with pytest.raises(TrialLedgerError, match="conflicting artifacts"):
+        import_historical_reports(root, [conflicting_path])
+    assert read_trial_ledger(root).status.event_count == event_count_before_conflict
+
+    second_report = _protocol_v2_report()
+    second_report["loop_run_id"] = "independent_legacy_loop_fixture"
+    second_path = tmp_path / "independent.json"
+    second_path.write_text(json.dumps(second_report), encoding="utf-8")
+    import_historical_reports(root, [second_path])
+    after_second_source = read_trial_ledger(root)
+    assert (
+        after_second_source.status.known_observed_historical_evaluation_rows
+        == 184
+    )
+    assert after_second_source.status.permanent_trial_count_lower_bound == 0
 
 
 def test_historical_daily_series_attachment_is_append_only(tmp_path: Path) -> None:
@@ -346,12 +436,12 @@ def test_lower_bound_cannot_clear_without_full_reconciliation(tmp_path: Path) ->
     reconciliation = {
         "all_observed_rows_mapped": True,
         "all_historical_daily_series_complete": True,
-        "duplicate_or_cache_row_count": 178,
-        "mapped_observed_evaluation_rows": 180,
+        "duplicate_or_cache_row_count": 180,
+        "mapped_observed_evaluation_rows": 182,
         "observation_mapping_sha256": "2" * 64,
         "resolved_historical_trial_count": 2,
     }
-    with pytest.raises(TrialLedgerError, match="daily series"):
+    with pytest.raises(TrialLedgerError, match="per-row mapping evidence"):
         attest_complete_trial_inventory(
             root,
             expected_resolved_trial_count=2,
@@ -360,16 +450,8 @@ def test_lower_bound_cannot_clear_without_full_reconciliation(tmp_path: Path) ->
             historical_reconciliation=reconciliation,
         )
 
-    for trial_id in sorted(snapshot.trials):
-        attach_trial_daily_series(
-            root,
-            trial_id=trial_id,
-            daily_net_mtm_usdc=_daily(),
-            provenance={"source": "verified_reconstruction"},
-        )
-
     incomplete_mapping = dict(reconciliation)
-    incomplete_mapping["mapped_observed_evaluation_rows"] = 179
+    incomplete_mapping["mapped_observed_evaluation_rows"] = 181
     with pytest.raises(TrialLedgerError, match="every observed"):
         attest_complete_trial_inventory(
             root,
@@ -380,7 +462,7 @@ def test_lower_bound_cannot_clear_without_full_reconciliation(tmp_path: Path) ->
         )
 
     wrong_duplicates = dict(reconciliation)
-    wrong_duplicates["duplicate_or_cache_row_count"] = 177
+    wrong_duplicates["duplicate_or_cache_row_count"] = 179
     with pytest.raises(TrialLedgerError, match="must equal observed"):
         attest_complete_trial_inventory(
             root,
@@ -390,18 +472,191 @@ def test_lower_bound_cannot_clear_without_full_reconciliation(tmp_path: Path) ->
             historical_reconciliation=wrong_duplicates,
         )
 
-    complete = attest_complete_trial_inventory(
+
+
+def test_attestation_rejects_unresolved_historical_metadata_even_with_real_digests(
+    tmp_path: Path,
+) -> None:
+    root, _ = _bootstrap_two_observed_rows(tmp_path)
+    report_path = tmp_path / "legacy.json"
+    report_path.write_text(json.dumps(_protocol_v2_report()), encoding="utf-8")
+    import_historical_reports(root, [report_path])
+    snapshot = read_trial_ledger(root)
+    assert snapshot.status.known_observed_historical_evaluation_rows == 2
+
+    for trial_id in sorted(snapshot.trials):
+        attach_trial_daily_series(
+            root,
+            trial_id=trial_id,
+            daily_net_mtm_usdc=_daily(),
+            provenance={"source": "verified_reconstruction"},
+        )
+    snapshot = read_trial_ledger(root)
+    reconciliation = {
+        "all_observed_rows_mapped": True,
+        "all_historical_daily_series_complete": True,
+        "duplicate_or_cache_row_count": 0,
+        "mapped_observed_evaluation_rows": 2,
+        "observation_mapping_sha256": (
+            build_historical_reconciliation_evidence_sha256(snapshot)
+        ),
+        "resolved_historical_trial_count": 2,
+    }
+    with pytest.raises(TrialLedgerError, match="remain unresolved"):
+        attest_complete_trial_inventory(
+            root,
+            expected_resolved_trial_count=2,
+            inventory_sha256=build_trial_inventory_evidence_sha256(snapshot),
+            attestor="fixture",
+            historical_reconciliation=reconciliation,
+        )
+    assert (
+        read_trial_ledger(root).status.development_dsr_status
+        == DEVELOPMENT_DSR_INSUFFICIENT
+    )
+
+
+def test_complete_historical_trial_requires_source_and_observation_binding(
+    tmp_path: Path,
+) -> None:
+    root, _ = _bootstrap_two_observed_rows(tmp_path)
+    record = _complete_historical_record(
+        "unbound_historical",
+        100,
+        source_sha256="1" * 64,
+        observation_key="observation_sha256:" + "2" * 64,
+    )
+    payload = record.payload()
+    payload.pop("historical_source_sha256")
+    canonical = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    )
+    unbound = TrialRecord(
+        trial_id=record.trial_id,
+        payload_sha256=hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+        canonical_payload_json=canonical,
+    )
+    with pytest.raises(TrialLedgerError, match="source digest"):
+        append_trial(root, unbound)
+
+
+def test_self_consistent_but_unimported_historical_source_cannot_unlock(
+    tmp_path: Path,
+) -> None:
+    root, _ = _bootstrap_two_observed_rows(tmp_path)
+    append_trial(
+        root,
+        _complete_historical_record(
+            "unproven_a",
+            91,
+            source_sha256="1" * 64,
+            observation_key="observation_sha256:" + "2" * 64,
+        ),
+    )
+    snapshot = append_trial(
+        root,
+        _complete_historical_record(
+            "unproven_b",
+            92,
+            source_sha256="1" * 64,
+            observation_key="observation_sha256:" + "3" * 64,
+        ),
+    )
+    reconciliation = {
+        "all_observed_rows_mapped": True,
+        "all_historical_daily_series_complete": True,
+        "duplicate_or_cache_row_count": 0,
+        "mapped_observed_evaluation_rows": 2,
+        "observation_mapping_sha256": (
+            build_historical_reconciliation_evidence_sha256(snapshot)
+        ),
+        "resolved_historical_trial_count": 2,
+    }
+    with pytest.raises(TrialLedgerError, match="immutable source artifacts"):
+        attest_complete_trial_inventory(
+            root,
+            expected_resolved_trial_count=2,
+            inventory_sha256=build_trial_inventory_evidence_sha256(snapshot),
+            attestor="fixture",
+            historical_reconciliation=reconciliation,
+        )
+    assert read_trial_ledger(root).status.historical_trial_count_is_lower_bound
+
+
+def test_attestation_is_checked_at_its_event_and_later_native_trial_is_valid(
+    tmp_path: Path,
+) -> None:
+    root, _ = _bootstrap_two_observed_rows(tmp_path)
+    evidence_report = {
+        "schema_version": 2,
+        "loop_run_id": "legacy_loop_fixture",
+        "cycles": [{"cycle_id": 1, "tested_candidates": 2}],
+    }
+    evidence_path = tmp_path / "immutable_historical_evidence.json"
+    evidence_path.write_text(json.dumps(evidence_report), encoding="utf-8")
+    source_sha256 = hashlib.sha256(evidence_path.read_bytes()).hexdigest()
+    import_result = import_historical_reports(root, [evidence_path])
+    assert import_result.imported_trial_count == 0
+    assert import_result.skipped_candidate_count == 2
+
+    def observation_key(row_index: int) -> str:
+        basis = json.dumps(
+            {"source_sha256": source_sha256, "row_index": row_index},
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        )
+        return "observation_sha256:" + hashlib.sha256(
+            basis.encode("utf-8")
+        ).hexdigest()
+
+    append_trial(
+        root,
+        _complete_historical_record(
+            "historical_a",
+            101,
+            source_sha256=source_sha256,
+            observation_key=observation_key(1),
+        ),
+    )
+    snapshot = append_trial(
+        root,
+        _complete_historical_record(
+            "historical_b",
+            102,
+            source_sha256=source_sha256,
+            observation_key=observation_key(2),
+        ),
+    )
+    reconciliation = {
+        "all_observed_rows_mapped": True,
+        "all_historical_daily_series_complete": True,
+        "duplicate_or_cache_row_count": 0,
+        "mapped_observed_evaluation_rows": 2,
+        "observation_mapping_sha256": (
+            build_historical_reconciliation_evidence_sha256(snapshot)
+        ),
+        "resolved_historical_trial_count": 2,
+    }
+    attested = attest_complete_trial_inventory(
         root,
         expected_resolved_trial_count=2,
-        inventory_sha256="3" * 64,
+        inventory_sha256=build_trial_inventory_evidence_sha256(snapshot),
         attestor="fixture",
         historical_reconciliation=reconciliation,
     )
-    assert complete.status.historical_trial_count_is_lower_bound is False
-    assert complete.status.missing_daily_series_trial_ids == ()
-    assert complete.status.development_dsr_status == DEVELOPMENT_DSR_READY
-    assert complete.status.only_release_decision_allowed is None
-    assert_release_decision_allowed(complete, TRADING_CANDIDATE)
+    assert attested.status.historical_trial_count_is_lower_bound is False
+    assert attested.status.development_dsr_status == DEVELOPMENT_DSR_READY
+
+    after_native = append_trial(root, _record("later_native", seed=103))
+    assert after_native.status.resolved_trial_count == 3
+    assert after_native.status.permanent_trial_count_lower_bound == 3
+    assert after_native.status.historical_trial_count_is_lower_bound is False
+    assert after_native.status.development_dsr_status == DEVELOPMENT_DSR_READY
+    assert_release_decision_allowed(after_native, TRADING_CANDIDATE)
 
 
 def test_direct_trial_ledger_submodule_uses_reconciled_attestation_gate() -> None:
@@ -435,6 +690,50 @@ def test_event_tampering_deletion_and_head_rewrite_are_detected(tmp_path: Path) 
     head_path.write_text(json.dumps(head), encoding="utf-8")
     with pytest.raises(TrialLedgerError, match="head digest|head does not match"):
         read_trial_ledger(head_rewrite)
+
+
+def test_stale_head_at_valid_event_prefix_recovers_after_event_first_crash(
+    tmp_path: Path,
+) -> None:
+    root, _ = _bootstrap(tmp_path)
+    append_trial(root, _record())
+    first_event = json.loads(
+        sorted((root / "events").glob("*.json"))[0].read_text(
+            encoding="utf-8"
+        )
+    )
+    stale_body = {
+        "schema_version": "protocol_v3_trial_ledger_head_v1",
+        "event_count": 1,
+        "event_head_sha256": first_event["event_sha256"],
+        "resolved_trial_count": 0,
+    }
+    stale_head = {
+        **stale_body,
+        "head_sha256": hashlib.sha256(
+            json.dumps(
+                stale_body,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+            ).encode("utf-8")
+        ).hexdigest(),
+    }
+    (root / "head.json").write_text(
+        json.dumps(stale_head), encoding="utf-8"
+    )
+
+    recovered = read_trial_ledger(root)
+    assert recovered.status.event_count == 2
+    assert recovered.status.resolved_trial_count == 1
+    assert recovered.status.head_sha256 == recovered.events[-1]["event_sha256"]
+
+    healed = append_trial(root, _record("after_crash", seed=12))
+    persisted_head = json.loads(
+        (root / "head.json").read_text(encoding="utf-8")
+    )
+    assert persisted_head["event_count"] == healed.status.event_count
+    assert persisted_head["event_head_sha256"] == healed.status.head_sha256
 
 
 def test_stale_lock_fails_closed(tmp_path: Path) -> None:
@@ -486,13 +785,15 @@ def test_combined_global_budget_includes_exactly_one_current_refit() -> None:
         MAX_TOTAL_FINALISTS,
     ) == (104, 4160, 1248, 312, 208)
 
+    refit_id = "a" * 64
     usage = GlobalBudgetUsage()
     for origin_index in range(1, 13):
         for _ in range(8):
             usage = usage.reserve_origin_cycle(origin_index)
     assert usage.total_cycles == 96
+    usage = usage.start_current_refit(refit_id)
     for _ in range(8):
-        usage = usage.reserve_current_refit_cycle()
+        usage = usage.reserve_current_refit_cycle(refit_id)
     validate_global_budget_usage(usage)
     assert usage.total_cycles == 104
     assert usage.reserved_generated == 4160
@@ -500,14 +801,33 @@ def test_combined_global_budget_includes_exactly_one_current_refit() -> None:
     assert usage.reserved_walk_forward == 312
     assert usage.reserved_finalists == 208
     with pytest.raises(Exception, match="current refit exceeds"):
-        usage.reserve_current_refit_cycle()
+        usage.reserve_current_refit_cycle(refit_id)
+
+    usage = usage.complete_current_refit(refit_id)
+    with pytest.raises(Exception, match="already completed"):
+        usage.reserve_current_refit_cycle(refit_id)
 
 
 def test_global_budget_forgery_and_second_current_refit_are_impossible() -> None:
-    usage = GlobalBudgetUsage().reserve_current_refit_cycle()
+    refit_id = "a" * 64
+    usage = (
+        GlobalBudgetUsage()
+        .start_current_refit(refit_id)
+        .reserve_current_refit_cycle(refit_id)
+    )
     with pytest.raises(Exception, match="does not match"):
         validate_global_budget_usage(replace(usage, reserved_generated=39))
     with pytest.raises(Exception, match="twelve origin"):
         validate_global_budget_usage(replace(usage, cycles_by_origin=(0,)))
     with pytest.raises(Exception, match="remain 12 origins plus one"):
         replace(GlobalSearchBudgetEnvelope(), current_refit_runs=2).validate()
+    with pytest.raises(Exception, match="second current refit"):
+        usage.start_current_refit("b" * 64)
+    with pytest.raises(Exception, match="second current refit"):
+        usage.reserve_current_refit_cycle("b" * 64)
+    with pytest.raises(Exception, match="must be started"):
+        GlobalBudgetUsage().reserve_current_refit_cycle(refit_id)
+    with pytest.raises(Exception, match="frozen refit identity"):
+        validate_global_budget_usage(
+            replace(GlobalBudgetUsage(), current_refit_cycles=1)
+        )

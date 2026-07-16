@@ -30,6 +30,7 @@ from ethusdc_bot.protocol_v3.pipeline import (
     validate_pipeline_generation,
     validate_pre_run_manifest,
 )
+from ethusdc_bot.contracts.protocol_v3 import MANIFEST_PATH, REQUIRED_DOCUMENTS
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMMIT = "a" * 40
@@ -48,6 +49,12 @@ def _copy_pipeline_sources(tmp_path: Path) -> Path:
             target.parent.mkdir(parents=True, exist_ok=True)
             if not target.exists():
                 shutil.copyfile(source, target)
+    for relative in (MANIFEST_PATH, *REQUIRED_DOCUMENTS):
+        source = REPO_ROOT / relative
+        target = tmp_path / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if not target.exists():
+            shutil.copyfile(source, target)
     return tmp_path
 
 
@@ -100,6 +107,9 @@ def test_pipeline_generation_is_deterministic_and_binds_all_components() -> None
     assert basis["budget_policy"] == SearchBudgetPolicy.canonical().to_dict()
     assert basis["target_policy"]["target_is_search_loss"] is False
     assert basis["target_policy"]["target_hit_may_stop_search"] is False
+    assert set(basis["governing_contract_source_sha256"]) == {
+        relative.as_posix() for relative in (MANIFEST_PATH, *REQUIRED_DOCUMENTS)
+    }
 
 
 def test_bound_source_change_creates_new_generation_and_only_new_forward_namespace(
@@ -125,6 +135,40 @@ def test_missing_bound_source_blocks_generation_fail_closed(tmp_path: Path) -> N
     (root / "src/ethusdc_bot/backtest/features.py").unlink()
     with pytest.raises(PipelineContractError, match="missing or unreadable"):
         build_pipeline_generation(root)
+
+
+def test_missing_or_contradictory_governing_contract_blocks_generation(
+    tmp_path: Path,
+) -> None:
+    root = _copy_pipeline_sources(tmp_path)
+    (root / MANIFEST_PATH).unlink()
+    with pytest.raises(PipelineContractError, match="repository contract is invalid"):
+        build_pipeline_generation(root)
+
+    root = _copy_pipeline_sources(tmp_path)
+    agents_path = root / "AGENTS.md"
+    agents_path.write_text(
+        agents_path.read_text(encoding="utf-8").replace(
+            "Protocol-v3-Vertragsgeneration: `3.0.0`",
+            "Protocol-v3-Vertragsgeneration: `2.0.0`",
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(PipelineContractError, match="version marker"):
+        build_pipeline_generation(root)
+
+
+def test_governing_contract_change_creates_a_new_pipeline_generation(
+    tmp_path: Path,
+) -> None:
+    root = _copy_pipeline_sources(tmp_path)
+    first = build_pipeline_generation(root)
+    project_contract = root / "PROJECT_CONTRACT.md"
+    project_contract.write_bytes(project_contract.read_bytes() + b"\n<!-- clarified -->\n")
+    second = build_pipeline_generation(root)
+
+    assert second.generation_id != first.generation_id
+    assert second.forward_ledger_namespace != first.forward_ledger_namespace
 
 
 def test_pipeline_contract_rejects_budget_stop_target_and_ledger_relaxation() -> None:

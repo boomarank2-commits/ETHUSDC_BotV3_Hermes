@@ -21,7 +21,8 @@
     "execution_bar_minutes": 1,
     "boundary_touch_purges": true,
     "training_event_may_not_reach_validation_or_test_start": true,
-    "horizon_extension_creates_new_pipeline_generation": true
+    "horizon_extension_creates_new_pipeline_generation": true,
+    "pending_entry_execution_binding": "HorizonPolicy.policy_sha256_shared_with_task8"
   },
   "inner_fold_policy": {
     "starts_flat": true,

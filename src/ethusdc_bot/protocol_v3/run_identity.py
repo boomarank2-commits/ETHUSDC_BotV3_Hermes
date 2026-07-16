@@ -16,7 +16,7 @@ import json
 import os
 from pathlib import Path
 import re
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 
 from .data_snapshot import FrozenDataSnapshot, validate_frozen_data_snapshot
 from .pipeline import PipelineGeneration, validate_pipeline_generation
@@ -27,12 +27,16 @@ from .trial_ledger import (
 )
 
 RUN_IDENTITY_CONTRACT_PATH = Path("configs/protocol_v3_run_identity_contract.json")
-RUN_IDENTITY_CONTRACT_SCHEMA = "protocol_v3_run_identity_contract_v1"
+RUN_IDENTITY_CONTRACT_SCHEMA = "protocol_v3_run_identity_contract_v2"
 EXCHANGE_INFO_CONTRACT_VERSION = "binance_spot_ethusdc_exchange_info_snapshot_v1"
-RUN_FINGERPRINT_CONTRACT_VERSION = "protocol_v3_complete_run_fingerprint_v1"
+RUN_FINGERPRINT_CONTRACT_VERSION = "protocol_v3_complete_run_fingerprint_v2"
 EXCHANGE_INFO_SNAPSHOT_SCHEMA = "protocol_v3_exchange_info_snapshot_v1"
-RUN_FINGERPRINT_SCHEMA = "protocol_v3_run_fingerprint_v1"
+RUN_FINGERPRINT_SCHEMA = "protocol_v3_run_fingerprint_v2"
 RUN_FINGERPRINT_PREFIX = "protocol_v3_run_sha256"
+CONTEXT_IDENTITY_PREFIX = "protocol_v3_context_sha256"
+
+if TYPE_CHECKING:
+    from .context_parity import ContextParityBinding
 
 _COMPONENT_MAP = {
     "features": "feature_contract",
@@ -95,6 +99,14 @@ _CANONICAL_CONTRACT: dict[str, Any] = {
         "cache_hit_requires_exact_fingerprint": True,
         "canonical_json": True,
         "sha256_bound": True,
+        "context_runtime_binding": {
+            "required": True,
+            "requires_concrete_validated_context_parity_binding": True,
+            "identity_payload_embedded": True,
+            "context_identity_sha256_verified": True,
+            "cache_and_resume_key_verified": True,
+            "data_snapshot_sha256_must_match_raw_data": True,
+        },
     },
     "safety": _CANONICAL_SAFETY,
 }
@@ -288,8 +300,9 @@ def build_run_fingerprint(
     data_snapshot: FrozenDataSnapshot | Mapping[str, Any],
     exchange_info_snapshot: FrozenExchangeInfoSnapshot | Mapping[str, Any],
     pipeline_generation: PipelineGeneration,
+    context_binding: ContextParityBinding,
     code_commit: str,
-    trial_ledger: TrialLedgerSnapshot | Mapping[str, Any],
+    trial_ledger: TrialLedgerSnapshot,
     repo_root: str | Path | None = None,
     contract_path: str | Path | None = None,
 ) -> RunFingerprint:
@@ -307,6 +320,14 @@ def build_run_fingerprint(
         raise RunIdentityError("pipeline generation lacks component identities")
 
     raw_identity = _data_snapshot_identity(data_snapshot)
+    context_runtime_identity = _context_runtime_identity(context_binding)
+    if (
+        context_runtime_identity["identity_payload"]["data_snapshot_sha256"]
+        != raw_identity["snapshot_sha256"]
+    ):
+        raise RunIdentityError(
+            "context binding and raw-data snapshot identities differ"
+        )
     exchange_identity = _exchange_snapshot_identity(
         exchange_info_snapshot,
         repo_root=repo_root,
@@ -331,6 +352,7 @@ def build_run_fingerprint(
             "contract_version": _normalize_json(version),
             "source_sha256": digest,
         }
+    explicit_components["context"]["runtime_binding"] = context_runtime_identity
 
     payload = {
         "schema_version": RUN_FINGERPRINT_SCHEMA,
@@ -431,7 +453,14 @@ def validate_run_fingerprint(
     _validate_pipeline_identity(pipeline)
     for output_key, pipeline_key in _COMPONENT_MAP.items():
         row = _require_mapping(payload.get(output_key), output_key)
-        if set(row) != {"pipeline_component", "contract_version", "source_sha256"}:
+        expected_fields = {
+            "pipeline_component",
+            "contract_version",
+            "source_sha256",
+        }
+        if output_key == "context":
+            expected_fields.add("runtime_binding")
+        if set(row) != expected_fields:
             raise RunIdentityError(f"component identity fields are invalid: {output_key}")
         if row.get("pipeline_component") != pipeline_key:
             raise RunIdentityError(f"component identity name is invalid: {output_key}")
@@ -440,6 +469,47 @@ def validate_run_fingerprint(
         if not isinstance(row.get("source_sha256"), str) or not _HEX64_RE.fullmatch(row["source_sha256"]):
             raise RunIdentityError(f"component digest is invalid: {output_key}")
 
+    context_row = _require_mapping(payload.get("context"), "context")
+    context_runtime = _require_mapping(
+        context_row.get("runtime_binding"), "context.runtime_binding"
+    )
+    _validate_context_runtime_identity(context_runtime)
+    context_payload = _require_mapping(
+        context_runtime.get("identity_payload"),
+        "context.runtime_binding.identity_payload",
+    )
+    if context_payload.get("data_snapshot_sha256") != raw.get("snapshot_sha256"):
+        raise RunIdentityError(
+            "run fingerprint context/raw-data snapshot mismatch"
+        )
+    if context_payload.get("data_snapshot_common_grid_sha256") != raw.get(
+        "common_minute_grid_sha256"
+    ):
+        raise RunIdentityError(
+            "run fingerprint context/raw-data minute-grid mismatch"
+        )
+    raw_market_content = {
+        row["symbol"]: row["market_content_sha256"]
+        for row in raw["markets"]
+    }
+    if context_payload.get("snapshot_market_content_sha256") != raw_market_content:
+        raise RunIdentityError(
+            "run fingerprint context/raw-data market-content mismatch"
+        )
+    raw_start_ms = _utc_timestamp_ms(
+        raw.get("raw_interval_start_inclusive"), "raw interval start"
+    )
+    raw_end_ms = _utc_timestamp_ms(
+        raw.get("raw_interval_end_exclusive"), "raw interval end"
+    )
+    if not (
+        raw_start_ms <= context_payload["first_open_time_ms"]
+        and context_payload["common_watermark_open_time_ms"] + 60_000
+        <= raw_end_ms
+    ):
+        raise RunIdentityError(
+            "run fingerprint context window lies outside raw-data interval"
+        )
     trial = _require_mapping(payload.get("trial_ledger_head"), "trial_ledger_head")
     _validate_trial_identity(trial)
     if pipeline.get("permanent_trial_counter_namespace") != trial.get(
@@ -491,11 +561,7 @@ def read_run_fingerprint(
 def _extract_ethusdc_symbol(payload: Mapping[str, Any]) -> Mapping[str, Any]:
     if not isinstance(payload, Mapping):
         raise RunIdentityError("exchangeInfo payload must be an object")
-    if any(
-        key.lower() in {"apikey", "api_key", "secret", "signature", "account"}
-        for key in payload
-    ):
-        raise RunIdentityError("private or account data is forbidden in exchangeInfo payload")
+    _reject_private_or_account_fields(payload)
     symbols = payload.get("symbols")
     if not isinstance(symbols, list):
         raise RunIdentityError("exchangeInfo payload must contain a symbols list")
@@ -605,7 +671,9 @@ def _normalize_quantity_filter(value: Any, filter_type: str) -> dict[str, Any]:
             row.get("maxQty", row.get("max_qty")), f"{filter_type}.maxQty"
         ),
         "step_size": _decimal(
-            row.get("stepSize", row.get("step_size")), f"{filter_type}.stepSize"
+            row.get("stepSize", row.get("step_size")),
+            f"{filter_type}.stepSize",
+            allow_zero=filter_type == "MARKET_LOT_SIZE",
         ),
     }
     if Decimal(result["max_qty"]) < Decimal(result["min_qty"]):
@@ -743,20 +811,16 @@ def _exchange_snapshot_identity(
     }
 
 
-def _trial_ledger_identity(value: TrialLedgerSnapshot | Mapping[str, Any]) -> dict[str, Any]:
-    if isinstance(value, TrialLedgerSnapshot):
-        current = read_trial_ledger(value.root)
-        if current.status.head_sha256 != value.status.head_sha256:
-            raise RunIdentityError("trial-ledger snapshot is stale")
-        status = current.status.to_dict()
-        namespace = current.manifest.get("permanent_trial_counter_namespace")
-    elif isinstance(value, Mapping):
-        status = dict(value)
-        namespace = status.pop("permanent_trial_counter_namespace", None)
-    else:
+def _trial_ledger_identity(value: TrialLedgerSnapshot) -> dict[str, Any]:
+    if not isinstance(value, TrialLedgerSnapshot):
         raise RunIdentityError(
-            "trial_ledger must be a TrialLedgerSnapshot or identity object"
+            "trial_ledger must be a verified TrialLedgerSnapshot"
         )
+    current = read_trial_ledger(value.root)
+    if current.status.head_sha256 != value.status.head_sha256:
+        raise RunIdentityError("trial-ledger snapshot is stale")
+    status = current.status.to_dict()
+    namespace = current.manifest.get("permanent_trial_counter_namespace")
     identity = {
         "permanent_trial_counter_namespace": namespace,
         "head_sha256": status.get("head_sha256"),
@@ -768,6 +832,160 @@ def _trial_ledger_identity(value: TrialLedgerSnapshot | Mapping[str, Any]) -> di
     }
     _validate_trial_identity(identity)
     return identity
+
+
+def _context_runtime_identity(value: ContextParityBinding) -> dict[str, Any]:
+    """Extract one validated concrete Task-10 binding for the run identity.
+
+    The import is intentionally lazy: ``context_parity`` uses the public
+    Exchange-Info snapshot type from this module.  Keeping the dependency here
+    avoids a module-import cycle while still rejecting mappings and look-alike
+    objects at the construction boundary.
+    """
+
+    try:
+        from .context_parity import (
+            ContextParityBinding,
+            validate_context_parity_binding,
+        )
+    except ImportError as exc:  # pragma: no cover - packaging corruption
+        raise RunIdentityError("Protocol v3 context parity module is unavailable") from exc
+    if not isinstance(value, ContextParityBinding):
+        raise RunIdentityError(
+            "context_binding must be a verified ContextParityBinding"
+        )
+    try:
+        validate_context_parity_binding(value)
+        identity_payload = _normalize_json(value.identity_payload())
+    except Exception as exc:
+        raise RunIdentityError(
+            f"context_binding is not a valid ContextParityBinding: {exc}"
+        ) from exc
+    runtime_identity = {
+        "context_identity_sha256": value.context_identity_sha256,
+        "identity_payload": identity_payload,
+        "cache_key": value.cache_key,
+        "resume_key": value.resume_key,
+    }
+    _validate_context_runtime_identity(runtime_identity)
+    return runtime_identity
+
+
+def _validate_context_runtime_identity(value: Mapping[str, Any]) -> None:
+    if set(value) != {
+        "context_identity_sha256",
+        "identity_payload",
+        "cache_key",
+        "resume_key",
+    }:
+        raise RunIdentityError("context runtime-binding fields are invalid")
+    identity_payload = _require_mapping(
+        value.get("identity_payload"), "context identity_payload"
+    )
+    expected_payload_fields = {
+        "contract_version",
+        "policy_version",
+        "policy",
+        "data_snapshot_sha256",
+        "data_snapshot_common_grid_sha256",
+        "snapshot_market_content_sha256",
+        "window_market_content_sha256",
+        "first_open_time_ms",
+        "common_watermark_open_time_ms",
+        "candle_count",
+    }
+    if set(identity_payload) != expected_payload_fields:
+        raise RunIdentityError("context identity_payload fields are invalid")
+
+    try:
+        from .context_parity import CONTEXT_PARITY_CONTRACT_VERSION, MARKETS
+        from ethusdc_bot.backtest.context_features import (
+            CONTEXT_POLICY_VERSION,
+            ContextVetoPolicy,
+        )
+    except ImportError as exc:  # pragma: no cover - packaging corruption
+        raise RunIdentityError("Protocol v3 context identity types are unavailable") from exc
+    if identity_payload.get("contract_version") != CONTEXT_PARITY_CONTRACT_VERSION:
+        raise RunIdentityError("context runtime contract version is invalid")
+    if identity_payload.get("policy_version") != CONTEXT_POLICY_VERSION:
+        raise RunIdentityError("context runtime policy version is invalid")
+
+    policy_payload = _require_mapping(
+        identity_payload.get("policy"), "context policy payload"
+    )
+    policy_values = dict(policy_payload)
+    if policy_values.pop("policy_version", None) != CONTEXT_POLICY_VERSION:
+        raise RunIdentityError("context policy payload version is invalid")
+    try:
+        normalized_policy = ContextVetoPolicy(**policy_values).to_dict()
+    except (TypeError, ValueError) as exc:
+        raise RunIdentityError("context policy payload is invalid") from exc
+    if _normalize_json(policy_payload) != _normalize_json(normalized_policy):
+        raise RunIdentityError("context policy payload is not canonical")
+
+    _hex64(identity_payload.get("data_snapshot_sha256"), "context data snapshot")
+    _hex64(
+        identity_payload.get("data_snapshot_common_grid_sha256"),
+        "context common grid",
+    )
+    expected_symbols = list(MARKETS)
+    for field in (
+        "snapshot_market_content_sha256",
+        "window_market_content_sha256",
+    ):
+        rows = _require_mapping(identity_payload.get(field), f"context {field}")
+        if set(rows) != set(expected_symbols):
+            raise RunIdentityError(f"context {field} markets are not canonical")
+        for symbol in expected_symbols:
+            _hex64(rows.get(symbol), f"context {field}.{symbol}")
+
+    first = identity_payload.get("first_open_time_ms")
+    watermark = identity_payload.get("common_watermark_open_time_ms")
+    count = identity_payload.get("candle_count")
+    if isinstance(first, bool) or not isinstance(first, int) or first < 0:
+        raise RunIdentityError("context first_open_time_ms is invalid")
+    if isinstance(watermark, bool) or not isinstance(watermark, int) or watermark < 0:
+        raise RunIdentityError("context common watermark is invalid")
+    if isinstance(count, bool) or not isinstance(count, int) or count <= 0:
+        raise RunIdentityError("context candle_count is invalid")
+    if watermark != first + (count - 1) * 60_000:
+        raise RunIdentityError("context runtime minute window is not contiguous")
+    if (
+        first % 86_400_000 != 0
+        or count % 1440 != 0
+        or (watermark + 60_000) % 86_400_000 != 0
+    ):
+        raise RunIdentityError(
+            "context runtime window must contain complete UTC days"
+        )
+
+    identity_sha = _hex64(
+        value.get("context_identity_sha256"), "context runtime identity"
+    )
+    if identity_sha != _sha256_json(identity_payload):
+        raise RunIdentityError("context runtime identity digest mismatch")
+    expected_key = f"{CONTEXT_IDENTITY_PREFIX}:{identity_sha}"
+    if value.get("cache_key") != expected_key or value.get("resume_key") != expected_key:
+        raise RunIdentityError("context runtime cache/resume keys are invalid")
+
+
+def _reject_private_or_account_fields(value: Any) -> None:
+    """Reject credential/account-shaped keys at every payload depth."""
+
+    if isinstance(value, Mapping):
+        for key, child in value.items():
+            normalized_key = re.sub(r"[^a-z0-9]", "", str(key).lower())
+            if any(
+                marker in normalized_key
+                for marker in ("apikey", "secret", "signature", "account")
+            ):
+                raise RunIdentityError(
+                    "private or account data is forbidden in exchangeInfo payload"
+                )
+            _reject_private_or_account_fields(child)
+    elif isinstance(value, (list, tuple)):
+        for child in value:
+            _reject_private_or_account_fields(child)
 
 
 def _validate_raw_identity(value: Mapping[str, Any]) -> None:
@@ -980,6 +1198,12 @@ def _parse_day(value: Any, label: str) -> date:
         return date.fromisoformat(value)
     except ValueError as exc:
         raise RunIdentityError(f"{label} must be an ISO date") from exc
+
+
+def _utc_timestamp_ms(value: Any, label: str) -> int:
+    canonical = _canonical_utc_text(value)
+    parsed = datetime.fromisoformat(canonical.replace("Z", "+00:00"))
+    return int(parsed.timestamp() * 1000)
 
 
 def _required_text(value: Any, label: str) -> str:

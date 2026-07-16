@@ -16,7 +16,9 @@
     "adverse_slippage_direction": "up_for_buy",
     "price_tick_rounding": "ROUND_CEILING",
     "same_entry_bar_exit_checks_enabled": true,
-    "pending_entry_does_not_fill_on_zero_volume": true
+    "pending_entry_does_not_fill_on_zero_volume": true,
+    "maximum_pending_entry_latency_source": "HorizonPolicy.pending_entry_latency_minutes",
+    "expired_pending_entry": "cancel_before_fill"
   },
   "exit_policy": {
     "stop_and_target_resolved_on": "positive_volume_1m_ohlc",

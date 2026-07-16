@@ -22,16 +22,29 @@ from ethusdc_bot.protocol_v3.context_parity import (
     evaluate_closed_bar_context,
     load_context_parity_contract,
     simulate_protocol_v3_context_path,
+    validate_context_parity_binding,
     validate_context_parity_contract,
 )
 from ethusdc_bot.protocol_v3.data_snapshot import (
+    FrozenDataSnapshot,
     MarketDayAudit,
     build_three_market_data_snapshot,
+    compute_utc_day_content_sha256,
+    validate_frozen_data_snapshot,
 )
-from ethusdc_bot.protocol_v3.run_identity import build_exchange_info_snapshot
+from ethusdc_bot.protocol_v3.pipeline import build_pipeline_generation
+from ethusdc_bot.protocol_v3.run_identity import (
+    RunIdentityError,
+    assert_resume_compatible,
+    build_exchange_info_snapshot,
+    build_run_fingerprint,
+)
+from ethusdc_bot.protocol_v3.runtime_state import HorizonPolicy
+from ethusdc_bot.protocol_v3.trial_ledger import initialize_trial_ledger
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MARKETS = ("ETHUSDC", "BTCUSDC", "ETHBTC")
+HORIZON_POLICY = HorizonPolicy(10, 10, 2)
 
 
 def _digest(text: str) -> str:
@@ -73,9 +86,12 @@ class _FakeInspector:
         return _fake_audit(symbol, day)
 
 
-def _snapshot(monkeypatch: pytest.MonkeyPatch):
+def _snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+    context: AlignedMarketCandles | None = None,
+) -> FrozenDataSnapshot:
     monkeypatch.setattr(snapshot_module, "_ZipMarketInspector", _FakeInspector)
-    return build_three_market_data_snapshot(
+    snapshot = build_three_market_data_snapshot(
         Path("/external/protocol-v3-data"),
         [
             {"name": "eth", "market": "ETHUSDC", "bars": 3, "bar_seconds": 60},
@@ -84,6 +100,31 @@ def _snapshot(monkeypatch: pytest.MonkeyPatch):
         ],
         repo_root=REPO_ROOT,
     )
+    bound_context = context or _context()
+    payload = snapshot.payload()
+    target_day = date(2025, 3, 1)
+    for (symbol, candles), market in zip(
+        (
+            ("ETHUSDC", bound_context.ethusdc),
+            ("BTCUSDC", bound_context.btcusdc),
+            ("ETHBTC", bound_context.ethbtc),
+        ),
+        payload["market_data"],
+        strict=True,
+    ):
+        index = market["utc_day_content_sha256"]
+        row = next(item for item in index if item["day"] == target_day.isoformat())
+        row["content_sha256"] = compute_utc_day_content_sha256(
+            symbol, target_day, candles
+        )
+        market["market_content_sha256"] = snapshot_module._sha256_json(index)
+    canonical = snapshot_module._canonical_json(payload)
+    frozen = FrozenDataSnapshot(
+        canonical,
+        hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+    )
+    validate_frozen_data_snapshot(frozen, repo_root=REPO_ROOT)
+    return frozen
 
 
 def _exchange_snapshot():
@@ -147,15 +188,44 @@ def _series(
     )
 
 
+def _full_day(values: list[float]) -> list[float]:
+    expanded = [float(value) for value in values]
+    if not expanded:
+        raise ValueError("test series must be non-empty")
+    direction = 0
+    if len(expanded) >= 2:
+        direction = (expanded[-1] > expanded[-2]) - (expanded[-1] < expanded[-2])
+    while len(expanded) < 1440:
+        if direction < 0:
+            expanded.append(expanded[-1] * 0.9998)
+        elif direction > 0:
+            expanded.append(expanded[-1] * 1.00001)
+        else:
+            expanded.append(expanded[-1])
+    return expanded
+
+
 def _context(
     *,
     btc: list[float] | None = None,
     ratio: list[float] | None = None,
 ) -> AlignedMarketCandles:
     return AlignedMarketCandles(
-        ethusdc=_series([100, 100.1, 100.2, 100.3, 100.4, 100.5, 100.6, 100.7]),
-        btcusdc=_series(btc or [100, 100.1, 100.2, 100.3, 100.4, 100.5, 100.6, 100.7]),
-        ethbtc=_series(ratio or [1, 1.001, 1.002, 1.003, 1.004, 1.005, 1.006, 1.007]),
+        ethusdc=_series(
+            _full_day([100, 100.1, 100.2, 100.3, 100.4, 100.5, 100.6, 100.7])
+        ),
+        btcusdc=_series(
+            _full_day(
+                btc
+                or [100, 100.1, 100.2, 100.3, 100.4, 100.5, 100.6, 100.7]
+            )
+        ),
+        ethbtc=_series(
+            _full_day(
+                ratio
+                or [1, 1.001, 1.002, 1.003, 1.004, 1.005, 1.006, 1.007]
+            )
+        ),
     )
 
 
@@ -195,6 +265,13 @@ def test_contract_is_exact_and_context_markets_can_never_trade() -> None:
     assert contract["markets"][2]["may_trigger_trade"] is False
     assert contract["time_policy"]["missing_context"] == "block"
     assert contract["time_policy"]["stale_context"] == "block"
+    assert contract["watermark_policy"]["complete_utc_day_windows_required"] is True
+    assert (
+        contract["watermark_policy"][
+            "window_day_content_must_match_snapshot_index"
+        ]
+        is True
+    )
     changed = json.loads(json.dumps(contract))
     changed["markets"][1]["may_trigger_trade"] = True
     with pytest.raises(ContextParityError, match="not canonical"):
@@ -207,7 +284,7 @@ def test_binding_is_snapshot_bound_and_content_addressed(
     binding = build_context_parity_binding(
         _context(), _policy(), _snapshot(monkeypatch), repo_root=REPO_ROOT
     )
-    assert binding.candle_count == 8
+    assert binding.candle_count == 1440
     assert binding.first_open_time_ms == binding.context.ethusdc[0].open_time
     assert binding.common_watermark_open_time_ms == binding.context.ethusdc[-1].open_time
     assert len(binding.context_identity_sha256) == 64
@@ -261,7 +338,7 @@ def test_context_only_vetoes_an_existing_ethusdc_signal(
     binding = build_context_parity_binding(
         context,
         _policy(btc_min_trend_bps=-5),
-        _snapshot(monkeypatch),
+        _snapshot(monkeypatch, context),
         repo_root=REPO_ROOT,
     )
     result = simulate_protocol_v3_context_path(
@@ -271,6 +348,7 @@ def test_context_only_vetoes_an_existing_ethusdc_signal(
         _strategy(),
         days=1,
         exchange_info_snapshot=_exchange_snapshot(),
+        horizon_policy=HORIZON_POLICY,
     )
     assert result.trade_count == 0
     assert result.signal_funnel["raw_entry_signals"] > 0
@@ -293,6 +371,7 @@ def test_all_paths_are_bit_identical_and_use_one_execution_engine(
             _strategy(),
             days=1,
             exchange_info_snapshot=_exchange_snapshot(),
+            horizon_policy=HORIZON_POLICY,
         )
         rows.append(
             {
@@ -312,15 +391,71 @@ def test_context_identity_change_blocks_reuse(
     first = build_context_parity_binding(
         _context(), _policy(), snapshot, repo_root=REPO_ROOT
     )
+    changed_context = _context(
+        ratio=[1, 1.001, 1.002, 1.003, 1.004, 1.005, 1.006, 1.5]
+    )
+    with pytest.raises(ContextParityError, match="not proven"):
+        build_context_parity_binding(
+            changed_context,
+            _policy(),
+            snapshot,
+            repo_root=REPO_ROOT,
+        )
     second = build_context_parity_binding(
-        _context(ratio=[1, 1.001, 1.002, 1.003, 1.004, 1.005, 1.006, 1.5]),
+        changed_context,
         _policy(),
-        snapshot,
+        _snapshot(monkeypatch, changed_context),
         repo_root=REPO_ROOT,
     )
     assert first.context_identity_sha256 != second.context_identity_sha256
     with pytest.raises(ContextParityError, match="mismatch"):
         assert_context_identity_compatible(first, second)
+
+
+def test_concrete_context_identity_changes_the_protocol_v3_run_fingerprint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot = _snapshot(monkeypatch)
+    first_binding = build_context_parity_binding(
+        _context(), _policy(), snapshot, repo_root=REPO_ROOT
+    )
+    second_binding = build_context_parity_binding(
+        _context(),
+        _policy(btc_min_trend_bps=-21),
+        snapshot,
+        repo_root=REPO_ROOT,
+    )
+    ledger = initialize_trial_ledger(
+        tmp_path / "ledger",
+        required_historical_import_sha256="0" * 64,
+    )
+    common = {
+        "data_snapshot": snapshot,
+        "exchange_info_snapshot": _exchange_snapshot(),
+        "pipeline_generation": build_pipeline_generation(REPO_ROOT),
+        "code_commit": "a" * 40,
+        "trial_ledger": ledger,
+    }
+    first = build_run_fingerprint(
+        context_binding=first_binding,
+        **common,
+    )
+    second = build_run_fingerprint(
+        context_binding=second_binding,
+        **common,
+    )
+
+    assert first.fingerprint_sha256 != second.fingerprint_sha256
+    assert first.cache_key != second.cache_key
+    assert (
+        first.payload()["context"]["runtime_binding"][
+            "context_identity_sha256"
+        ]
+        == first_binding.context_identity_sha256
+    )
+    with pytest.raises(RunIdentityError, match="resume blocked"):
+        assert_resume_compatible(first, second)
 
 
 def test_context_market_candidate_cannot_enter_trade_engine(
@@ -338,6 +473,7 @@ def test_context_market_candidate_cannot_enter_trade_engine(
             _strategy(symbol="BTCUSDC"),
             days=1,
             exchange_info_snapshot=_exchange_snapshot(),
+            horizon_policy=HORIZON_POLICY,
         )
 
 
@@ -362,4 +498,34 @@ def test_snapshot_tampering_and_unknown_path_block(
             _strategy(),
             days=1,
             exchange_info_snapshot=_exchange_snapshot(),
+            horizon_policy=HORIZON_POLICY,
+        )
+
+
+def test_partial_day_and_forged_binding_are_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = _context()
+    snapshot = _snapshot(monkeypatch, context)
+    partial = AlignedMarketCandles(
+        context.ethusdc[:8], context.btcusdc[:8], context.ethbtc[:8]
+    )
+    with pytest.raises(ContextParityError, match="complete midnight-to-midnight"):
+        build_context_parity_binding(
+            partial,
+            _policy(),
+            snapshot,
+            repo_root=REPO_ROOT,
+        )
+
+    binding = build_context_parity_binding(
+        context, _policy(), snapshot, repo_root=REPO_ROOT
+    )
+    with pytest.raises(ContextParityError, match="contract version"):
+        validate_context_parity_binding(
+            replace(binding, contract_version="forged_context_contract")
+        )
+    with pytest.raises(ContextParityError, match="does not match its snapshot"):
+        validate_context_parity_binding(
+            replace(binding, data_snapshot_sha256="f" * 64)
         )

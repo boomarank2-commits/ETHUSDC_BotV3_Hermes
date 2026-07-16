@@ -1,6 +1,6 @@
 # Protocol v3 – verbindliche Implementierungsreihenfolge
 
-Stand: 2026-07-15
+Stand: 2026-07-16
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
 Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 10/33 abgeschlossen
 
@@ -16,7 +16,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 **Status:** `DONE_100`
 
-Blueprint, Projektvertrag, Agentenregeln sowie Portfolio-/Shadow-Vertrag wurden widerspruchsfrei als Vertragsgeneration 3.0.0 übernommen. Verbrauchter Audit bleibt `NOT_FRESH`; Legacy-Pfade können keinen Protocol-v3-Finalstatus erzeugen.
+Blueprint, Projektvertrag, Agentenregeln sowie Portfolio-/Shadow-Vertrag wurden widerspruchsfrei als Vertragsgeneration 3.0.0 übernommen. Der Pipelineaufbau validiert diese Repository-Verträge fail-closed und bindet ihre vollständigen Quelldigests in jede Pipelinegeneration. Verbrauchter Audit bleibt `NOT_FRESH`; Legacy-Pfade können keinen Protocol-v3-Finalstatus erzeugen.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_01_2026-07-13.md`
 
@@ -32,7 +32,7 @@ Exakt zwölf Origins, 730 Entwicklungstage je Origin, 365 lückenlose Prozess-OO
 
 **Status:** `DONE_100`
 
-Pipelinegeneration, timestamp-freies Pre-Run-Manifest, deterministische Seeds, globale 12-Origin-Budgets und ausschließlich verkürzende Stopregeln sind eingefroren. Das 3-USDC-Ziel ist keine Suchverlust- oder Stopregel.
+Pipelinegeneration, timestamp-freies Pre-Run-Manifest, deterministische Seeds, globale 12-Origin-Budgets und ausschließlich verkürzende Stopregeln sind eingefroren. Der zusätzliche aktuelle Refit benötigt vor der ersten Reservierung eine gebundene Manifestidentität, kann nur einmal begonnen und nach Abschluss nicht fortgesetzt werden. Das 3-USDC-Ziel ist keine Suchverlust- oder Stopregel.
 
 **Berichte:**
 - `handoff/PROTOCOL_V3_TASK_03_2026-07-14.md`
@@ -42,7 +42,7 @@ Pipelinegeneration, timestamp-freies Pre-Run-Manifest, deterministische Seeds, g
 
 **Status:** `DONE_100`
 
-Versuche werden append-only, hashverkettet und generationsübergreifend erfasst. Der belegbare Altbestand bleibt eine Untergrenze mit 180 bekannten Bewertungszeilen und 0 vollständig aufgelösten unabhängigen Alt-Trials; deshalb bleibt nur `NO_TRADE` freigabefähig.
+Versuche werden append-only, hashverkettet und generationsübergreifend erfasst. Historischer Import zählt nur vollständig quell- und beobachtungsgebundene Trials; bloße Zeilenzahlen, vom Aufrufer gelieferte Attestierungswerte oder spätere Ledger-Ereignisse können den damaligen Gate-Zustand nicht rückwirkend freigeben. Der belegbare Altbestand bleibt eine Untergrenze mit 180 bekannten Bewertungszeilen und 0 vollständig aufgelösten unabhängigen Alt-Trials; deshalb bleibt nur `NO_TRADE` freigabefähig.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_04_2026-07-14.md`
 
@@ -50,7 +50,7 @@ Versuche werden append-only, hashverkettet und generationsübergreifend erfasst.
 
 **Status:** `DONE_100`
 
-ETHUSDC, BTCUSDC und ETHBTC erhalten eine dynamische gemeinsame vollständige UTC-Watermark, exakte 1m-Rasterprüfung, Markt-/Archivdigests und `max(active lookbacks)+1 Quellbar` Warmup. Der reale bekannte Bestand bleibt `BLOCKED_MISSING_WARMUP`.
+ETHUSDC, BTCUSDC und ETHBTC erhalten eine dynamische gemeinsame vollständige UTC-Watermark, exakte 1m-Rasterprüfung, Markt-/Archivdigests, einen SHA-256-Inhaltsnachweis für jeden Markt und UTC-Tag sowie `max(active lookbacks)+1 Quellbar` Warmup. ZIP-Prüfsummen werden gestreamt und fail-closed geparst. Der reale bekannte Bestand bleibt `BLOCKED_MISSING_WARMUP`.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_05_2026-07-14.md`
 
@@ -58,7 +58,7 @@ ETHUSDC, BTCUSDC und ETHBTC erhalten eine dynamische gemeinsame vollständige UT
 
 **Status:** `DONE_100`
 
-Öffentliche ETHUSDC-Exchange-Filter und zwölf Identitätsklassen sind immutable und SHA-256-gebunden. Resume und Cache-Hit verlangen denselben vollständigen Run-Fingerprint.
+Öffentliche ETHUSDC-Exchange-Filter und zwölf Identitätsklassen sind immutable und SHA-256-gebunden. Private oder kontobezogene Schlüssel werden auf jeder Payload-Tiefe abgelehnt. Der Run-Fingerprint v2 verlangt eine konkrete validierte Kontextbindung und gleicht deren Datensnapshot mit der Rohdatenidentität ab; Resume und Cache-Hit verlangen denselben vollständigen Fingerprint.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_06_2026-07-14.md`
 
@@ -66,7 +66,7 @@ ETHUSDC, BTCUSDC und ETHBTC erhalten eine dynamische gemeinsame vollständige UT
 
 **Status:** `DONE_100`
 
-Requested und reserved bleiben exakt 100 USDC; executed bleibt wegen gemeinsamer LOT-/MARKET_LOT-Rundung höchstens 100 USDC. Entry-/Exit-Fees verwenden tatsächliche Notionals, der Exit exakt die gekaufte Menge, Compounding bleibt aus.
+Requested und reserved bleiben exakt 100 USDC; executed bleibt wegen der aktiven LOT-/MARKET_LOT-Raster höchstens 100 USDC. Ein Binance-Filter mit `stepSize=0` ist einzeln deaktiviert, mindestens ein positiver wirksamer Raster bleibt Pflicht. Der kanonische Pfad erzwingt exakt 0,1 % Gebühr und 5 bps Slippage je Seite. Entry-/Exit-Fees verwenden tatsächliche Notionals, der Exit exakt die gekaufte Menge, Compounding bleibt aus.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_07_2026-07-14.md`
 
@@ -74,7 +74,7 @@ Requested und reserved bleiben exakt 100 USDC; executed bleibt wegen gemeinsamer
 
 **Status:** `DONE_100`
 
-Entry erfolgt erst nach geschlossener Signalbar am nächsten positiven Volumen-Open. Tick-Rundung ist adverse, Stop gewinnt bei Doppelberührung, Gaps werden pessimistisch gefüllt, perfekte Extremfills sind ausgeschlossen und Break-even/Trail gelten erst ab Folgebalken.
+Entry erfolgt erst nach geschlossener Signalbar am nächsten positiven Volumen-Open. Eine Pending Entry besitzt denselben eingefrorenen Horizont wie Purge und verfällt deterministisch; am oder nach dem letzten handelbaren Balken entstehen keine neuen Entries. Tick-Rundung ist adverse, Stop gewinnt bei Doppelberührung, Gaps werden pessimistisch gefüllt, perfekte Extremfills sind ausgeschlossen und Break-even/Trail gelten erst ab Folgebalken.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_08_2026-07-14.md`
 
@@ -82,7 +82,7 @@ Entry erfolgt erst nach geschlossener Signalbar am nächsten positiven Volumen-O
 
 **Status:** `DONE_100`
 
-Warmup ist feature-only, Purge folgt dem maximalen Informationshorizont plus Ausführungsbar, innere Folds starten flat und enden konservativ. Zwischen Origins wird ausschließlich höchstens eine offene Altposition mit alter Exitlogik übernommen; neue Entries warten auf `max(valid_from,flat_time)`.
+Warmup ist feature-only, Purge folgt dem maximalen Informationshorizont plus Ausführungsbar, innere Folds starten flat und enden konservativ. Eine Altposition darf nur mit identischer Candidate-Bundle-Identität fortgeführt werden; terminale Liquidation erfolgt auf dem letzten tatsächlich handelbaren Balken. Zwischen Origins wird ausschließlich höchstens eine offene Altposition mit alter Exitlogik übernommen; neue Entries warten auf `max(valid_from,flat_time)`.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_09_2026-07-14.md`
 
@@ -92,14 +92,14 @@ Warmup ist feature-only, Purge folgt dem maximalen Informationshorizont plus Aus
 
 **Abnahme:**
 
-- Vertrag `three_market_closed_bar_context_parity_v1` bindet ETHUSDC als einziges Handelssymbol; BTCUSDC und ETHBTC bleiben ausschließlich Kontextmärkte.
-- Research, Replay, Final-Evaluator und Research-Challenger verwenden dieselbe Kontextfunktion, dieselbe `ContextVetoPolicy` und dieselbe Task-8-Ausführungsengine; Golden-Ergebnisse sind bitgleich.
+- Vertrag `three_market_closed_bar_context_parity_v2` bindet ETHUSDC als einziges Handelssymbol; BTCUSDC und ETHBTC bleiben ausschließlich Kontextmärkte.
+- Die vorhandenen Research-/Replay-Adapter verwenden dieselbe Kontextfunktion, dieselbe `ContextVetoPolicy` und dieselbe Task-8-Ausführungsengine. Die Pfadnamen für Final-Evaluator und Research-Challenger sichern nur die spätere Paritätsanforderung; deren Controller bleiben ausdrücklich Aufgabe 31 beziehungsweise 29.
 - Entscheidungen sind nur bei drei exakt ausgerichteten vollständig geschlossenen 1m-Bars zum Zeitpunkt `open_time+59.999 ms` erlaubt.
 - Fehlender, versetzter, lückenhafter, veralteter oder zukünftiger Kontext blockiert; Nearest-Neighbor, Forward-Fill und Interpolation sind verboten.
-- Die Watermark bleibt die Task-5-Datenwahrheit und bindet Rohintervall, gemeinsamen Rasterdigest und alle drei Marktinhaltsdigests.
+- Die Watermark bleibt die Task-5-Datenwahrheit. Kontextfenster müssen aus vollständigen UTC-Tagen bestehen, und jeder Markt-/Tag-Inhalt muss exakt dem Task-5-Tagesindex entsprechen.
 - Kontext darf ausschließlich ein vorhandenes ETHUSDC-Signal bestätigen oder vetoen; BTCUSDC und ETHBTC können weder Signal noch Trade erzeugen.
-- Kontextidentität bindet Vertrag, Policy, Task-5-Snapshot, drei Snapshot- und drei Fensterinhalte, Startzeit, letzte gemeinsame Bar und Candle-Anzahl.
-- Cache-/Resume-Key verlangen dieselbe Kontextidentität; Kontextvertrag und Implementierung sind in Pipelinegeneration und Run-Fingerprint gebunden.
+- Kontextidentität bindet Vertrag, Policy, den konkret validierten Task-5-Snapshot, drei Snapshot- und drei Fensterinhalte, Startzeit, letzte gemeinsame Bar und Candle-Anzahl.
+- Cache-/Resume-Key verlangen dieselbe Kontextidentität; der Run-Fingerprint v2 bettet diese konkrete Laufzeitbindung ein und prüft sie gegen die Rohdatenidentität.
 - Task-7-, Task-8- und Task-9-Verhalten blieb unverändert; keine Aufgabe 11 oder später wurde vorgezogen.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_10_2026-07-15.md`

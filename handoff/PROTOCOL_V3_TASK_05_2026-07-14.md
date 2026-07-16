@@ -59,8 +59,8 @@ Es wurde kein zweiter Marktdatenparser, kein zweiter Downloader und keine zweite
 
 Neue Datei `configs/protocol_v3_data_snapshot_contract.json` friert ein:
 
-- Schema `protocol_v3_data_snapshot_contract_v1`;
-- Vertrag `dynamic_three_market_snapshot_v1`;
+- Schema `protocol_v3_data_snapshot_contract_v2`;
+- Vertrag `dynamic_three_market_snapshot_v2`;
 - UTC und kleinste Quellbar 1 Minute;
 - exakt 1.440 Minuten je vollständigem UTC-Tag;
 - exakt 1.095 Fit-/Prozess-Tage;
@@ -165,6 +165,16 @@ Der Snapshot besitzt einen kanonischen SHA-256-Digest. Schreiben erfolgt create-
 Dadurch erzeugt jede Änderung an Watermark-, Warmup-, Qualitäts-, Marktrollen- oder Snapshotregeln eine neue Pipelinegeneration.
 
 Dies ist noch kein vollständiger Run-Fingerprint. Exchange Info und die kombinierte Bindung aller Run-Identitäten bleiben ausschließlich Aufgabe 6.
+
+## Korrekturstand 2026-07-16
+
+Der v2-Vertrag behebt zwei fail-closed Luecken des urspruenglichen Task-5-Stands:
+
+- Der im Binance-CHECKSUM-Inhalt deklarierte SHA-256 wird jetzt gegen die ZIP-Datei verifiziert. Fehlende, unlesbare, malformed oder abweichende Nachweise blockieren.
+- Jeder Markt enthaelt den geordneten Pflichtindex `utc_day_content_sha256` mit exakt einem `{day, content_sha256}`-Eintrag je auditiertem UTC-Tag. Der Snapshot-Validator prueft Tagesmenge, lueckenlose Reihenfolge und Digests und berechnet `market_content_sha256` selbst aus diesem Index neu.
+- `compute_utc_day_content_sha256` berechnet fuer exakt 1.440 kausale 1m-Candles denselben binaeren `>qddddd`-Tagesdigest wie der ZIP-Inspector. Task 10 kann konkrete Tagescandles damit gegen den Task-5-Snapshot beweisen.
+
+Weil das neue Pflichtfeld persistierte v1-Snapshots inkompatibel macht, wurden Vertrags- und Snapshot-Schema bewusst auf v2 erhoeht. V1-Snapshots muessen fail-closed neu aus den verifizierten Rohdaten erzeugt werden.
 
 ## Aktueller ehrlicher Datenzustand
 

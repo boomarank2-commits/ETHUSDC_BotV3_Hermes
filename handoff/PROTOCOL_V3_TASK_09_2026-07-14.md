@@ -122,6 +122,11 @@ purge_duration = max(120, 182) + 1 = 183 Minuten
 
 Eine spätere tatsächliche Label-, Holding- oder Pending-Dauer darf die eingefrorenen Maxima nicht überschreiten. Eine Verlängerung wäre eine neue Pipelinegeneration.
 
+Die Task-8-Ausführungsengine erhält die eingefrorene `HorizonPolicy` als
+Pflichtargument; `policy_sha256` bindet exakt dieselbe Werteidentität. Dadurch
+kann ein Pending Entry nicht länger leben als die Latenz, die hier in Purge und
+Pipelineidentität gebunden ist.
+
 ### 4. Informationsintervalle und Boundary-Touch
 
 Jedes Trainingsevent besitzt:
@@ -258,6 +263,7 @@ Eine offene Altposition darf regulär mit ihrer alten Exitlogik in die nächste 
 
 `finalize_outer_process` liquidiert nur am Ende des gesamten endlichen 365-Tage-Prozesses:
 
+- `origin_index` muss exakt 12 sein;
 - offene Position erforderlich;
 - Terminalbar muss exakt bei `valid_until` enden;
 - positive Volumenbar erforderlich;
@@ -267,6 +273,9 @@ Eine offene Altposition darf regulär mit ihrer alten Exitlogik in die nächste 
 - `terminal_liquidation=true`.
 
 Ein falscher Terminalzeitpunkt blockiert. Monatsgrenzen verwenden diese Funktion ausdrücklich nicht.
+Auch ein bereits flacher Zustand darf die Funktion erst für Origin 12 erreichen;
+dort ist die Rückgabe `None` zustandsneutral. Bei offener Position muss die
+übergebene 1m-Terminalbar zusätzlich exakt bei `valid_until` enden.
 
 ### 13. State-Identität
 
@@ -326,6 +335,9 @@ Die Suite prüft mindestens:
 - Verfall bei `valid_until` als `NO_TRADE_EXPIRED`;
 - keine Monatsgrenzen-Liquidation;
 - exakte Prozessend-Liquidation;
+- Prozessend-Liquidation vor Origin 12 blockiert;
+- widersprüchliche Rotation-Modi, Flat-/Freigabezeiten und offene
+  Candidate-Identitäten blockieren;
 - falscher Terminalzeitpunkt blockiert;
 - Execution-Rules-Abweichung blockiert;
 - deterministischer State-Digest;

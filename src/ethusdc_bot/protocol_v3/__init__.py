@@ -36,6 +36,7 @@ from .data_snapshot import (
     WarmupPlan,
     build_three_market_data_snapshot,
     build_warmup_plan,
+    compute_utc_day_content_sha256,
     load_data_snapshot_contract,
     read_frozen_data_snapshot,
     validate_data_snapshot_contract,
@@ -195,6 +196,8 @@ from .trial_ledger import (
 )
 from .trial_history_gate import (
     attest_complete_trial_inventory,
+    build_historical_reconciliation_evidence_sha256,
+    build_trial_inventory_evidence_sha256,
     import_historical_reports,
 )
 from .context_parity import (
@@ -329,6 +332,7 @@ __all__ = [
     "attest_complete_trial_inventory",
     "begin_inner_fold",
     "build_canonical_historical_import_digest",
+    "build_historical_reconciliation_evidence_sha256",
     "build_exchange_info_snapshot",
     "build_information_interval",
     "build_market_execution_rules",
@@ -339,7 +343,9 @@ __all__ = [
     "build_run_fingerprint",
     "build_three_market_data_snapshot",
     "build_trial_record",
+    "build_trial_inventory_evidence_sha256",
     "build_warmup_plan",
+    "compute_utc_day_content_sha256",
     "carry_state_for_next_origin",
     "close_retiring_position",
     "derive_seed",

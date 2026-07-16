@@ -54,11 +54,11 @@ Die Protocol-v2-Resume-Struktur wurde nicht umgedeutet. Aufgabe 6 ergänzt eine 
 
 Neue Datei `configs/protocol_v3_run_identity_contract.json` friert ein:
 
-- Schema `protocol_v3_run_identity_contract_v1`;
+- Schema `protocol_v3_run_identity_contract_v2`;
 - Exchange-Info-Vertrag `binance_spot_ethusdc_exchange_info_snapshot_v1`;
-- Run-Fingerprint-Vertrag `protocol_v3_complete_run_fingerprint_v1`;
+- Run-Fingerprint-Vertrag `protocol_v3_complete_run_fingerprint_v2`;
 - Binance Spot `ETHUSDC`, Basis `ETH`, Quote `USDC`, Status `TRADING`;
-- öffentliche Payloads ohne private oder kontobezogene Daten;
+- öffentliche Payloads ohne private oder kontobezogene Daten; verbotene Schlüssel werden rekursiv auf jeder Payload-Tiefe erkannt;
 - erforderliche Filter `PRICE_FILTER`, `LOT_SIZE`, `MARKET_LOT_SIZE`;
 - mindestens einen Notional-Filter aus `MIN_NOTIONAL` oder `NOTIONAL`;
 - kanonische Dezimalstrings;
@@ -122,7 +122,7 @@ Der timestamp-freie kanonische Fingerprint bindet mindestens:
 3. vollständigen Git-Commit;
 4. Pipelinegeneration und Pipelinevertrag;
 5. Featurevertrag und Feature-Quelldigest;
-6. Kontextvertrag und Kontext-Quelldigest;
+6. Kontextvertrag, Kontext-Quelldigest und eine konkrete semantisch validierte `ContextParityBinding` einschließlich ihrer Laufzeitidentität;
 7. Quality-Gate-Vertrag und Gate-Quelldigest;
 8. Kostenmodellvertrag und Kosten-Quelldigest;
 9. Simulatorvertrag und Simulator-Quelldigest;
@@ -138,7 +138,7 @@ Der resultierende Schlüssel besitzt die Form:
 protocol_v3_run_sha256:<64-stelliger SHA-256>
 ```
 
-`resume_key` und `cache_key` sind absichtlich identisch. Jede Änderung einer gebundenen Identität erzeugt einen anderen Schlüssel.
+`resume_key` und `cache_key` sind absichtlich identisch. Der Kontext-Snapshot muss exakt zur Rohdatenidentität passen; Kontextfenster, Raster und Marktinhalte werden im persistierten Fingerprint erneut geprüft. Jede Änderung einer gebundenen Identität erzeugt einen anderen Schlüssel.
 
 ### 5. Fail-closed Resume- und Cache-Vertrag
 

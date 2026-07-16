@@ -53,6 +53,10 @@ Die zentrale Vertragsentscheidung lautet:
 
 ## Tests und Evidenz
 
+### Korrekturstand 2026-07-16
+
+Der Pipelineaufbau ruft den Repository-Vertragsvalidator jetzt selbst fail-closed auf. `AGENTS.md`, `PROJECT_CONTRACT.md`, `docs/31_PORTFOLIO_SHADOW_PRODUCT_CONTRACT.md`, `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`, `docs/42_PROTOCOL_V3_EXECUTABLE_CONTRACT.md` und das Protocol-v3-Manifest sind als exakte Pfade und SHA-256-Quelldigests Teil der Pipelinegeneration. Fehlender Vertrag, falscher Marker oder eine inhaltliche Änderung erzeugt damit einen Fehler beziehungsweise eine neue Generation; die Dokumentverträge sind nicht länger nur außerhalb der Pipeline geprüft.
+
 Die vollstaendige Review-CI auf Implementierungscommit `e373c9ade3ae149bb413b092929d698ffad8e98a` war vollstaendig gruen:
 
 - komplette Pytest-Suite: gruen;

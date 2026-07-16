@@ -22,8 +22,10 @@ from ethusdc_bot.protocol_v3.intrabar_execution import (
     validate_intrabar_execution_contract,
 )
 from ethusdc_bot.protocol_v3.run_identity import build_exchange_info_snapshot
+from ethusdc_bot.protocol_v3.runtime_state import HorizonPolicy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+HORIZON_POLICY = HorizonPolicy(10, 10, 2)
 
 
 def _snapshot(*, tick: str = "0.01"):
@@ -141,6 +143,7 @@ def test_entry_waits_for_next_positive_volume_open_and_rounds_buy_up() -> None:
         _strategy(stop_loss_bps=500, take_profit_bps=500),
         days=1,
         exchange_info_snapshot=_snapshot(),
+        horizon_policy=HORIZON_POLICY,
     )
     assert result.trade_count == 1
     trade = result.trades[0]
@@ -164,6 +167,7 @@ def test_same_entry_bar_stop_and_target_touch_always_uses_stop() -> None:
         _strategy(),
         days=1,
         exchange_info_snapshot=_snapshot(),
+        horizon_policy=HORIZON_POLICY,
     )
     trade = result.trades[0]
     assert trade.entry_time == trade.exit_time == 60_000
@@ -186,6 +190,7 @@ def test_stop_gap_fills_from_worse_open_not_stop_level() -> None:
         _strategy(take_profit_bps=500),
         days=1,
         exchange_info_snapshot=_snapshot(),
+        horizon_policy=HORIZON_POLICY,
     )
     trade = result.trades[0]
     assert trade.exit_reason == "stop_loss"
@@ -207,6 +212,7 @@ def test_favorable_target_gap_is_capped_at_target_before_slippage() -> None:
         _strategy(stop_loss_bps=500),
         days=1,
         exchange_info_snapshot=_snapshot(),
+        horizon_policy=HORIZON_POLICY,
     )
     trade = result.trades[0]
     assert trade.exit_reason == "take_profit"
@@ -232,6 +238,7 @@ def test_break_even_activates_only_after_survived_completed_bar() -> None:
         ),
         days=1,
         exchange_info_snapshot=_snapshot(),
+        horizon_policy=HORIZON_POLICY,
     )
     trade = result.trades[0]
     assert trade.entry_time == 60_000
@@ -253,6 +260,7 @@ def test_time_exit_uses_bar_open_before_intrabar_levels() -> None:
         _strategy(max_hold_minutes=1),
         days=1,
         exchange_info_snapshot=_snapshot(),
+        horizon_policy=HORIZON_POLICY,
     )
     trade = result.trades[0]
     assert trade.exit_reason == "time_exit"
@@ -272,6 +280,7 @@ def test_baseline_and_joint_stress_use_same_engine_and_timing() -> None:
         _strategy(stop_loss_bps=500),
         days=1,
         exchange_info_snapshot=_snapshot(),
+        horizon_policy=HORIZON_POLICY,
         cost_profile=BASELINE_COST_PROFILE,
     )
     stress = simulate_protocol_v3_intrabar_strategy(
@@ -279,6 +288,7 @@ def test_baseline_and_joint_stress_use_same_engine_and_timing() -> None:
         _strategy(stop_loss_bps=500),
         days=1,
         exchange_info_snapshot=_snapshot(),
+        horizon_policy=HORIZON_POLICY,
         cost_profile=JOINT_STRESS_COST_PROFILE,
     )
     left = baseline.trades[0]
@@ -306,6 +316,7 @@ def test_single_and_portfolio_use_identical_task8_trade_core() -> None:
         _strategy(),
         days=1,
         exchange_info_snapshot=snapshot,
+        horizon_policy=HORIZON_POLICY,
     )
     portfolio = simulate_protocol_v3_intrabar_portfolio_strategy(
         candles,
@@ -313,6 +324,7 @@ def test_single_and_portfolio_use_identical_task8_trade_core() -> None:
         days=1,
         policy=PortfolioPolicy(deployment_budget_usdc=100),
         exchange_info_snapshot=snapshot,
+        horizon_policy=HORIZON_POLICY,
     )
     single_row = asdict(single.trades[0])
     portfolio_row = asdict(portfolio.trades[0])
@@ -324,7 +336,8 @@ def test_single_and_portfolio_use_identical_task8_trade_core() -> None:
     assert portfolio.equity_curve[-1].equity_usdc == portfolio.net_profit_usdc
 
 
-def test_noncanonical_portfolio_size_and_untradable_terminal_bar_block() -> None:
+def test_noncanonical_portfolio_size_blocks_and_zero_volume_tail_closes_earlier(
+) -> None:
     candles = [
         _candle(0, open_=100, high=100.1, low=99.9, close=100),
         _candle(1, open_=100, high=100.2, low=99.5, close=100),
@@ -336,17 +349,72 @@ def test_noncanonical_portfolio_size_and_untradable_terminal_bar_block() -> None
             days=1,
             policy=PortfolioPolicy(deployment_budget_usdc=200),
             exchange_info_snapshot=_snapshot(),
+            horizon_policy=HORIZON_POLICY,
         )
 
     zero_terminal = [
         _candle(0, open_=100, high=100.1, low=99.9, close=100),
         _candle(1, open_=100, high=100.2, low=99.5, close=100),
         _candle(2, open_=100, high=100, low=100, close=100, volume=0),
+        _candle(3, open_=100, high=100, low=100, close=100, volume=0),
     ]
-    with pytest.raises(IntrabarExecutionError, match="positive-volume terminal"):
+    result = simulate_protocol_v3_intrabar_strategy(
+        zero_terminal,
+        _strategy(
+            stop_loss_bps=500,
+            take_profit_bps=500,
+            cooldown_minutes=0,
+        ),
+        days=1,
+        exchange_info_snapshot=_snapshot(),
+        horizon_policy=HORIZON_POLICY,
+    )
+    assert result.trade_count == 1
+    assert result.trades[0].terminal_liquidation is True
+    assert result.trades[0].exit_time == 119_999
+    assert result.equity_curve[-1].equity_usdc == result.net_profit_usdc
+    assert result.signal_funnel["entry_evaluations"] == 1
+    assert result.signal_funnel["discarded.pending_entry_end_of_data"] == 0
+
+
+def test_pending_entry_expires_at_frozen_horizon_before_later_volume() -> None:
+    candles = [
+        _candle(0, open_=100, high=100.1, low=99.9, close=100),
+        _candle(1, open_=100, high=100, low=100, close=100, volume=0),
+        _candle(2, open_=100, high=100, low=100, close=100, volume=0),
+        _candle(3, open_=100, high=100.1, low=99.9, close=100),
+    ]
+    result = simulate_protocol_v3_intrabar_strategy(
+        candles,
+        _strategy(stop_loss_bps=500, take_profit_bps=500),
+        days=1,
+        exchange_info_snapshot=_snapshot(),
+        horizon_policy=HORIZON_POLICY,
+    )
+    assert result.trade_count == 0
+    assert result.rejection_reasons["pending_entry_latency_expired"] == 1
+    assert result.signal_funnel["discarded.pending_entry_latency_expired"] == 1
+    assert result.signal_funnel["blocked.end_of_data"] == 1
+
+
+def test_execution_rejects_horizons_that_do_not_cover_candidate_timing() -> None:
+    candles = [
+        _candle(0, open_=100, high=100.1, low=99.9, close=100),
+        _candle(1, open_=100, high=100.1, low=99.9, close=100),
+    ]
+    with pytest.raises(IntrabarExecutionError, match="frozen horizon"):
         simulate_protocol_v3_intrabar_strategy(
-            zero_terminal,
-            _strategy(stop_loss_bps=500, take_profit_bps=500),
+            candles,
+            _strategy(max_hold_minutes=11),
             days=1,
             exchange_info_snapshot=_snapshot(),
+            horizon_policy=HORIZON_POLICY,
+        )
+    with pytest.raises(IntrabarExecutionError, match="at least the next"):
+        simulate_protocol_v3_intrabar_strategy(
+            candles,
+            _strategy(),
+            days=1,
+            exchange_info_snapshot=_snapshot(),
+            horizon_policy=HorizonPolicy(10, 10, 0),
         )

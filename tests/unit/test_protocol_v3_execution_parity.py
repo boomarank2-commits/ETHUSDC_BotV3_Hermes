@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from decimal import Decimal
 import json
 from pathlib import Path
 
@@ -125,6 +126,7 @@ def test_task6_exchange_snapshot_and_task7_contract_remain_fail_closed() -> None
     assert contract["lot_policy"]["requested_entry_notional_usdc"] == "100"
     assert contract["lot_policy"]["fees_are_additional"] is True
     assert contract["price_policy"]["tick_rounding_deferred_to_task_8"] is True
+    assert contract["quantity_policy"]["zero_step_disables_individual_filter"] is True
 
     changed = json.loads(json.dumps(contract))
     changed["quantity_policy"]["rounding"] = "ROUND_HALF_UP"
@@ -144,6 +146,66 @@ def test_quantity_uses_positive_step_intersection() -> None:
     )
     assert str(equal_steps.effective_quantity_step) == "0.0001"
     assert equal_steps.quantity_step_sources == ("LOT_SIZE", "MARKET_LOT_SIZE")
+
+    disabled_market_grid = build_market_execution_rules(
+        _snapshot(lot_step="0.0001", market_step="0")
+    )
+    assert str(disabled_market_grid.effective_quantity_step) == "0.0001"
+    assert disabled_market_grid.quantity_step_sources == ("LOT_SIZE",)
+
+
+def test_real_ethusdc_exchange_info_zero_market_grid_remains_executable() -> None:
+    real_payload = {
+        "symbols": [
+            {
+                "symbol": "ETHUSDC",
+                "status": "TRADING",
+                "baseAsset": "ETH",
+                "quoteAsset": "USDC",
+                "isSpotTradingAllowed": True,
+                "filters": [
+                    {
+                        "filterType": "PRICE_FILTER",
+                        "minPrice": "0.01000000",
+                        "maxPrice": "1000000.00000000",
+                        "tickSize": "0.01000000",
+                    },
+                    {
+                        "filterType": "LOT_SIZE",
+                        "minQty": "0.00010000",
+                        "maxQty": "9000.00000000",
+                        "stepSize": "0.00010000",
+                    },
+                    {
+                        "filterType": "MARKET_LOT_SIZE",
+                        "minQty": "0.00000000",
+                        "maxQty": "752.22824058",
+                        "stepSize": "0.00000000",
+                    },
+                    {
+                        "filterType": "NOTIONAL",
+                        "minNotional": "5.00000000",
+                        "applyMinToMarket": True,
+                        "maxNotional": "9000000.00000000",
+                        "applyMaxToMarket": False,
+                        "avgPriceMins": 5,
+                    },
+                ],
+            }
+        ]
+    }
+    snapshot = build_exchange_info_snapshot(
+        real_payload, snapshot_as_of_utc="2026-07-16T00:00:00Z"
+    )
+    rules = build_market_execution_rules(snapshot)
+
+    assert rules.quantity_step_sources == ("LOT_SIZE",)
+    assert rules.effective_quantity_step == Decimal("0.0001")
+    assert rules.minimum_quantity == Decimal("0.0001")
+    assert rules.maximum_quantity == Decimal("752.22824058")
+    assert prepare_market_entry("3000", "0.001", rules).executed_quantity == Decimal(
+        "0.0333"
+    )
 
 
 def test_requested_reserved_and_executed_notional_are_separate_and_fees_additional() -> None:
@@ -222,6 +284,31 @@ def test_golden_single_trade_is_exact_after_step_size_and_actual_fees() -> None:
     assert trade.quantity_rounding_mode == "ROUND_DOWN"
     assert trade.compounding_enabled is False
     assert result.equity_curve[-1].equity_usdc == trade.net_profit_usdc
+
+
+@pytest.mark.parametrize(
+    ("fee_rate", "slippage_bps", "message"),
+    [
+        (0.0, 5.0, "fee_rate must be exactly 0.001"),
+        (0.002, 5.0, "fee_rate must be exactly 0.001"),
+        (0.001, 0.0, "slippage_bps must be exactly 5"),
+        (0.001, 15.0, "slippage_bps must be exactly 5"),
+    ],
+)
+def test_canonical_task7_strategy_rejects_nonbaseline_costs(
+    fee_rate: float,
+    slippage_bps: float,
+    message: str,
+) -> None:
+    with pytest.raises(ExecutionParityError, match=message):
+        simulate_protocol_v3_strategy(
+            _candles([1900.0, 2000.0, 2100.0]),
+            _strategy(),
+            days=1,
+            exchange_info_snapshot=_snapshot(),
+            fee_rate=fee_rate,
+            slippage_bps=slippage_bps,
+        )
 
 
 def test_single_and_portfolio_golden_trade_core_are_bit_identical() -> None:

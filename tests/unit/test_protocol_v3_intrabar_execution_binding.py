@@ -20,8 +20,10 @@ from ethusdc_bot.protocol_v3.pipeline import (
     build_pipeline_generation,
 )
 from ethusdc_bot.protocol_v3.run_identity import build_exchange_info_snapshot
+from ethusdc_bot.protocol_v3.runtime_state import HorizonPolicy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+HORIZON_POLICY = HorizonPolicy(10, 10, 2)
 
 
 def _snapshot():
@@ -97,6 +99,7 @@ def test_trailing_stop_uses_only_the_previous_survived_bar_high() -> None:
         _strategy(),
         days=1,
         exchange_info_snapshot=_snapshot(),
+        horizon_policy=HORIZON_POLICY,
     )
     trade = result.trades[0]
     assert trade.entry_time == 60_000
@@ -112,7 +115,7 @@ def test_task8_sources_remain_bound_inside_the_task10_pipeline_identity() -> Non
     basis = build_pipeline_generation(REPO_ROOT).basis()
     assert (
         basis["component_contracts"]["simulator"]
-        == "next_tradable_price_pessimistic_intrabar_with_fold_outer_state_and_context_parity_v1"
+        == "next_tradable_price_pessimistic_intrabar_with_fold_outer_state_and_context_parity_v2"
     )
     assert (
         basis["component_contracts"]["cost_model"]
@@ -147,6 +150,7 @@ def test_noncanonical_cost_profile_cannot_enter_the_shared_engine() -> None:
             _strategy(),
             days=1,
             exchange_info_snapshot=_snapshot(),
+            horizon_policy=HORIZON_POLICY,
             cost_profile=ExecutionCostProfile(
                 "baseline", Decimal("9"), Decimal("5")
             ),

@@ -63,8 +63,8 @@ Es wurde keine zweite Kontext-, Signal- oder Ausführungsengine gebaut.
 
 Neue Datei `configs/protocol_v3_context_parity_contract.json` friert ein:
 
-- Schema `protocol_v3_context_parity_contract_v1`;
-- Vertrag `three_market_closed_bar_context_parity_v1`;
+- Schema `protocol_v3_context_parity_contract_v2`;
+- Vertrag `three_market_closed_bar_context_parity_v2`;
 - ETHUSDC als einziges `trade_market`;
 - BTCUSDC und ETHBTC ausschließlich `context_only`;
 - Kontextmärkte können weder Signal noch Trade erzeugen;
@@ -73,11 +73,11 @@ Neue Datei `configs/protocol_v3_context_parity_contract.json` friert ein:
   - `replay`;
   - `final_evaluator`;
   - `research_challenger`;
-- alle vier Pfade verwenden dieselbe Kontextengine und dieselbe Kandidatenpolitik;
+- vorhandene Research-/Replay-Adapter verwenden dieselbe Kontextengine und dieselbe Kandidatenpolitik; die späteren Controller für Research-Challenger und Final-Evaluator müssen denselben Adapter verwenden;
 - Entscheidung nur auf der vollständig geschlossenen gemeinsamen 1m-Bar;
 - fehlender, versetzter, veralteter oder zukünftiger Kontext blockiert;
 - Nearest-Neighbor, Forward-Fill und Interpolation sind verboten;
-- Task-5-Snapshot, gemeinsamer Rasterdigest, drei Marktinhaltsdigests und Fensterinhalte sind identitätsgebunden;
+- der konkrete validierte Task-5-Snapshot, gemeinsamer Rasterdigest, drei Marktinhaltsdigests sowie der exakte Markt-/UTC-Tag-Inhalt des Fensters sind identitätsgebunden;
 - Cache-/Resume-Wiederverwendung erfordert exakt dieselbe Kontextidentität;
 - Safety-Locks bleiben unverändert.
 
@@ -136,7 +136,7 @@ Ein Kontextfenster ist nur gültig, wenn:
 - der gemeinsame Minutenrasterdigest gültig ist;
 - alle drei Marktinhaltsdigests vorhanden und gültig sind.
 
-Task 10 erzeugt keine zweite Daten-Watermark. Es bindet die Laufzeitentscheidung an die bereits in Aufgabe 5 eingefrorene gemeinsame Datenwahrheit.
+Das Fenster muss aus vollständigen UTC-Tagen bestehen. Für jeden enthaltenen Markt und Tag wird der Candle-Inhalt erneut berechnet und exakt gegen den in Aufgabe 5 versiegelten Tagesindex geprüft. Task 10 erzeugt keine zweite Daten-Watermark; es bindet die Laufzeitentscheidung an die bereits in Aufgabe 5 eingefrorene gemeinsame Datenwahrheit.
 
 ### 5. Kontext bleibt reines Veto/Bestätigung
 
@@ -156,9 +156,9 @@ BTCUSDC und ETHBTC:
 - können nie als Handelssymbol in die Engine gelangen;
 - verändern keine Entry-, Exit-, Mengen-, Fee- oder Intrabar-Regel.
 
-### 6. Identische Pfade
+### 6. Gemeinsamer Adaptervertrag
 
-Die vier Pfadnamen sind keine vier Simulatoren. Alle rufen dieselbe Funktion, dieselbe Kontextpolitik und dieselbe Task-8-Ausführungsengine auf.
+Die vier Pfadnamen sind keine vier Simulatoren. Die heute vorhandenen Research-/Replay-Aufrufe laufen durch dieselbe Funktion, dieselbe Kontextpolitik und dieselbe Task-8-Ausführungsengine. `research_challenger` und `final_evaluator` sind reservierte Adapterpfade; die tatsächlichen Controller entstehen erst in Aufgabe 29 beziehungsweise 31.
 
 Golden-Tests vergleichen für alle Pfade bitgleich:
 
@@ -192,8 +192,8 @@ Candle-Anzahl
 `configs/protocol_v3_pipeline_contract.json` verwendet jetzt:
 
 ```text
-context_policy = three_market_closed_bar_context_parity_v1
-simulator = next_tradable_price_pessimistic_intrabar_with_fold_outer_state_and_context_parity_v1
+context_policy = three_market_closed_bar_context_parity_v2
+simulator = next_tradable_price_pessimistic_intrabar_with_fold_outer_state_and_context_parity_v2
 ```
 
 Gebunden sind unter anderem:
@@ -205,7 +205,7 @@ Gebunden sind unter anderem:
 - Task-8-Intrabar-Engine;
 - Task-9-Runtime-State.
 
-Der bestehende Run-Fingerprint führt `context` ausdrücklich als Identitätsklasse. Eine Änderung am Kontextvertrag oder an der Kontextimplementierung ändert die Pipelinegeneration, den Run-Fingerprint sowie Cache-/Resume-Key.
+Der Run-Fingerprint v2 verlangt eine konkrete validierte `ContextParityBinding`, bettet deren Identität ein und gleicht ihren Task-5-Snapshot, Raster und Marktinhalte mit der Rohdatenklasse ab. Eine Änderung am Kontextvertrag, an der Policy, am konkreten Fenster oder an der Implementierung ändert Pipelinegeneration beziehungsweise Run-Fingerprint sowie Cache-/Resume-Key.
 
 ## Tests
 

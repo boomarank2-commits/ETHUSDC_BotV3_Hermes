@@ -30,6 +30,7 @@ from ethusdc_bot.backtest.data_loader import (
     _read_zip,
     _validate_raw_root,
 )
+from ethusdc_bot.data_pipeline.public_kline_downloader import verify_checksum_file
 from ethusdc_bot.protocol_v3.boundaries import (
     PROCESS_OOS_DAYS,
     TRAINING_DAYS_PER_ORIGIN,
@@ -39,9 +40,9 @@ from ethusdc_bot.protocol_v3.boundaries import (
 )
 
 DATA_SNAPSHOT_CONTRACT_PATH = Path("configs/protocol_v3_data_snapshot_contract.json")
-DATA_SNAPSHOT_CONTRACT_SCHEMA = "protocol_v3_data_snapshot_contract_v1"
-DATA_SNAPSHOT_CONTRACT_VERSION = "dynamic_three_market_snapshot_v1"
-DATA_SNAPSHOT_SCHEMA_VERSION = "protocol_v3_three_market_data_snapshot_v1"
+DATA_SNAPSHOT_CONTRACT_SCHEMA = "protocol_v3_data_snapshot_contract_v2"
+DATA_SNAPSHOT_CONTRACT_VERSION = "dynamic_three_market_snapshot_v2"
+DATA_SNAPSHOT_SCHEMA_VERSION = "protocol_v3_three_market_data_snapshot_v2"
 SOURCE_BAR_SECONDS = 60
 MINUTES_PER_DAY = 1440
 FIT_PROCESS_DAYS = TRAINING_DAYS_PER_ORIGIN + PROCESS_OOS_DAYS
@@ -105,6 +106,7 @@ _CANONICAL_CONTRACT: dict[str, Any] = {
         "sha256_bound": True,
         "archive_inventory_digest_required": True,
         "market_content_digest_required": True,
+        "utc_day_content_sha256_index_required": True,
         "immutable_write_only": True,
     },
     "safety": _CANONICAL_SAFETY,
@@ -249,6 +251,54 @@ def build_warmup_plan(active_lookbacks: Sequence[Mapping[str, Any] | ActiveLookb
         smallest_source_bar_seconds=SOURCE_BAR_SECONDS,
         warmup_duration_seconds=warmup,
     )
+
+
+def compute_utc_day_content_sha256(
+    symbol: str,
+    day: date,
+    candles: Sequence[Candle],
+) -> str:
+    """Return the canonical binary OHLCV digest for one exact UTC 1m day."""
+
+    if symbol not in MARKETS:
+        raise DataSnapshotError(f"market must be one of {MARKETS}")
+    if not isinstance(day, date) or isinstance(day, datetime):
+        raise DataSnapshotError("UTC-day content digest day must be a date")
+    if not isinstance(candles, Sequence) or isinstance(candles, (str, bytes)):
+        raise DataSnapshotError("UTC-day candles must be a sequence")
+    if len(candles) != MINUTES_PER_DAY:
+        raise DataSnapshotError(
+            f"{symbol} day {day.isoformat()} has {len(candles):,} candles instead of 1,440"
+        )
+    start_ms = int(_utc_midnight(day).timestamp() * 1000)
+    content_hasher = hashlib.sha256()
+    zero_volume_candles = 0
+    for minute, candle in enumerate(candles):
+        if not isinstance(candle, Candle):
+            raise DataSnapshotError("UTC-day content digest requires Candle rows")
+        expected_open_time = start_ms + minute * SOURCE_BAR_SECONDS * 1000
+        if candle.open_time != expected_open_time:
+            raise DataSnapshotError(
+                f"{symbol} day {day.isoformat()} is not the exact 1,440-minute UTC grid"
+            )
+        _validate_candle_again(candle, symbol, day)
+        zero_volume_candles += int(candle.volume == 0.0)
+        content_hasher.update(
+            struct.pack(
+                ">qddddd",
+                candle.open_time,
+                candle.open,
+                candle.high,
+                candle.low,
+                candle.close,
+                candle.volume,
+            )
+        )
+    if zero_volume_candles == MINUTES_PER_DAY:
+        raise DataSnapshotError(
+            f"{symbol} day {day.isoformat()} has zero volume in every candle"
+        )
+    return content_hasher.hexdigest()
 
 
 def build_three_market_data_snapshot(
@@ -446,8 +496,32 @@ def validate_frozen_data_snapshot(
     if observed_symbols != list(MARKETS):
         raise DataSnapshotError("market rows must be ordered ETHUSDC, BTCUSDC, ETHBTC")
     grid_digests: set[str] = set()
+    expected_day_texts = [
+        day.isoformat() for day in _iter_days(audited_start_day, process_end)
+    ]
+    required_market_fields = {
+        "symbol",
+        "role",
+        "may_trigger_orders",
+        "source_interval",
+        "source_bar_seconds",
+        "first_complete_day",
+        "last_complete_day",
+        "audited_full_day_count",
+        "candle_count",
+        "zero_volume_candles",
+        "zero_volume_days",
+        "timestamp_grid_sha256",
+        "market_content_sha256",
+        "archive_inventory_sha256",
+        "complete_utc_days_sha256",
+        "day_audit_digest",
+        "utc_day_content_sha256",
+    }
     for row in market_data:
         market = _require_mapping(row, "market_data[]")
+        if set(market) != required_market_fields:
+            raise DataSnapshotError("market data fields are missing or unexpected")
         symbol = str(market.get("symbol"))
         role, may_trigger = MARKET_ROLES[symbol]
         if market.get("role") != role or market.get("may_trigger_orders") is not may_trigger:
@@ -473,10 +547,41 @@ def validate_frozen_data_snapshot(
             "market_content_sha256",
             "archive_inventory_sha256",
             "complete_utc_days_sha256",
+            "day_audit_digest",
         ):
             digest = market.get(digest_key)
             if not isinstance(digest, str) or not _HEX64_RE.fullmatch(digest):
                 raise DataSnapshotError(f"{digest_key} is invalid for {symbol}")
+        day_content_index = market.get("utc_day_content_sha256")
+        if not isinstance(day_content_index, list) or len(day_content_index) != expected_full_days:
+            raise DataSnapshotError(
+                f"UTC-day content index length is invalid for {symbol}"
+            )
+        normalized_day_content: list[dict[str, str]] = []
+        for expected_day, item in zip(expected_day_texts, day_content_index):
+            index_row = _require_mapping(item, "utc_day_content_sha256[]")
+            if set(index_row) != {"day", "content_sha256"}:
+                raise DataSnapshotError(
+                    f"UTC-day content index fields are invalid for {symbol}"
+                )
+            if index_row.get("day") != expected_day:
+                raise DataSnapshotError(
+                    f"UTC-day content index order is invalid for {symbol}"
+                )
+            content_digest = index_row.get("content_sha256")
+            if not isinstance(content_digest, str) or not _HEX64_RE.fullmatch(content_digest):
+                raise DataSnapshotError(
+                    f"UTC-day content digest is invalid for {symbol}"
+                )
+            normalized_day_content.append(
+                {"day": expected_day, "content_sha256": content_digest}
+            )
+        if market.get("market_content_sha256") != _sha256_json(normalized_day_content):
+            raise DataSnapshotError(
+                f"market content digest does not match UTC-day index for {symbol}"
+            )
+        if market.get("complete_utc_days_sha256") != _sha256_json(expected_day_texts):
+            raise DataSnapshotError(f"complete UTC-day digest is invalid for {symbol}")
         grid_digests.add(str(market["timestamp_grid_sha256"]))
     if len(grid_digests) != 1 or payload.get("common_minute_grid_sha256") not in grid_digests:
         raise DataSnapshotError("three markets do not share one exact minute grid digest")
@@ -578,16 +683,21 @@ class _ZipMarketInspector:
         if zero_count == MINUTES_PER_DAY:
             raise DataSnapshotError(f"{symbol} day {day.isoformat()} has zero volume in every candle")
         timestamp_hasher = hashlib.sha256()
-        content_hasher = hashlib.sha256()
         for candle in candles:
-            _validate_candle_again(candle, symbol, day)
             timestamp_hasher.update(struct.pack(">q", candle.open_time))
-            content_hasher.update(
-                struct.pack(">qddddd", candle.open_time, candle.open, candle.high, candle.low, candle.close, candle.volume)
-            )
+        content_sha256 = compute_utc_day_content_sha256(symbol, day, candles)
         checksum_path = zip_path.with_name(zip_path.name + ".CHECKSUM")
         if not checksum_path.is_file() or checksum_path.stat().st_size <= 0:
             raise DataSnapshotError(f"matching non-empty CHECKSUM missing for {zip_path.name}")
+        checksum_result = verify_checksum_file(zip_path, checksum_path)
+        if checksum_result.get("verified") is not True:
+            status = checksum_result.get("status", "invalid")
+            raise DataSnapshotError(
+                f"Binance CHECKSUM {status} for {zip_path.name}"
+            )
+        zip_sha256 = checksum_result.get("actual_sha256")
+        if not isinstance(zip_sha256, str) or not _HEX64_RE.fullmatch(zip_sha256):
+            raise DataSnapshotError(f"verified ZIP digest missing for {zip_path.name}")
         return MarketDayAudit(
             symbol=symbol,
             day=day,
@@ -596,8 +706,8 @@ class _ZipMarketInspector:
             last_open_time_ms=observed_times[-1],
             zero_volume_candles=zero_count,
             timestamp_grid_sha256=timestamp_hasher.hexdigest(),
-            content_sha256=content_hasher.hexdigest(),
-            zip_sha256=_sha256_file(zip_path),
+            content_sha256=content_sha256,
+            zip_sha256=zip_sha256,
             checksum_sha256=_sha256_file(checksum_path),
         )
 
@@ -626,6 +736,10 @@ def _assemble_snapshot(
         if any(row.symbol != symbol or row.candle_count != MINUTES_PER_DAY for row in audits):
             raise DataSnapshotError(f"{symbol} day audit is inconsistent")
         day_rows = [row.to_digest_row() for row in audits]
+        utc_day_content_sha256 = [
+            {"day": row.day.isoformat(), "content_sha256": row.content_sha256}
+            for row in audits
+        ]
         timestamp_grid_sha256 = _sha256_json(
             [{"day": row.day.isoformat(), "timestamp_grid_sha256": row.timestamp_grid_sha256} for row in audits]
         )
@@ -645,9 +759,7 @@ def _assemble_snapshot(
                 "zero_volume_candles": sum(row.zero_volume_candles for row in audits),
                 "zero_volume_days": [row.day.isoformat() for row in audits if row.zero_volume_candles > 0],
                 "timestamp_grid_sha256": timestamp_grid_sha256,
-                "market_content_sha256": _sha256_json(
-                    [{"day": row.day.isoformat(), "content_sha256": row.content_sha256} for row in audits]
-                ),
+                "market_content_sha256": _sha256_json(utc_day_content_sha256),
                 "archive_inventory_sha256": _sha256_json(
                     [
                         {
@@ -660,6 +772,7 @@ def _assemble_snapshot(
                 ),
                 "complete_utc_days_sha256": _sha256_json([row.day.isoformat() for row in audits]),
                 "day_audit_digest": _sha256_json(day_rows),
+                "utc_day_content_sha256": utc_day_content_sha256,
             }
         )
     if len(grid_digests) != 1:
@@ -894,6 +1007,7 @@ __all__ = [
     "WarmupPlan",
     "build_three_market_data_snapshot",
     "build_warmup_plan",
+    "compute_utc_day_content_sha256",
     "load_data_snapshot_contract",
     "read_frozen_data_snapshot",
     "validate_data_snapshot_contract",

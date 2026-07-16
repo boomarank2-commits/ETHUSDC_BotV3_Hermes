@@ -18,7 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 def test_task10_context_parity_is_public_and_pipeline_bound() -> None:
     assert (
         protocol_v3.CONTEXT_PARITY_CONTRACT_VERSION
-        == "three_market_closed_bar_context_parity_v1"
+        == "three_market_closed_bar_context_parity_v2"
     )
     assert callable(protocol_v3.build_context_parity_binding)
     assert callable(protocol_v3.evaluate_closed_bar_context)
@@ -27,11 +27,11 @@ def test_task10_context_parity_is_public_and_pipeline_bound() -> None:
     basis = build_pipeline_generation(REPO_ROOT).basis()
     assert (
         basis["component_contracts"]["context_policy"]
-        == "three_market_closed_bar_context_parity_v1"
+        == "three_market_closed_bar_context_parity_v2"
     )
     assert (
         basis["component_contracts"]["simulator"]
-        == "next_tradable_price_pessimistic_intrabar_with_fold_outer_state_and_context_parity_v1"
+        == "next_tradable_price_pessimistic_intrabar_with_fold_outer_state_and_context_parity_v2"
     )
     assert len(basis["component_source_sha256"]["context_policy"]) == 64
     assert len(basis["component_source_sha256"]["simulator"]) == 64

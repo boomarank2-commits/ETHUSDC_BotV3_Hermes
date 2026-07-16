@@ -19,6 +19,7 @@ from ethusdc_bot.protocol_v3.data_snapshot import (
     _ZipMarketInspector,
     build_three_market_data_snapshot,
     build_warmup_plan,
+    compute_utc_day_content_sha256,
     load_data_snapshot_contract,
     read_frozen_data_snapshot,
     validate_data_snapshot_contract,
@@ -121,6 +122,7 @@ def test_data_snapshot_contract_is_exact_and_safety_locked() -> None:
     assert contract["fit_process_days"] == 1095
     assert [row["symbol"] for row in contract["markets"]] == list(MARKETS)
     assert contract["quality_policy"]["all_zero_volume_day_blocks"] is True
+    assert contract["snapshot_policy"]["utc_day_content_sha256_index_required"] is True
     assert contract["safety"] == {
         "api_keys": "forbidden",
         "live": "locked",
@@ -188,6 +190,12 @@ def test_dynamic_snapshot_uses_latest_common_day_and_task2_anchor(
     assert payload["market_data"][1]["may_trigger_orders"] is False
     assert payload["market_data"][2]["may_trigger_orders"] is False
     assert len({row["timestamp_grid_sha256"] for row in payload["market_data"]}) == 1
+    for market in payload["market_data"]:
+        day_index = market["utc_day_content_sha256"]
+        assert len(day_index) == payload["raw_interval"]["audited_full_day_count"]
+        assert day_index[0]["day"] == "2022-02-16"
+        assert day_index[-1]["day"] == "2025-03-07"
+        assert snapshot_module._sha256_json(day_index) == market["market_content_sha256"]
 
 
 def test_snapshot_has_no_fixed_2026_07_07_watermark(
@@ -277,6 +285,26 @@ def test_semantic_tampering_blocks_even_with_recomputed_digest(
         validate_frozen_data_snapshot(tampered, repo_root=REPO_ROOT)
 
 
+def test_utc_day_content_index_tampering_blocks_with_recomputed_snapshot_digest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_fake(monkeypatch, latest_day=date(2025, 3, 7))
+    snapshot = build_three_market_data_snapshot(
+        tmp_path / "raw", _lookbacks(), repo_root=REPO_ROOT
+    )
+    payload = snapshot.payload()
+    payload["market_data"][0]["utc_day_content_sha256"][0][
+        "content_sha256"
+    ] = "f" * 64
+    canonical = snapshot_module._canonical_json(payload)
+    tampered = FrozenDataSnapshot(
+        canonical, hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    )
+
+    with pytest.raises(DataSnapshotError, match="market content digest"):
+        validate_frozen_data_snapshot(tampered, repo_root=REPO_ROOT)
+
+
 def _write_daily_zip(
     raw_root: Path,
     symbol: str,
@@ -307,7 +335,10 @@ def _write_daily_zip(
     inner = f"{symbol}-1m-{day.isoformat()}.csv"
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         archive.writestr(inner, "".join(rows))
-    zip_path.with_name(zip_path.name + ".CHECKSUM").write_text("fixture-checksum\n", encoding="utf-8")
+    digest = hashlib.sha256(zip_path.read_bytes()).hexdigest()
+    zip_path.with_name(zip_path.name + ".CHECKSUM").write_text(
+        f"{digest}  {zip_path.name}\n", encoding="utf-8"
+    )
     return zip_path
 
 
@@ -320,6 +351,14 @@ def test_real_zip_day_audit_checks_1440_grid_ohlc_and_zero_volume(tmp_path: Path
     assert audit.zero_volume_candles == 1
     assert len(audit.content_sha256) == 64
     assert len(audit.zip_sha256) == 64
+    candles = snapshot_module._read_zip(zip_path, "ETHUSDC")
+    assert compute_utc_day_content_sha256("ETHUSDC", day, candles) == audit.content_sha256
+    with pytest.raises(DataSnapshotError, match="1,439"):
+        compute_utc_day_content_sha256("ETHUSDC", day, candles[:-1])
+    with pytest.raises(DataSnapshotError, match="exact 1,440-minute UTC grid"):
+        compute_utc_day_content_sha256(
+            "ETHUSDC", day + timedelta(days=1), candles
+        )
 
 
 def test_real_zip_day_audit_blocks_gap_bad_ohlc_and_all_zero(tmp_path: Path) -> None:
@@ -337,3 +376,26 @@ def test_real_zip_day_audit_blocks_gap_bad_ohlc_and_all_zero(tmp_path: Path) -> 
     all_zero = _write_daily_zip(tmp_path / "zero", "ETHUSDC", day, all_zero=True)
     with pytest.raises(DataSnapshotError, match="zero volume in every candle"):
         _ZipMarketInspector(tmp_path / "zero").audit_day("ETHUSDC", day, all_zero)
+
+
+@pytest.mark.parametrize(
+    ("checksum_text", "message"),
+    [
+        ("not-a-sha256\n", "malformed"),
+        (f"{'0' * 64}  ETHUSDC-1m-2025-01-02.zip\n", "mismatch"),
+        (f"{'0' * 64}  wrong-file.zip\n", "malformed"),
+    ],
+)
+def test_real_zip_day_audit_blocks_unverified_binance_checksum(
+    tmp_path: Path,
+    checksum_text: str,
+    message: str,
+) -> None:
+    day = date(2025, 1, 2)
+    zip_path = _write_daily_zip(tmp_path, "ETHUSDC", day)
+    zip_path.with_name(zip_path.name + ".CHECKSUM").write_text(
+        checksum_text, encoding="utf-8"
+    )
+
+    with pytest.raises(DataSnapshotError, match=message):
+        _ZipMarketInspector(tmp_path).audit_day("ETHUSDC", day, zip_path)

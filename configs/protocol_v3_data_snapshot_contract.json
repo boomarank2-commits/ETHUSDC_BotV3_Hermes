@@ -1,7 +1,7 @@
 {
-  "schema_version": "protocol_v3_data_snapshot_contract_v1",
+  "schema_version": "protocol_v3_data_snapshot_contract_v2",
   "protocol_version": "3.0.0",
-  "contract_version": "dynamic_three_market_snapshot_v1",
+  "contract_version": "dynamic_three_market_snapshot_v2",
   "timezone": "UTC",
   "source_interval": "1m",
   "source_bar_seconds": 60,
@@ -54,6 +54,7 @@
     "sha256_bound": true,
     "archive_inventory_digest_required": true,
     "market_content_digest_required": true,
+    "utc_day_content_sha256_index_required": true,
     "immutable_write_only": true
   },
   "safety": {

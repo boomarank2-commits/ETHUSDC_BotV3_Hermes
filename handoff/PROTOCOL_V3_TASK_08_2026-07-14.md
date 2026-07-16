@@ -112,7 +112,11 @@ raw_entry_fill = entry_reference × (1 + slippage_bps / 10.000)
 entry_fill = Tick-Rundung nach oben
 ```
 
-Eine Nullvolumenkerze kann keinen Entry erzeugen. Der Pending Entry bleibt bis zur nächsten positiven Volumenkerze bestehen.
+Eine Nullvolumenkerze kann keinen Entry erzeugen. Der Pending Entry wartet
+höchstens bis zur explizit eingefrorenen
+`HorizonPolicy.pending_entry_latency_minutes`. Ist bis dahin keine positive
+Volumenkerze verfügbar, wird er vor einem Fill deterministisch verworfen. Genau
+dieselbe Obergrenze geht in die Task-9-Purge-Dauer ein.
 
 Entry- und Exitprüfungen sind bereits auf der Entry-Kerze aktiv, nachdem der Entry am Open stattgefunden hat. Dadurch werden unrealistische risikofreie Entry-Bars ausgeschlossen.
 
@@ -250,7 +254,9 @@ Die Suite prüft mindestens:
 - identische Trade-Kernfelder zwischen Single und Portfolio;
 - maximal ein offenes Lot im kanonischen Profil;
 - unzulässiges 200-USDC-/Zwei-Lot-Profil blockiert;
-- fehlende positive Volumen-Terminalkerze blockiert;
+- terminale Liquidation verwendet auch bei einem Nullvolumen-Tail die letzte
+  positive Volumenkerze und erzeugt danach keine neuen Entries;
+- abgelaufener Pending Entry wird vor später zurückkehrendem Volumen verworfen;
 - nicht kanonisches Kostenprofil blockiert;
 - Task-8-Quellen und Versionen sind pipelinegebunden.
 

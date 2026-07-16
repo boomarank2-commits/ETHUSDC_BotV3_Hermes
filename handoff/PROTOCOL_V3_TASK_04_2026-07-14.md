@@ -8,6 +8,41 @@ Stand: 2026-07-14
 
 Gesamtfortschritt nach Statusupdate: `4/33 = 12,12 %`
 
+## Korrekturpruefung 2026-07-16
+
+Die Task-4-Sicherheitspruefung hat vier enge Korrekturen ergeben:
+
+- `known_observed_historical_evaluation_rows` wird jetzt nach stabiler
+  Quellenprovenienz vereinigt und fuer verschiedene Quellen addiert. Eine
+  zweite Datei mit derselben Quellen-ID, aber anderem SHA-256 blockiert vor
+  jeder Ledger-Aenderung. Der globale `max(...)`-Zaehler wurde entfernt.
+- `permanent_trial_count_lower_bound` zaehlt nur native oder bereits durch
+  eine vollstaendige Per-Row-Attestation aufgeloeste unabhaengige Trials. Die
+  180 beobachteten Altzeilen und unvollstaendige Import-Platzhalter sind keine
+  180 unabhaengigen Trials; direkt nach dem kanonischen Import ist dieser Wert
+  deshalb ehrlich `0`.
+- Eine Completion akzeptiert keine frei behaupteten Hex-Digests, Booleans
+  oder Duplikatanzahlen mehr. Inventar- und Reconciliation-Digests werden aus
+  den unveraenderlichen Ledger-Payloads, Tagesreihen und Quellenartefakten
+  berechnet. Solange historische Seeds, Versionen, Commit, Tagesreihen oder
+  Missing-Fields unvollstaendig sind, bleibt der Status fail-closed. Ein
+  blosses Tagesreihen-Attachment heilt keine unbekannte Trial-Identitaet.
+  Jeder vollstaendige historische Trial muss ausserdem an den SHA-256 eines
+  tatsaechlich importierten Reportartefakts und genau einen darin registrierten
+  unveraenderlichen Observation-Key gebunden sein. Frei erfundene historische
+  Records oder doppelt belegte Observation-Keys koennen die Sperre nicht
+  loesen. Duplikat-/Cache-Zeilen bleiben bewusst gesperrt, bis eine echte
+  append-only Per-Row-Zuordnung implementiert und verifiziert ist.
+- Eine Attestation wird beim Replay exakt an ihrer Eventposition geprueft.
+  Danach angehaengte vollstaendige native Trials bleiben legitim und machen
+  das Ledger nicht unlesbar. Ein nach Event-vor-Head-Abbruch veraltetes, aber
+  kryptografisch korrektes `head.json` wird nur dann akzeptiert, wenn es ein
+  exakter Praefix der unveraenderlichen Eventkette ist; ein vorauslaufender
+  oder widerspruechlicher Head blockiert weiterhin.
+
+Damit bleibt der reale Altbestand weiterhin `INSUFFICIENT_TRIAL_HISTORY` und
+erlaubt ausschliesslich `NO_TRADE`.
+
 Exakt nächste Aufgabe: `Aufgabe 5 – Dynamischen Drei-Markt-Datensnapshot und Warmup herstellen`.
 
 Codex darf Aufgabe 5 erst beginnen, nachdem der Branch lokal auf den finalen PR-Head dieses Handoffs gezogen und ein sauberer Arbeitsbaum bestätigt wurde.

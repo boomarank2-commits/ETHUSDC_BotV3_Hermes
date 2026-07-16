@@ -20,7 +20,8 @@ Verbindliche Trennung:
 
 - `SearchBudgetPolicy` bleibt die reine, bereits getestete 12-Origin-Prozessgrenze.
 - `src/ethusdc_bot/protocol_v3/global_budget.py` ergänzt genau einen aktuellen Refit und erzwingt die gesamte Hülle.
-- Ein zweiter aktueller Refit, ein neunter Cycle eines Selection-Runs oder eine globale Überschreitung blockiert fail-closed.
+- Der aktuelle Refit muss vor seiner ersten Reservierung mit dem SHA-256 seines Pre-Run-Manifests gestartet werden. Diese Identität bleibt für jede Reservierung gleich und der Refit muss explizit abgeschlossen werden.
+- Ein Refit ohne Identität, ein Identitätswechsel, eine Reservierung nach Abschluss, ein zweiter aktueller Refit, ein neunter Cycle eines Selection-Runs oder eine globale Überschreitung blockiert fail-closed.
 - `configs/protocol_v3_pipeline_contract.json` bindet diese Hülle per Quelldigest in die Pipelinegeneration.
 
 Damit werden keine Budgets erweitert. Es wird ausschließlich der bereits im Blueprint vorhandene aktuelle Refit korrekt zur globalen Obergrenze addiert.

@@ -14,9 +14,10 @@ from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_FLOOR
 import json
 from math import isclose, isfinite
 from pathlib import Path
-from typing import Any, Final, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Final, Mapping, Sequence
 
 from ethusdc_bot.backtest.context_features import (
+    ContextDecision,
     ContextVetoPolicy,
     validate_context_against_trade_candles,
 )
@@ -34,6 +35,7 @@ from ethusdc_bot.backtest.equity import (
 from ethusdc_bot.backtest.metrics import compute_metrics
 from ethusdc_bot.backtest.portfolio_simulator import PortfolioSimulationResult
 from ethusdc_bot.backtest.simulator import (
+    EntryDecision,
     SimulationResult,
     StrategyCandidate,
     _entry_decision,
@@ -50,6 +52,11 @@ from ethusdc_bot.protocol_v3.execution_parity import (
     prepare_market_exit,
 )
 from ethusdc_bot.protocol_v3.run_identity import FrozenExchangeInfoSnapshot
+
+if TYPE_CHECKING:
+    from ethusdc_bot.protocol_v3.runtime_state import HorizonPolicy
+
+ClosedContextDecisionProvider = Callable[[int, int], ContextDecision]
 
 
 INTRABAR_EXECUTION_CONTRACT_PATH: Final = Path(
@@ -89,6 +96,10 @@ _CANONICAL_CONTRACT: dict[str, Any] = {
         "price_tick_rounding": "ROUND_CEILING",
         "same_entry_bar_exit_checks_enabled": True,
         "pending_entry_does_not_fill_on_zero_volume": True,
+        "maximum_pending_entry_latency_source": (
+            "HorizonPolicy.pending_entry_latency_minutes"
+        ),
+        "expired_pending_entry": "cancel_before_fill",
     },
     "exit_policy": {
         "stop_and_target_resolved_on": "positive_volume_1m_ohlc",
@@ -286,10 +297,12 @@ def simulate_protocol_v3_intrabar_strategy(
     *,
     days: int,
     exchange_info_snapshot: FrozenExchangeInfoSnapshot | Mapping[str, Any],
+    horizon_policy: HorizonPolicy,
     cost_profile: ExecutionCostProfile = BASELINE_COST_PROFILE,
     training_days: int = 0,
     blindtest_days: int = 0,
     market_context: AlignedMarketCandles | None = None,
+    closed_context_decision_provider: ClosedContextDecisionProvider | None = None,
 ) -> SimulationResult:
     """Simulate one fixed 100-USDC LONG lot with the Task-8 engine."""
 
@@ -299,6 +312,8 @@ def simulate_protocol_v3_intrabar_strategy(
         exchange_info_snapshot=exchange_info_snapshot,
         cost_profile=cost_profile,
         market_context=market_context,
+        horizon_policy=horizon_policy,
+        closed_context_decision_provider=closed_context_decision_provider,
     )
     metrics = compute_metrics(
         list(core.trades),
@@ -327,10 +342,12 @@ def simulate_protocol_v3_intrabar_portfolio_strategy(
     days: int,
     policy: PortfolioPolicy,
     exchange_info_snapshot: FrozenExchangeInfoSnapshot | Mapping[str, Any],
+    horizon_policy: HorizonPolicy,
     cost_profile: ExecutionCostProfile = BASELINE_COST_PROFILE,
     training_days: int = 0,
     blindtest_days: int = 0,
     market_context: AlignedMarketCandles | None = None,
+    closed_context_decision_provider: ClosedContextDecisionProvider | None = None,
 ) -> PortfolioSimulationResult:
     """Expose the same Task-8 core through the order-free portfolio result type."""
 
@@ -349,6 +366,8 @@ def simulate_protocol_v3_intrabar_portfolio_strategy(
         exchange_info_snapshot=exchange_info_snapshot,
         cost_profile=cost_profile,
         market_context=market_context,
+        horizon_policy=horizon_policy,
+        closed_context_decision_provider=closed_context_decision_provider,
     )
     trades = [
         ProtocolV3IntrabarPortfolioTrade(
@@ -389,11 +408,14 @@ def _simulate_core(
     exchange_info_snapshot: FrozenExchangeInfoSnapshot | Mapping[str, Any],
     cost_profile: ExecutionCostProfile,
     market_context: AlignedMarketCandles | None,
+    horizon_policy: HorizonPolicy,
+    closed_context_decision_provider: ClosedContextDecisionProvider | None,
 ) -> _CoreResult:
     load_execution_parity_contract()
     load_intrabar_execution_contract()
     profile = _validate_cost_profile(cost_profile)
     _validate_inputs(candles, strategy, market_context)
+    frozen_horizons = _validate_horizon_policy(horizon_policy, strategy)
     rules = build_market_execution_rules(exchange_info_snapshot)
     rejections: Counter[str] = Counter()
     funnel: Counter[str] = Counter()
@@ -422,9 +444,14 @@ def _simulate_core(
         context_policy = ContextVetoPolicy.from_candidate_params(strategy.params)
         if market_context is not None:
             validate_context_against_trade_candles(candles, market_context)
+    elif closed_context_decision_provider is not None:
+        raise IntrabarExecutionError(
+            "closed context decision provider is valid only for context_filter"
+        )
 
     position: _OpenPosition | None = None
     pending_signal_time: int | None = None
+    pending_signal_index: int | None = None
     cooldown_until_index = -1
     realized = Decimal("0")
     trades: list[ProtocolV3IntrabarTrade] = []
@@ -434,13 +461,31 @@ def _simulate_core(
     max_exposure = Decimal("0")
     max_reserved = Decimal("0")
     max_concurrent = 0
+    last_tradable_index = next(
+        (
+            index
+            for index in range(len(candles) - 1, -1, -1)
+            if candles[index].volume > 0
+        ),
+        None,
+    )
 
     for index, candle in enumerate(candles):
         funnel["observations_total"] += 1
         exited = False
         if pending_signal_time is not None and position is None:
+            if pending_signal_index is None:
+                raise IntrabarExecutionError(
+                    "pending entry is missing its deterministic signal index"
+                )
             max_reserved = max(max_reserved, Decimal("100"))
-            if candle.volume > 0:
+            pending_latency = index - pending_signal_index
+            if pending_latency > frozen_horizons.pending_entry_latency_minutes:
+                pending_signal_time = None
+                pending_signal_index = None
+                rejections["pending_entry_latency_expired"] += 1
+                funnel["discarded.pending_entry_latency_expired"] += 1
+            elif candle.volume > 0:
                 position = _open_position(
                     candle,
                     index,
@@ -450,6 +495,7 @@ def _simulate_core(
                     profile,
                 )
                 pending_signal_time = None
+                pending_signal_index = None
                 max_exposure = max(
                     max_exposure, position.entry.executed_entry_notional
                 )
@@ -483,11 +529,7 @@ def _simulate_core(
                 )
                 funnel[f"exits.{trade.exit_reason}"] += 1
 
-        if position is not None and index == len(candles) - 1:
-            if candle.volume <= 0:
-                raise IntrabarExecutionError(
-                    "finite run cannot liquidate an open lot without a positive-volume terminal bar"
-                )
+        if position is not None and index == last_tradable_index:
             terminal = _terminal_decision(candle, position, rules, profile)
             trade = _close_position(position, terminal, rules, profile)
             trades.append(trade)
@@ -508,24 +550,33 @@ def _simulate_core(
             funnel["blocked.position_open"] += 1
         elif pending_signal_time is not None:
             funnel["blocked.pending_entry"] += 1
-        elif index >= len(candles) - 1:
+        elif last_tradable_index is None or index >= last_tradable_index:
             funnel["blocked.end_of_data"] += 1
         elif index < cooldown_until_index:
             funnel["blocked.cooldown"] += 1
         else:
             funnel["entry_evaluations"] += 1
-            entry_decision = _entry_decision(
-                candles,
-                index,
-                strategy,
-                market_context=market_context,
-                context_policy=context_policy,
-            )
+            if closed_context_decision_provider is None:
+                entry_decision = _entry_decision(
+                    candles,
+                    index,
+                    strategy,
+                    market_context=market_context,
+                    context_policy=context_policy,
+                )
+            else:
+                entry_decision = _closed_context_entry_decision(
+                    candles,
+                    index,
+                    strategy,
+                    closed_context_decision_provider,
+                )
             if entry_decision.raw_signal:
                 funnel["raw_entry_signals"] += 1
             if entry_decision.allowed:
                 funnel["accepted_entry_signals"] += 1
                 pending_signal_time = candle.open_time + EXPECTED_STEP_MS - 1
+                pending_signal_index = index
                 max_reserved = max(max_reserved, Decimal("100"))
             else:
                 reason = entry_decision.reason or "entry_signal_absent"
@@ -548,6 +599,14 @@ def _simulate_core(
             )
         )
 
+    if pending_signal_time is not None:
+        if pending_signal_index is None:
+            raise IntrabarExecutionError(
+                "pending entry is missing its deterministic signal index"
+            )
+        funnel["discarded.pending_entry_end_of_data"] += 1
+        pending_signal_time = None
+        pending_signal_index = None
     if position is not None:
         raise IntrabarExecutionError("Protocol v3 simulation ended with an open lot")
     for key in (
@@ -562,6 +621,8 @@ def _simulate_core(
         "blocked.cooldown",
         "blocked.end_of_data",
         "blocked.zero_volume_pending_entry",
+        "discarded.pending_entry_latency_expired",
+        "discarded.pending_entry_end_of_data",
     ):
         funnel.setdefault(key, 0)
     return _CoreResult(
@@ -967,6 +1028,79 @@ def _validate_cost_profile(profile: ExecutionCostProfile) -> ExecutionCostProfil
     return profile
 
 
+def _validate_horizon_policy(
+    policy: HorizonPolicy,
+    strategy: StrategyCandidate,
+) -> HorizonPolicy:
+    # Local import avoids a module cycle: Task 9 reuses Task 8's sell-fill logic.
+    from ethusdc_bot.protocol_v3.runtime_state import HorizonPolicy
+
+    if not isinstance(policy, HorizonPolicy):
+        raise TypeError("horizon_policy must be a HorizonPolicy")
+    if policy.pending_entry_latency_minutes <= 0:
+        raise IntrabarExecutionError(
+            "pending-entry latency must allow at least the next 1m execution bar"
+        )
+    max_hold = strategy.params.get("max_hold_minutes", 30)
+    if isinstance(max_hold, bool):
+        raise IntrabarExecutionError("max_hold_minutes must be a positive integer")
+    try:
+        observed_holding = int(max_hold)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise IntrabarExecutionError(
+            "max_hold_minutes must be a positive integer"
+        ) from exc
+    if observed_holding <= 0 or str(observed_holding) != str(max_hold):
+        raise IntrabarExecutionError("max_hold_minutes must be a positive integer")
+    try:
+        policy.assert_actual_horizons(
+            label_horizon_minutes=0,
+            holding_period_minutes=observed_holding,
+            pending_entry_latency_minutes=policy.pending_entry_latency_minutes,
+        )
+    except Exception as exc:
+        raise IntrabarExecutionError(
+            "strategy timing exceeds the frozen horizon policy"
+        ) from exc
+    return policy
+
+
+def _closed_context_entry_decision(
+    candles: list[Candle],
+    index: int,
+    strategy: StrategyCandidate,
+    provider: ClosedContextDecisionProvider,
+) -> EntryDecision:
+    base_decision = _entry_decision(
+        candles,
+        index,
+        strategy,
+        market_context=None,
+        context_policy=None,
+    )
+    if base_decision.reason != "context_data_missing":
+        return base_decision
+    decision_time_ms = candles[index].open_time + EXPECTED_STEP_MS - 1
+    decision = provider(index, decision_time_ms)
+    if not isinstance(decision, ContextDecision):
+        raise IntrabarExecutionError(
+            "closed context decision provider returned a noncanonical decision"
+        )
+    if decision.index != index or decision.open_time != candles[index].open_time:
+        raise IntrabarExecutionError(
+            "closed context decision does not match the evaluated trade bar"
+        )
+    if decision.may_create_signal or decision.may_submit_order:
+        raise IntrabarExecutionError(
+            "context decision may only confirm or veto an existing base signal"
+        )
+    return EntryDecision(
+        decision.allowed,
+        base_decision.raw_signal,
+        None if decision.allowed else decision.reason,
+    )
+
+
 def _positive_bps(value: Any, label: str) -> Decimal:
     parsed = _decimal(value, label)
     if parsed <= 0:
@@ -1052,6 +1186,7 @@ __all__ = [
     "INTRABAR_EXECUTION_CONTRACT_VERSION",
     "JOINT_STRESS_COST_PROFILE",
     "SLIPPAGE_STRESS_COST_PROFILE",
+    "ClosedContextDecisionProvider",
     "ExecutionCostProfile",
     "IntrabarExecutionError",
     "IntrabarExitDecision",

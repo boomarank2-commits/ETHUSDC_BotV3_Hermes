@@ -1,8 +1,8 @@
 {
-  "schema_version": "protocol_v3_run_identity_contract_v1",
+  "schema_version": "protocol_v3_run_identity_contract_v2",
   "protocol_version": "3.0.0",
   "exchange_info_contract_version": "binance_spot_ethusdc_exchange_info_snapshot_v1",
-  "run_fingerprint_contract_version": "protocol_v3_complete_run_fingerprint_v1",
+  "run_fingerprint_contract_version": "protocol_v3_complete_run_fingerprint_v2",
   "exchange_info_policy": {
     "exchange": "binance",
     "market_type": "spot",
@@ -45,7 +45,15 @@
     "resume_requires_exact_fingerprint": true,
     "cache_hit_requires_exact_fingerprint": true,
     "canonical_json": true,
-    "sha256_bound": true
+    "sha256_bound": true,
+    "context_runtime_binding": {
+      "required": true,
+      "requires_concrete_validated_context_parity_binding": true,
+      "identity_payload_embedded": true,
+      "context_identity_sha256_verified": true,
+      "cache_and_resume_key_verified": true,
+      "data_snapshot_sha256_must_match_raw_data": true
+    }
   },
   "safety": {
     "api_keys": "forbidden",

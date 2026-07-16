@@ -6,12 +6,13 @@ from pathlib import Path
 
 import pytest
 
+from ethusdc_bot.backtest.context_features import CONTEXT_POLICY_VERSION
+from ethusdc_bot.protocol_v3 import context_parity
 from ethusdc_bot.protocol_v3 import run_identity as identity
 from ethusdc_bot.protocol_v3.data_snapshot import FrozenDataSnapshot, build_warmup_plan
 from ethusdc_bot.protocol_v3.pipeline import build_pipeline_generation
 from ethusdc_bot.protocol_v3.trial_ledger import (
-    DEVELOPMENT_DSR_INSUFFICIENT,
-    PERMANENT_TRIAL_COUNTER_NAMESPACE,
+    initialize_trial_ledger,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -54,27 +55,92 @@ def _data_snapshot() -> FrozenDataSnapshot:
     return FrozenDataSnapshot(canonical, hashlib.sha256(canonical.encode()).hexdigest())
 
 
-def _trial(**changes: object) -> dict:
-    value = {
-        "permanent_trial_counter_namespace": PERMANENT_TRIAL_COUNTER_NAMESPACE,
-        "head_sha256": "0" * 64,
-        "event_count": 0,
-        "historical_trial_count_is_lower_bound": True,
-        "development_dsr_status": DEVELOPMENT_DSR_INSUFFICIENT,
+def _trial(tmp_path: Path):
+    return initialize_trial_ledger(
+        tmp_path / "trial-ledger",
+        required_historical_import_sha256="0" * 64,
+    )
+
+
+def _context_runtime(snapshot_sha256: str) -> dict:
+    identity_payload = {
+        "contract_version": context_parity.CONTEXT_PARITY_CONTRACT_VERSION,
+        "policy_version": CONTEXT_POLICY_VERSION,
+        "policy": {
+            "policy_version": CONTEXT_POLICY_VERSION,
+            "btc_trend_lookback": 3,
+            "btc_min_trend_bps": -20.0,
+            "btc_volatility_lookback": 3,
+            "btc_max_volatility_bps": 100.0,
+            "ethbtc_trend_lookback": 3,
+            "ethbtc_min_trend_bps": -20.0,
+        },
+        "data_snapshot_sha256": snapshot_sha256,
+        "data_snapshot_common_grid_sha256": "1" * 64,
+        "snapshot_market_content_sha256": {
+            "ETHUSDC": "2" * 64,
+            "BTCUSDC": "3" * 64,
+            "ETHBTC": "4" * 64,
+        },
+        "window_market_content_sha256": {
+            "ETHUSDC": "5" * 64,
+            "BTCUSDC": "6" * 64,
+            "ETHBTC": "7" * 64,
+        },
+        "first_open_time_ms": 1_740_787_200_000,
+        "common_watermark_open_time_ms": 1_740_873_540_000,
+        "candle_count": 1440,
     }
-    value.update(changes)
-    return value
+    identity_sha = hashlib.sha256(
+        json.dumps(
+            identity_payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode()
+    ).hexdigest()
+    reuse_key = f"protocol_v3_context_sha256:{identity_sha}"
+    return {
+        "context_identity_sha256": identity_sha,
+        "identity_payload": identity_payload,
+        "cache_key": reuse_key,
+        "resume_key": reuse_key,
+    }
 
 
-def _fingerprint(monkeypatch: pytest.MonkeyPatch) -> identity.RunFingerprint:
+def _rehash_context_runtime(payload: dict) -> None:
+    runtime = payload["context"]["runtime_binding"]
+    identity_sha = hashlib.sha256(
+        json.dumps(
+            runtime["identity_payload"],
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode()
+    ).hexdigest()
+    runtime["context_identity_sha256"] = identity_sha
+    runtime["cache_key"] = f"protocol_v3_context_sha256:{identity_sha}"
+    runtime["resume_key"] = runtime["cache_key"]
+
+
+def _fingerprint(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> identity.RunFingerprint:
     monkeypatch.setattr(identity, "validate_frozen_data_snapshot", lambda value: None)
+    snapshot = _data_snapshot()
+    monkeypatch.setattr(
+        identity,
+        "_context_runtime_identity",
+        lambda value: _context_runtime(snapshot.snapshot_sha256),
+    )
     exchange = identity.build_exchange_info_snapshot(_exchange_info(), snapshot_as_of_utc="2026-07-07T23:59:59Z")
     return identity.build_run_fingerprint(
-        data_snapshot=_data_snapshot(),
+        data_snapshot=snapshot,
         exchange_info_snapshot=exchange,
         pipeline_generation=build_pipeline_generation(REPO_ROOT),
+        context_binding=object(),  # helper is isolated in these generic Task-6 tests
         code_commit=COMMIT,
-        trial_ledger=_trial(),
+        trial_ledger=_trial(tmp_path),
     )
 
 
@@ -127,6 +193,14 @@ def test_exchange_info_rejects_missing_filter_wrong_quote_and_private_data() -> 
     private["api_key"] = "forbidden"
     with pytest.raises(identity.RunIdentityError, match="private or account"):
         identity.build_exchange_info_snapshot(private, snapshot_as_of_utc="2026-07-07T23:59:59Z")
+    nested_private = _exchange_info()
+    nested_private["symbols"][0]["filters"][0]["metadata"] = {
+        "accountId": "forbidden"
+    }
+    with pytest.raises(identity.RunIdentityError, match="private or account"):
+        identity.build_exchange_info_snapshot(
+            nested_private, snapshot_as_of_utc="2026-07-07T23:59:59Z"
+        )
 
 
 def test_exchange_snapshot_is_create_only_and_tamper_evident(tmp_path: Path) -> None:
@@ -143,26 +217,36 @@ def test_exchange_snapshot_is_create_only_and_tamper_evident(tmp_path: Path) -> 
         identity.read_exchange_info_snapshot(path)
 
 
-def test_run_fingerprint_is_deterministic_and_complete(monkeypatch: pytest.MonkeyPatch) -> None:
-    first = _fingerprint(monkeypatch)
-    assert first == _fingerprint(monkeypatch)
+def test_run_fingerprint_is_deterministic_and_complete(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    first = _fingerprint(monkeypatch, tmp_path)
+    assert first == _fingerprint(monkeypatch, tmp_path)
     required = {"raw_data", "as_of_day", "code", "pipeline", "features", "context", "quality_gates", "cost_model", "simulator", "boundary", "trial_ledger_head", "exchange_info"}
     assert required <= set(first.payload())
     assert first.resume_key == first.cache_key == f"protocol_v3_run_sha256:{first.fingerprint_sha256}"
 
 
-def test_each_required_identity_change_blocks_resume_and_cache(monkeypatch: pytest.MonkeyPatch) -> None:
-    current = _fingerprint(monkeypatch)
+def test_each_required_identity_change_blocks_resume_and_cache(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    current = _fingerprint(monkeypatch, tmp_path)
     mutations = []
     payload = current.payload(); payload["raw_data"]["snapshot_sha256"] = "b" * 64; mutations.append(payload)
+    payload["context"]["runtime_binding"]["identity_payload"]["data_snapshot_sha256"] = "b" * 64
+    _rehash_context_runtime(payload)
     payload = current.payload(); payload["as_of_day"] = payload["raw_data"]["snapshot_as_of_day"] = "2026-07-06"; mutations.append(payload)
     payload = current.payload(); payload["code"]["git_commit"] = "b" * 40; mutations.append(payload)
     payload = current.payload(); payload["pipeline"]["generation_basis_sha256"] = "b" * 64; payload["pipeline"]["generation_id"] = "protocol_v3_pipeline_sha256:" + "b" * 64; payload["pipeline"]["forward_ledger_namespace"] = "changed"; mutations.append(payload)
     for key in ("features", "context", "quality_gates", "cost_model", "simulator", "boundary"):
         payload = current.payload(); payload[key]["source_sha256"] = "b" * 64; mutations.append(payload)
+    payload = current.payload()
+    payload["context"]["runtime_binding"]["identity_payload"]["policy"]["btc_min_trend_bps"] = -21.0
+    _rehash_context_runtime(payload)
+    mutations.append(payload)
     payload = current.payload(); payload["trial_ledger_head"]["head_sha256"] = "b" * 64; mutations.append(payload)
     payload = current.payload(); payload["exchange_info"]["snapshot_sha256"] = "b" * 64; mutations.append(payload)
-    assert len(mutations) == 12
+    assert len(mutations) == 13
     for payload in mutations:
         changed = _refreeze(payload)
         identity.validate_run_fingerprint(changed)
@@ -173,17 +257,74 @@ def test_each_required_identity_change_blocks_resume_and_cache(monkeypatch: pyte
 
 
 def test_tamper_namespace_and_rewritten_keys_block(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    fingerprint = _fingerprint(monkeypatch)
+    fingerprint = _fingerprint(monkeypatch, tmp_path)
     tampered = fingerprint.to_dict(); tampered["code"]["git_commit"] = "b" * 40
     with pytest.raises(identity.RunIdentityError, match="digest mismatch"):
         identity.validate_run_fingerprint(tampered)
     monkeypatch.setattr(identity, "validate_frozen_data_snapshot", lambda value: None)
+    snapshot = _data_snapshot()
+    monkeypatch.setattr(
+        identity,
+        "_context_runtime_identity",
+        lambda value: _context_runtime(snapshot.snapshot_sha256),
+    )
     exchange = identity.build_exchange_info_snapshot(_exchange_info(), snapshot_as_of_utc="2026-07-07T23:59:59Z")
-    with pytest.raises(identity.RunIdentityError, match="namespace"):
-        identity.build_run_fingerprint(data_snapshot=_data_snapshot(), exchange_info_snapshot=exchange, pipeline_generation=build_pipeline_generation(REPO_ROOT), code_commit=COMMIT, trial_ledger=_trial(permanent_trial_counter_namespace="wrong"))
+    with pytest.raises(identity.RunIdentityError, match="verified TrialLedgerSnapshot"):
+        identity.build_run_fingerprint(
+            data_snapshot=snapshot,
+            exchange_info_snapshot=exchange,
+            pipeline_generation=build_pipeline_generation(REPO_ROOT),
+            context_binding=object(),
+            code_commit=COMMIT,
+            trial_ledger={
+                "permanent_trial_counter_namespace": "forged",
+                "head_sha256": "0" * 64,
+            },
+        )
     path = tmp_path / "fingerprint.json"
     identity.write_run_fingerprint(fingerprint, path)
     assert identity.read_run_fingerprint(path) == fingerprint
     value = json.loads(path.read_text()); value["cache_key"] = "forged"; path.write_text(json.dumps(value))
     with pytest.raises(identity.RunIdentityError, match="reuse keys"):
         identity.read_run_fingerprint(path)
+
+
+def test_context_runtime_binding_is_self_hashed_and_snapshot_consistent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fingerprint = _fingerprint(monkeypatch, tmp_path)
+    runtime = fingerprint.payload()["context"]["runtime_binding"]
+    assert runtime["identity_payload"]["data_snapshot_sha256"] == fingerprint.payload()[
+        "raw_data"
+    ]["snapshot_sha256"]
+    assert runtime["cache_key"] == runtime["resume_key"]
+
+    tampered = fingerprint.payload()
+    tampered["context"]["runtime_binding"]["identity_payload"][
+        "window_market_content_sha256"
+    ]["ETHUSDC"] = "b" * 64
+    with pytest.raises(identity.RunIdentityError, match="identity digest mismatch"):
+        identity.validate_run_fingerprint(_refreeze(tampered))
+
+    mismatched = fingerprint.payload()
+    mismatched["raw_data"]["snapshot_sha256"] = "b" * 64
+    with pytest.raises(identity.RunIdentityError, match="context/raw-data snapshot mismatch"):
+        identity.validate_run_fingerprint(_refreeze(mismatched))
+
+
+def test_build_rejects_mapping_instead_of_concrete_context_binding(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(identity, "validate_frozen_data_snapshot", lambda value: None)
+    exchange = identity.build_exchange_info_snapshot(
+        _exchange_info(), snapshot_as_of_utc="2026-07-07T23:59:59Z"
+    )
+    with pytest.raises(identity.RunIdentityError, match="verified ContextParityBinding"):
+        identity.build_run_fingerprint(
+            data_snapshot=_data_snapshot(),
+            exchange_info_snapshot=exchange,
+            pipeline_generation=build_pipeline_generation(REPO_ROOT),
+            context_binding={"context_identity_sha256": "0" * 64},
+            code_commit=COMMIT,
+            trial_ledger=_trial(tmp_path),
+        )

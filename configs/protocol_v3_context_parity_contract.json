@@ -1,7 +1,7 @@
 {
-  "schema_version": "protocol_v3_context_parity_contract_v1",
+  "schema_version": "protocol_v3_context_parity_contract_v2",
   "protocol_version": "3.0.0",
-  "contract_version": "three_market_closed_bar_context_parity_v1",
+  "contract_version": "three_market_closed_bar_context_parity_v2",
   "markets": [
     {
       "symbol": "ETHUSDC",
@@ -55,7 +55,9 @@
     "rule": "latest_common_closed_1m_bar_not_after_snapshot_common_complete_day",
     "window_must_lie_inside_snapshot_raw_interval": true,
     "all_three_market_content_digests_required": true,
-    "common_grid_digest_required": true
+    "common_grid_digest_required": true,
+    "complete_utc_day_windows_required": true,
+    "window_day_content_must_match_snapshot_index": true
   },
   "identity_policy": {
     "data_snapshot_sha256_required": true,

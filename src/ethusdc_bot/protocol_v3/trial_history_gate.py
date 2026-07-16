@@ -9,7 +9,6 @@ reuse rather than independent trials.
 from __future__ import annotations
 
 import hashlib
-import json
 from pathlib import Path
 import re
 from typing import Any, Iterable, Mapping
@@ -19,6 +18,8 @@ from .trial_ledger import (
     TrialLedgerError,
     TrialLedgerSnapshot,
     attest_complete_trial_inventory as _attest_complete_trial_inventory,
+    build_historical_reconciliation_evidence_sha256,
+    build_trial_inventory_evidence_sha256,
     import_historical_reports as _import_historical_reports,
     read_trial_ledger,
 )
@@ -88,22 +89,20 @@ def attest_complete_trial_inventory(
         inventory_sha256
     ):
         raise TrialLedgerError("inventory_sha256 must be a lowercase SHA-256")
-    reconciled_inventory_sha256 = hashlib.sha256(
-        json.dumps(
-            {
-                "inventory_sha256": inventory_sha256,
-                "historical_reconciliation": dict(historical_reconciliation),
-            },
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=True,
-            allow_nan=False,
-        ).encode("utf-8")
-    ).hexdigest()
+    expected_inventory_sha256 = build_trial_inventory_evidence_sha256(
+        snapshot
+    )
+    if inventory_sha256 != expected_inventory_sha256:
+        raise TrialLedgerError(
+            "inventory_sha256 does not match the immutable ledger inventory"
+        )
     return _attest_complete_trial_inventory(
         root,
         expected_resolved_trial_count=expected_resolved_trial_count,
-        inventory_sha256=reconciled_inventory_sha256,
+        inventory_sha256=inventory_sha256,
+        reconciliation_sha256=historical_reconciliation[
+            "observation_mapping_sha256"
+        ],
         attestor=attestor,
     )
 
@@ -154,6 +153,11 @@ def _validate_historical_reconciliation(
         raise TrialLedgerError(
             "resolved plus duplicate/cache rows must equal observed rows"
         )
+    if duplicates != 0 or resolved != observed:
+        raise TrialLedgerError(
+            "duplicate/cache claims cannot clear history without immutable "
+            "per-row mapping evidence"
+        )
     if value.get("all_observed_rows_mapped") is not True:
         raise TrialLedgerError("all observed historical rows must be mapped")
     if value.get("all_historical_daily_series_complete") is not True:
@@ -167,6 +171,13 @@ def _validate_historical_reconciliation(
         raise TrialLedgerError(
             "observation_mapping_sha256 must be a lowercase SHA-256"
         )
+    expected_mapping_digest = (
+        build_historical_reconciliation_evidence_sha256(snapshot)
+    )
+    if mapping_digest != expected_mapping_digest:
+        raise TrialLedgerError(
+            "observation mapping digest does not match ledger provenance"
+        )
     missing_historical = [
         trial_id
         for trial_id in snapshot.status.missing_daily_series_trial_ids
@@ -176,6 +187,30 @@ def _validate_historical_reconciliation(
     if missing_historical:
         raise TrialLedgerError(
             "historical reconciliation cannot complete while daily series are missing"
+        )
+    incomplete_historical = [
+        trial_id
+        for trial_id, trial in snapshot.trials.items()
+        if trial["identity_basis"]["source_kind"] == "historical_import"
+        and (
+            not isinstance(trial.get("completeness"), Mapping)
+            or any(
+                trial["completeness"].get(field) is not True
+                for field in (
+                    "candidate_identity_complete",
+                    "seed_complete",
+                    "versions_complete",
+                    "code_commit_complete",
+                    "daily_series_complete",
+                )
+            )
+            or trial["completeness"].get("missing_fields") != []
+        )
+    ]
+    if incomplete_historical:
+        raise TrialLedgerError(
+            "historical reconciliation cannot complete while identity or "
+            "daily-series fields remain unresolved"
         )
 
 
@@ -199,5 +234,7 @@ def _expand_json_paths(paths: Iterable[str | Path]) -> list[Path]:
 
 __all__ = [
     "attest_complete_trial_inventory",
+    "build_historical_reconciliation_evidence_sha256",
+    "build_trial_inventory_evidence_sha256",
     "import_historical_reports",
 ]
