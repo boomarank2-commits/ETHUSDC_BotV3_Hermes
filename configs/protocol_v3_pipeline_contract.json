@@ -57,6 +57,7 @@
       "docs/42_PROTOCOL_V3_EXECUTABLE_CONTRACT.md",
       "src/ethusdc_bot/backtest/quality_gates.py",
       "src/ethusdc_bot/protocol_v3/reporting.py",
+      "src/ethusdc_bot/protocol_v3/reporting_api.py",
       "src/ethusdc_bot/protocol_v3/trial_history_gate.py",
       "src/ethusdc_bot/protocol_v3/trial_ledger.py",
       "src/ethusdc_bot/shadow/adoption.py"
