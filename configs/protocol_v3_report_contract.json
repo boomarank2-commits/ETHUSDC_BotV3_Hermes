@@ -1,0 +1,80 @@
+{
+  "artifact_kinds": {
+    "forward_shadow_month": {
+      "canonical_adoption_eligible": false,
+      "freshness": "FRESH_FORWARD_OBSERVATION",
+      "storage_root": "reports/protocol_v3/forward_shadow_month",
+      "window_class": "forward_shadow_month"
+    },
+    "monthly_process_oos": {
+      "canonical_adoption_eligible": false,
+      "freshness": "NOT_FRESH",
+      "storage_root": "reports/protocol_v3/monthly_process_oos",
+      "window_class": "monthly_process_oos"
+    },
+    "protocol_v3_pipeline_final": {
+      "canonical_adoption_eligible": false,
+      "freshness": "PENDING_TASK_31",
+      "storage_root": "reports/protocol_v3/pipeline_final",
+      "window_class": "sealed_final_holdout"
+    },
+    "protocol_v3_research": {
+      "canonical_adoption_eligible": false,
+      "freshness": "NOT_FRESH",
+      "storage_root": "reports/protocol_v3/research",
+      "window_class": "historical_research"
+    },
+    "research_challenger_shadow": {
+      "canonical_adoption_eligible": false,
+      "freshness": "NOT_FRESH",
+      "storage_root": "reports/protocol_v3/research_challenger_shadow",
+      "window_class": "retrospective_research_challenger"
+    }
+  },
+  "contract_version": "protocol_v3_evidence_reports_v1",
+  "evidence_fields": [
+    "canonical_adoption_eligible",
+    "diagnostic_only",
+    "fresh_pre_registered_sealed_365",
+    "freshness",
+    "historical_bootstrap_lower_bound",
+    "historically_hit",
+    "sealed_bootstrap_target_supported",
+    "statistically_supported"
+  ],
+  "final_evidence_policy": {
+    "legacy_final_report_type_forbidden": "final_evaluation",
+    "pipeline_final_artifact_kind": "protocol_v3_pipeline_final",
+    "sealed_final_holdout_is_window_class_not_report_kind": true,
+    "task31_attestation_available": false,
+    "task31_attestation_required": true,
+    "visible_forward_month_overlap_forbidden": true
+  },
+  "forward_registration_root": "reports/protocol_v3/evidence_windows/forward_shadow_month",
+  "protocol_version": "3.0.0",
+  "report_schema_version": "protocol_v3_report_v1",
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  },
+  "schema_version": "protocol_v3_report_contract_v1",
+  "strict_json": {
+    "canonical_serialization_required": true,
+    "duplicate_keys_forbidden": true,
+    "exact_keys": true,
+    "infinity_forbidden": true,
+    "nan_forbidden": true,
+    "unknown_security_fields_forbidden": true
+  },
+  "target_policy": {
+    "historically_hit_formula": "process_oos_net_usdc/process_oos_calendar_days>=target_usdc_per_calendar_day",
+    "historically_hit_never_implies_statistical_support": true,
+    "process_oos_calendar_days": 365,
+    "target_usdc_per_calendar_day": 3.0
+  },
+  "window_registration_schema_version": "protocol_v3_evidence_window_registration_v1"
+}
