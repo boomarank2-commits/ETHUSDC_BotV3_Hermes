@@ -2,7 +2,7 @@
 
 Stand: 2026-07-16
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 11/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 12/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -10,7 +10,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 `DONE_100` erfordert vollständig umgesetzten Umfang, Wiederverwendung vorhandener Funktionen, grüne Unit-/Integrations-/Negativtests, Python-Kompilierung, PowerShell-Syntax, Whitespace-Prüfung, dokumentierte Grenzen, keinen Vorgriff auf spätere Aufgaben und einen eindeutigen GitHub-Handoff. Paper, Testtrade, Live, Orders, private Endpunkte und API-Keys bleiben gesperrt.
 
-## Aufgaben 1 bis 11 – abgeschlossen
+## Aufgaben 1 bis 12 – abgeschlossen
 
 ### Aufgabe 1 – Protocol-v3-Vertrag versioniert übernehmen
 
@@ -123,17 +123,30 @@ Warmup ist feature-only, Purge folgt dem maximalen Informationshorizont plus Aus
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_11_2026-07-16.md`
 
-## Aufgaben 12 bis 33 – verbindliche Reihenfolge
-
 ### Aufgabe 12 – Kompakte Artefaktarchitektur
 
-**Status:** `NOT_STARTED` – exakt nächste Aufgabe
+**Status:** `DONE_100`
 
-Kleiner JSON-Index, getrennte deduplizierte Trade-, Daily-PnL-, Equity- und Diagnostikartefakte sowie digest-, schema- und provenienzgebundene Referenzen.
+**Abnahme:**
+
+- Vertrag `protocol_v3_compact_artifact_store_v1` trennt content-addressed Objekte von einem kleinen kanonischen Referenzindex.
+- Eigene Objekt-Schemas existieren für Trades, tägliche Netto-MTM-PnL einschließlich echter Nulltage, Equity/Underwater sowie Fold-/Kandidaten-/Diagnostikevidenz.
+- SHA-256, Bytegröße und logische Kardinalität werden aus den tatsächlich kanonisch serialisierten Objektbytes berechnet und niemals als Aufruferbehauptung übernommen.
+- Jede Referenz bindet Art, Schema, Digest, Größe, Kardinalität und Provenienz; die Provenienz bindet den revalidierten Elternreport, vollständigen Run-Fingerprint, Pipelinegeneration und eine gehashte Work-Unit-Identität.
+- Ein vorhandenes Objekt unter demselben Digest wird vollständig gelesen, kanonisch und semantisch validiert und niemals blind überschrieben.
+- Alle Objekte werden geschrieben, geflusht, erneut gelesen und validiert, bevor der referenz-only Index veröffentlicht wird.
+- Identische Bytes werden einmal gespeichert und dürfen mehrfach referenziert werden; unterschiedliche Inhalte besitzen unterschiedliche Content-Adressen.
+- Der Index enthält keine Rohkerzen und keine eingebetteten Trade-, Daily-PnL- oder Equity-Reihen. Pfad-Traversal, Alias- und Symlink-Flucht blockieren.
+- Die versionierte Größenpolitik ist auf 12 Origins × 8 Cycles × 4 Artefaktarten = 384 Referenzen geprüft, besitzt 2× Headroom und bleibt unabhängig von 1m-Candle- oder Kurvenlängen.
+- Generierte Objekt- und Indexroots sind Git-ignoriert. Task-13-Crash-/Resume-Transaktionen, Locks und Checkpoints wurden ausdrücklich nicht vorgezogen.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_12_2026-07-16.md`
+
+## Aufgaben 13 bis 33 – verbindliche Reihenfolge
 
 ### Aufgabe 13 – Content-addressed Cache und transaktionales Resume
 
-**Status:** `NOT_STARTED`
+**Status:** `NOT_STARTED` – exakt nächste Aufgabe
 
 Cache- und Checkpoint-Identität müssen alle Daten-, Kontext-, Feature-, Kandidaten-, Fold-, Boundary-, Execution-, Simulator-, Kosten-, Code-, Snapshot-, Trial- und Rotationselemente binden; Atomic Replace, Lock und Digestprüfung verhindern Teilstände.
 
@@ -260,9 +273,9 @@ Erst nach Aufgaben 1–32 werden zwölf Origins und 365 OOS-Tage einmalig ausgef
 ## Fortschrittsführung
 
 ```text
-Protocol v3: Aufgabe 11/33 – Protocol-v3-Report-Schemas und Evidenzbedeutung – DONE_100
-Protocol v3: Aufgabe 12/33 – Kompakte Artefaktarchitektur – NOT_STARTED
-Gesamt: 11/33 DONE_100 = 33,33 %
+Protocol v3: Aufgabe 12/33 – Kompakte Artefaktarchitektur – DONE_100
+Protocol v3: Aufgabe 13/33 – Content-addressed Cache und transaktionales Resume – NOT_STARTED
+Gesamt: 12/33 DONE_100 = 36,36 %
 ```
 
 Fortschritt wird ausschließlich als `DONE_100 / 33` ausgewiesen, nicht nach Zeit oder Token geschätzt.
