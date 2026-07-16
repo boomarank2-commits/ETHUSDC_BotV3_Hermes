@@ -183,7 +183,7 @@ def _trial(ledger_root: Path):
         },
         code_commit=COMMIT,
         evaluation_scope={"origin": 1, "cycle": 1},
-        daily_net_mtm_usdc=[{"day_utc": "2025-03-01", "net_mtm_usdc": 0.0}],
+        daily_net_mtm_usdc=[{"day": "2025-03-01", "net_usdc": 0.0}],
         result_summary={"net_usdc": 0.0},
     )
     ledger = append_trial(ledger_root, record)
