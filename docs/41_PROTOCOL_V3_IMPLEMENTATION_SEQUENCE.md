@@ -2,7 +2,7 @@
 
 Stand: 2026-07-16
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 10/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 11/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -10,7 +10,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 `DONE_100` erfordert vollständig umgesetzten Umfang, Wiederverwendung vorhandener Funktionen, grüne Unit-/Integrations-/Negativtests, Python-Kompilierung, PowerShell-Syntax, Whitespace-Prüfung, dokumentierte Grenzen, keinen Vorgriff auf spätere Aufgaben und einen eindeutigen GitHub-Handoff. Paper, Testtrade, Live, Orders, private Endpunkte und API-Keys bleiben gesperrt.
 
-## Aufgaben 1 bis 10 – abgeschlossen
+## Aufgaben 1 bis 11 – abgeschlossen
 
 ### Aufgabe 1 – Protocol-v3-Vertrag versioniert übernehmen
 
@@ -104,17 +104,30 @@ Warmup ist feature-only, Purge folgt dem maximalen Informationshorizont plus Aus
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_10_2026-07-15.md`
 
-## Aufgaben 11 bis 33 – verbindliche Reihenfolge
-
 ### Aufgabe 11 – Protocol-v3-Report-Schemas und Evidenzbedeutung
 
-**Status:** `NOT_STARTED` – exakt nächste Aufgabe
+**Status:** `DONE_100`
 
-Eigene versionierte Schemas und Storage-Roots für Research, Monatsprozess, Challenger, Forward und Pipeline-Final müssen Legacy-Verwechslung verhindern. Freshness, historische Zielerreichung, statistische Unterstützung und Adoption bleiben semantisch getrennt; sichtbare Forward-Monate dürfen nie nachträglich Finalfenster werden.
+**Abnahme:**
+
+- Vertrag `protocol_v3_evidence_reports_v1` definiert getrennte, versionierte Reportarten und feste Roots für Research, Monatsprozess-OOS, Research-Challenger, Forward-Monat und den eindeutig benannten späteren Protocol-v3-Pipeline-Finalreport.
+- `sealed_final_holdout` ist ausschließlich die Evidenzfensterklasse des späteren Finalreports; der Legacy-Typ `final_evaluation` wird nicht wiederverwendet.
+- `historically_hit` wird ausschließlich aus `process_oos_net_usdc / 365 >= 3.0` abgeleitet und erzeugt weder Freshness noch statistische Unterstützung oder Adoption.
+- Task-27-/Task-31-Attestierungen können in Aufgabe 11 nicht behauptet werden; `fresh_pre_registered_sealed_365`, Bootstrap-Support und `statistically_supported` bleiben fail-closed falsch.
+- Historischer Monatsprozess bleibt immer `NOT_FRESH`, `diagnostic_only` und nicht adoptierbar; Research-Challenger bleibt orderfrei; ein Forward-Monat ist nur eine frische Beobachtung und niemals alleiniger Finalnachweis.
+- Forward-Monate werden vor Beginn create-only registriert, an Pipelinegeneration und Run-Fingerprint gebunden und beim Reload semantisch revalidiert. Ein späteres Finalfenster scannt die tatsächlich persistierten Registrierungen und blockiert jede Überlappung.
+- JSON ist strikt: exakte Schlüssel und Versionen, keine Duplicate Keys, unbekannten Safety-/Evidenzfelder, `NaN`, Infinity oder nichtkanonischen Bytes.
+- Persistenz ist create-only, Root-, Traversal-, Symlink- und Alias-sicher und revalidiert unmittelbar nach dem Schreiben.
+- Jede Protocol-v3-Reportklasse wird von den bestehenden Legacy-Final-/Adoptionspfaden abgelehnt.
+- Reportvertrag und Implementierung sind in Pipelinegeneration und Run-Fingerprint gebunden; keine kompakte Artefaktarchitektur, Cache-/Resume-, Final-Evaluator- oder Controllerarbeit aus Aufgabe 12 oder später wurde vorgezogen.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_11_2026-07-16.md`
+
+## Aufgaben 12 bis 33 – verbindliche Reihenfolge
 
 ### Aufgabe 12 – Kompakte Artefaktarchitektur
 
-**Status:** `NOT_STARTED`
+**Status:** `NOT_STARTED` – exakt nächste Aufgabe
 
 Kleiner JSON-Index, getrennte deduplizierte Trade-, Daily-PnL-, Equity- und Diagnostikartefakte sowie digest-, schema- und provenienzgebundene Referenzen.
 
@@ -247,9 +260,9 @@ Erst nach Aufgaben 1–32 werden zwölf Origins und 365 OOS-Tage einmalig ausgef
 ## Fortschrittsführung
 
 ```text
-Protocol v3: Aufgabe 10/33 – Kontextparität und Drei-Markt-Watermark – DONE_100
-Protocol v3: Aufgabe 11/33 – Protocol-v3-Report-Schemas und Evidenzbedeutung – NOT_STARTED
-Gesamt: 10/33 DONE_100 = 30,30 %
+Protocol v3: Aufgabe 11/33 – Protocol-v3-Report-Schemas und Evidenzbedeutung – DONE_100
+Protocol v3: Aufgabe 12/33 – Kompakte Artefaktarchitektur – NOT_STARTED
+Gesamt: 11/33 DONE_100 = 33,33 %
 ```
 
 Fortschritt wird ausschließlich als `DONE_100 / 33` ausgewiesen, nicht nach Zeit oder Token geschätzt.
