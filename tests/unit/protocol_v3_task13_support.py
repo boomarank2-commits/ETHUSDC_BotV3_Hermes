@@ -1,10 +1,11 @@
-"""Shared real Protocol-v3 fixtures for Task-13 tests."""
+"""Shared real Protocol-v3 fixtures for Task-13 and Task-14 tests."""
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 import hashlib
 import os
 from pathlib import Path
+import shutil
 
 import pytest
 
@@ -26,6 +27,10 @@ from ethusdc_bot.protocol_v3.data_snapshot import (
     build_three_market_data_snapshot,
     compute_utc_day_content_sha256,
     validate_frozen_data_snapshot,
+)
+from ethusdc_bot.protocol_v3.inner_folds import (
+    INNER_FOLD_CONTRACT_PATH,
+    build_inner_fold_plan_for_origin,
 )
 from ethusdc_bot.protocol_v3.pipeline import (
     BudgetUsage,
@@ -219,6 +224,10 @@ def _report_and_index(repo: Path, run_key: str, pipeline_key: str) -> Path:
 
 
 def build_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    contract_target = tmp_path / INNER_FOLD_CONTRACT_PATH
+    contract_target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(REPO_ROOT / INNER_FOLD_CONTRACT_PATH, contract_target)
+
     context = _context()
     snapshot = _snapshot(monkeypatch, context)
     binding = build_context_parity_binding(
@@ -246,10 +255,16 @@ def build_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         trial_ledger=ledger,
         repo_root=REPO_ROOT,
     )
+    boundary_plan = build_monthly_process_boundary_plan("2026-07-08")
     manifest = build_pre_run_manifest(
         generation,
-        build_monthly_process_boundary_plan("2026-07-08"),
+        boundary_plan,
         code_commit=COMMIT,
+    )
+    inner_fold_plan = build_inner_fold_plan_for_origin(
+        boundary_plan.origins[0],
+        HORIZON,
+        repo_root=REPO_ROOT,
     )
     index_path = _report_and_index(tmp_path, fingerprint.resume_key, generation.generation_id)
     identity = tx.build_transaction_identity(
@@ -260,8 +275,10 @@ def build_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         candidate_identity=tx.build_not_applicable_identity_slot(
             tx.CANDIDATE_SLOT, "protocol_v3_candidate_identity_pending_task15_v1", "task15_not_implemented"
         ),
-        fold_identity=tx.build_not_applicable_identity_slot(
-            tx.FOLD_SLOT, "protocol_v3_fold_identity_pending_task14_v1", "task14_not_implemented"
+        fold_identity=tx.build_bound_identity_slot(
+            tx.FOLD_SLOT,
+            tx.FOLD_IDENTITY_SCHEMA,
+            inner_fold_plan.identity_payload,
         ),
         rotation_state_identity=tx.build_genesis_identity_slot(
             tx.ROTATION_SLOT, "protocol_v3_rotation_identity_genesis_v1", "no_rotation_state"
@@ -277,6 +294,7 @@ def build_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         "binding": binding,
         "manifest": manifest,
         "identity": identity,
+        "inner_fold_plan": inner_fold_plan,
         "index_path": index_path,
         "budget": BudgetUsage().reserve_next_cycle(1),
         "seed": tx.build_seed_state(manifest, origin_index=1, cycle_index=1),
