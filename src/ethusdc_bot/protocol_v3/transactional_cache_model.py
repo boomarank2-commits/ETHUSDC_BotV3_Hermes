@@ -525,15 +525,15 @@ def build_transaction_identity(
     }
     if any(slot.name != name for name, slot in supplied.items()):
         raise ProtocolV3TransactionError("supplied identity slot name mismatch")
-    _validate_transition_slots(supplied, repository_root)
-    _validate_store_heads_slot(
-        supplied[STORE_HEADS_SLOT],
-        repository_root,
-    )
     horizon = {
         **horizon_policy.basis(),
         "policy_sha256": horizon_policy.policy_sha256,
     }
+    _validate_transition_slots(supplied, repository_root, horizon_policy)
+    _validate_store_heads_slot(
+        supplied[STORE_HEADS_SLOT],
+        repository_root,
+    )
     slots = {
         RAW_DATA_SLOT: build_bound_identity_slot(
             RAW_DATA_SLOT,
@@ -704,8 +704,8 @@ def validate_transaction_identity(
         )
     slot_map = {slot.name: slot for slot in slots}
     _validate_derived_slots(run, runtime, slot_map)
-    _validate_transition_slots(slot_map, repository_root)
-    _validate_horizon_slot(slot_map[HORIZON_SLOT])
+    horizon_policy = _validate_horizon_slot(slot_map[HORIZON_SLOT])
+    _validate_transition_slots(slot_map, repository_root, horizon_policy)
     _validate_store_heads_slot(
         slot_map[STORE_HEADS_SLOT],
         repository_root,
@@ -783,6 +783,7 @@ def _validate_derived_slots(
 def _validate_transition_slots(
     slots: Mapping[str, IdentitySlot],
     repository_root: str | Path,
+    horizon_policy: HorizonPolicy,
 ) -> None:
     candidate = slots[CANDIDATE_SLOT].to_dict()
     if candidate != build_not_applicable_identity_slot(
@@ -802,12 +803,13 @@ def _validate_transition_slots(
         raise ProtocolV3TransactionError(
             "rotation_state_identity is not the canonical genesis state"
         )
-    _validate_fold_slot(slots[FOLD_SLOT], repository_root)
+    _validate_fold_slot(slots[FOLD_SLOT], repository_root, horizon_policy)
 
 
 def _validate_fold_slot(
     slot: IdentitySlot,
     repository_root: str | Path,
+    horizon_policy: HorizonPolicy,
 ) -> None:
     row = slot.to_dict()
     if row["state"] != BOUND:
@@ -833,9 +835,18 @@ def _validate_fold_slot(
         raise ProtocolV3TransactionError(
             "fold_identity payload is not canonical"
         )
+    expected_horizon = {
+        **horizon_policy.basis(),
+        "policy_sha256": horizon_policy.policy_sha256,
+        "purge_duration_minutes": horizon_policy.purge_duration_minutes,
+    }
+    if normalized["plan"]["horizon_policy"] != expected_horizon:
+        raise ProtocolV3TransactionError(
+            "fold_identity horizon differs from transaction horizon identity"
+        )
 
 
-def _validate_horizon_slot(slot: IdentitySlot) -> None:
+def _validate_horizon_slot(slot: IdentitySlot) -> HorizonPolicy:
     row = slot.to_dict()
     payload = dict(row["payload"])
     if row["state"] != BOUND:
@@ -865,6 +876,7 @@ def _validate_horizon_slot(slot: IdentitySlot) -> None:
         raise ProtocolV3TransactionError(
             "horizon identity payload is not canonical"
         )
+    return policy
 
 
 def _validate_store_heads_slot(
