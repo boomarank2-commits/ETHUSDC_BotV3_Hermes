@@ -23,7 +23,7 @@ def test_task9_runtime_state_is_public_and_pipeline_bound() -> None:
     basis = build_pipeline_generation(REPO_ROOT).basis()
     assert (
         basis["component_contracts"]["boundary_rules"]
-        == "protocol_v3_monthly_boundary_and_runtime_state_v1"
+        == "protocol_v3_monthly_boundary_runtime_and_inner_6x60_folds_v2"
     )
     assert (
         basis["component_contracts"]["simulator"]
@@ -44,6 +44,14 @@ def test_task9_runtime_state_is_public_and_pipeline_bound() -> None:
             "src/ethusdc_bot/protocol_v3/runtime_state.py"
             in contract["source_bindings"][component]
         )
+    assert (
+        "configs/protocol_v3_inner_fold_contract.json"
+        in contract["source_bindings"]["boundary_rules"]
+    )
+    assert (
+        "src/ethusdc_bot/protocol_v3/inner_folds.py"
+        in contract["source_bindings"]["boundary_rules"]
+    )
 
 
 def test_task8_intrabar_contract_remains_separate_and_bound() -> None:
