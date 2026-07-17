@@ -1,8 +1,8 @@
 # Protocol v3 – verbindliche Implementierungsreihenfolge
 
-Stand: 2026-07-16
+Stand: 2026-07-17
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 13/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 14/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -10,13 +10,13 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 `DONE_100` erfordert vollständig umgesetzten Umfang, Wiederverwendung vorhandener Funktionen, grüne Unit-/Integrations-/Negativtests, Python-Kompilierung, PowerShell-Syntax, Whitespace-Prüfung, dokumentierte Grenzen, keinen Vorgriff auf spätere Aufgaben und einen eindeutigen GitHub-Handoff. Paper, Testtrade, Live, Orders, private Endpunkte und API-Keys bleiben gesperrt.
 
-## Aufgaben 1 bis 13 – abgeschlossen
+## Aufgaben 1 bis 14 – abgeschlossen
 
 ### Aufgabe 1 – Protocol-v3-Vertrag versioniert übernehmen
 
 **Status:** `DONE_100`
 
-Blueprint, Projektvertrag, Agentenregeln sowie Portfolio-/Shadow-Vertrag wurden widerspruchsfrei als Vertragsgeneration 3.0.0 übernommen. Der Pipelineaufbau validiert diese Repository-Verträge fail-closed und bindet ihre vollständigen Quelldigests in jede Pipelinegeneration. Verbrauchter Audit bleibt `NOT_FRESH`; Legacy-Pfade können keinen Protocol-v3-Finalstatus erzeugen.
+Blueprint, Projektvertrag, Agentenregeln sowie Portfolio-/Shadow-Vertrag wurden widerspruchsfrei als Vertragsgeneration 3.0.0 übernommen. Verbrauchter Audit bleibt `NOT_FRESH`; Legacy-Pfade können keinen Protocol-v3-Finalstatus erzeugen.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_01_2026-07-13.md`
 
@@ -32,7 +32,7 @@ Exakt zwölf Origins, 730 Entwicklungstage je Origin, 365 lückenlose Prozess-OO
 
 **Status:** `DONE_100`
 
-Pipelinegeneration, timestamp-freies Pre-Run-Manifest, deterministische Seeds, globale 12-Origin-Budgets und ausschließlich verkürzende Stopregeln sind eingefroren. Der zusätzliche aktuelle Refit benötigt vor der ersten Reservierung eine gebundene Manifestidentität, kann nur einmal begonnen und nach Abschluss nicht fortgesetzt werden. Das 3-USDC-Ziel ist keine Suchverlust- oder Stopregel.
+Pipelinegeneration, timestamp-freies Pre-Run-Manifest, deterministische Seeds, globale 12-Origin-Budgets und ausschließlich verkürzende Stopregeln sind eingefroren. Das 3-USDC-Ziel ist keine Suchverlust- oder Stopregel.
 
 **Berichte:**
 - `handoff/PROTOCOL_V3_TASK_03_2026-07-14.md`
@@ -42,7 +42,7 @@ Pipelinegeneration, timestamp-freies Pre-Run-Manifest, deterministische Seeds, g
 
 **Status:** `DONE_100`
 
-Versuche werden append-only, hashverkettet und generationsübergreifend erfasst. Historischer Import zählt nur vollständig quell- und beobachtungsgebundene Trials; bloße Zeilenzahlen, vom Aufrufer gelieferte Attestierungswerte oder spätere Ledger-Ereignisse können den damaligen Gate-Zustand nicht rückwirkend freigeben. Der belegbare Altbestand bleibt eine Untergrenze mit 180 bekannten Bewertungszeilen und 0 vollständig aufgelösten unabhängigen Alt-Trials; deshalb bleibt nur `NO_TRADE` freigabefähig.
+Versuche werden append-only, hashverkettet und generationsübergreifend erfasst. Der belegbare Altbestand bleibt eine Untergrenze mit 180 bekannten Bewertungszeilen und 0 vollständig aufgelösten unabhängigen Alt-Trials; deshalb bleibt nur `NO_TRADE` freigabefähig.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_04_2026-07-14.md`
 
@@ -50,7 +50,7 @@ Versuche werden append-only, hashverkettet und generationsübergreifend erfasst.
 
 **Status:** `DONE_100`
 
-ETHUSDC, BTCUSDC und ETHBTC erhalten eine dynamische gemeinsame vollständige UTC-Watermark, exakte 1m-Rasterprüfung, Markt-/Archivdigests, einen SHA-256-Inhaltsnachweis für jeden Markt und UTC-Tag sowie `max(active lookbacks)+1 Quellbar` Warmup. ZIP-Prüfsummen werden gestreamt und fail-closed geparst. Der reale bekannte Bestand bleibt `BLOCKED_MISSING_WARMUP`.
+ETHUSDC, BTCUSDC und ETHBTC erhalten eine gemeinsame vollständige UTC-Watermark, exakte 1m-Rasterprüfung, Markt-/Archivdigests und `max(active lookbacks)+1 Quellbar` Warmup. Der reale bekannte Bestand bleibt `BLOCKED_MISSING_WARMUP`.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_05_2026-07-14.md`
 
@@ -58,7 +58,7 @@ ETHUSDC, BTCUSDC und ETHBTC erhalten eine dynamische gemeinsame vollständige UT
 
 **Status:** `DONE_100`
 
-Öffentliche ETHUSDC-Exchange-Filter und zwölf Identitätsklassen sind immutable und SHA-256-gebunden. Private oder kontobezogene Schlüssel werden auf jeder Payload-Tiefe abgelehnt. Der Run-Fingerprint v2 verlangt eine konkrete validierte Kontextbindung und gleicht deren Datensnapshot mit der Rohdatenidentität ab; Resume und Cache-Hit verlangen denselben vollständigen Fingerprint.
+Öffentliche ETHUSDC-Exchange-Filter und zwölf Identitätsklassen sind immutable und SHA-256-gebunden. Private oder kontobezogene Schlüssel werden abgelehnt; Resume und Cache-Hit verlangen denselben vollständigen Run-Fingerprint v2.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_06_2026-07-14.md`
 
@@ -66,7 +66,7 @@ ETHUSDC, BTCUSDC und ETHBTC erhalten eine dynamische gemeinsame vollständige UT
 
 **Status:** `DONE_100`
 
-Requested und reserved bleiben exakt 100 USDC; executed bleibt wegen der aktiven LOT-/MARKET_LOT-Raster höchstens 100 USDC. Ein Binance-Filter mit `stepSize=0` ist einzeln deaktiviert, mindestens ein positiver wirksamer Raster bleibt Pflicht. Der kanonische Pfad erzwingt exakt 0,1 % Gebühr und 5 bps Slippage je Seite. Entry-/Exit-Fees verwenden tatsächliche Notionals, der Exit exakt die gekaufte Menge, Compounding bleibt aus.
+Requested und reserved bleiben exakt 100 USDC; executed bleibt wegen aktiver Raster höchstens 100 USDC. Gebühren, Slippage, Tick-/Step-Rundung, Notional und Exitmenge folgen dem eingefrorenen Binance-Spot-Vertrag; Compounding bleibt aus.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_07_2026-07-14.md`
 
@@ -74,7 +74,7 @@ Requested und reserved bleiben exakt 100 USDC; executed bleibt wegen der aktiven
 
 **Status:** `DONE_100`
 
-Entry erfolgt erst nach geschlossener Signalbar am nächsten positiven Volumen-Open. Eine Pending Entry besitzt denselben eingefrorenen Horizont wie Purge und verfällt deterministisch; am oder nach dem letzten handelbaren Balken entstehen keine neuen Entries. Tick-Rundung ist adverse, Stop gewinnt bei Doppelberührung, Gaps werden pessimistisch gefüllt, perfekte Extremfills sind ausgeschlossen und Break-even/Trail gelten erst ab Folgebalken.
+Entry erfolgt nach geschlossener Signalbar am nächsten positiven Volumen-Open. Pending Entries verfallen deterministisch; Stop gewinnt bei Doppelberührung, Gaps werden pessimistisch gefüllt und Break-even/Trail gelten erst ab Folgebalken.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_08_2026-07-14.md`
 
@@ -82,7 +82,7 @@ Entry erfolgt erst nach geschlossener Signalbar am nächsten positiven Volumen-O
 
 **Status:** `DONE_100`
 
-Warmup ist feature-only, Purge folgt dem maximalen Informationshorizont plus Ausführungsbar, innere Folds starten flat und enden konservativ. Eine Altposition darf nur mit identischer Candidate-Bundle-Identität fortgeführt werden; terminale Liquidation erfolgt auf dem letzten tatsächlich handelbaren Balken. Zwischen Origins wird ausschließlich höchstens eine offene Altposition mit alter Exitlogik übernommen; neue Entries warten auf `max(valid_from,flat_time)`.
+Warmup ist feature-only, Purge folgt dem maximalen Informationshorizont plus Ausführungsbar, innere Folds starten flat und enden konservativ. Zwischen Origins wird ausschließlich höchstens eine offene Altposition mit alter Exitlogik übernommen.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_09_2026-07-14.md`
 
@@ -90,17 +90,7 @@ Warmup ist feature-only, Purge folgt dem maximalen Informationshorizont plus Aus
 
 **Status:** `DONE_100`
 
-**Abnahme:**
-
-- Vertrag `three_market_closed_bar_context_parity_v2` bindet ETHUSDC als einziges Handelssymbol; BTCUSDC und ETHBTC bleiben ausschließlich Kontextmärkte.
-- Die vorhandenen Research-/Replay-Adapter verwenden dieselbe Kontextfunktion, dieselbe `ContextVetoPolicy` und dieselbe Task-8-Ausführungsengine. Die Pfadnamen für Final-Evaluator und Research-Challenger sichern nur die spätere Paritätsanforderung; deren Controller bleiben ausdrücklich Aufgabe 31 beziehungsweise 29.
-- Entscheidungen sind nur bei drei exakt ausgerichteten vollständig geschlossenen 1m-Bars zum Zeitpunkt `open_time+59.999 ms` erlaubt.
-- Fehlender, versetzter, lückenhafter, veralteter oder zukünftiger Kontext blockiert; Nearest-Neighbor, Forward-Fill und Interpolation sind verboten.
-- Die Watermark bleibt die Task-5-Datenwahrheit. Kontextfenster müssen aus vollständigen UTC-Tagen bestehen, und jeder Markt-/Tag-Inhalt muss exakt dem Task-5-Tagesindex entsprechen.
-- Kontext darf ausschließlich ein vorhandenes ETHUSDC-Signal bestätigen oder vetoen; BTCUSDC und ETHBTC können weder Signal noch Trade erzeugen.
-- Kontextidentität bindet Vertrag, Policy, den konkret validierten Task-5-Snapshot, drei Snapshot- und drei Fensterinhalte, Startzeit, letzte gemeinsame Bar und Candle-Anzahl.
-- Cache-/Resume-Key verlangen dieselbe Kontextidentität; der Run-Fingerprint v2 bettet diese konkrete Laufzeitbindung ein und prüft sie gegen die Rohdatenidentität.
-- Task-7-, Task-8- und Task-9-Verhalten blieb unverändert; keine Aufgabe 11 oder später wurde vorgezogen.
+ETHUSDC ist einziges Handelssymbol; BTCUSDC und ETHBTC bleiben Kontext. Entscheidungen verlangen drei exakt ausgerichtete geschlossene 1m-Bars. Fehlender, versetzter, alter oder zukünftiger Kontext blockiert; Kontext kann nur ein ETHUSDC-Signal bestätigen oder vetoen.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_10_2026-07-15.md`
 
@@ -108,18 +98,7 @@ Warmup ist feature-only, Purge folgt dem maximalen Informationshorizont plus Aus
 
 **Status:** `DONE_100`
 
-**Abnahme:**
-
-- Vertrag `protocol_v3_evidence_reports_v1` definiert getrennte, versionierte Reportarten und feste Roots für Research, Monatsprozess-OOS, Research-Challenger, Forward-Monat und den eindeutig benannten späteren Protocol-v3-Pipeline-Finalreport.
-- `sealed_final_holdout` ist ausschließlich die Evidenzfensterklasse des späteren Finalreports; der Legacy-Typ `final_evaluation` wird nicht wiederverwendet.
-- `historically_hit` wird ausschließlich aus `process_oos_net_usdc / 365 >= 3.0` abgeleitet und erzeugt weder Freshness noch statistische Unterstützung oder Adoption.
-- Task-27-/Task-31-Attestierungen können in Aufgabe 11 nicht behauptet werden; `fresh_pre_registered_sealed_365`, Bootstrap-Support und `statistically_supported` bleiben fail-closed falsch.
-- Historischer Monatsprozess bleibt immer `NOT_FRESH`, `diagnostic_only` und nicht adoptierbar; Research-Challenger bleibt orderfrei; ein Forward-Monat ist nur eine frische Beobachtung und niemals alleiniger Finalnachweis.
-- Forward-Monate werden vor Beginn create-only registriert, an Pipelinegeneration und Run-Fingerprint gebunden und beim Reload semantisch revalidiert. Ein späteres Finalfenster scannt die tatsächlich persistierten Registrierungen und blockiert jede Überlappung.
-- JSON ist strikt: exakte Schlüssel und Versionen, keine Duplicate Keys, unbekannten Safety-/Evidenzfelder, `NaN`, Infinity oder nichtkanonischen Bytes.
-- Persistenz ist create-only, Root-, Traversal-, Symlink- und Alias-sicher und revalidiert unmittelbar nach dem Schreiben.
-- Jede Protocol-v3-Reportklasse wird von den bestehenden Legacy-Final-/Adoptionspfaden abgelehnt.
-- Reportvertrag und Implementierung sind in Pipelinegeneration und Run-Fingerprint gebunden; keine kompakte Artefaktarchitektur, Cache-/Resume-, Final-Evaluator- oder Controllerarbeit aus Aufgabe 12 oder später wurde vorgezogen.
+Getrennte, versionierte Reportarten und feste Roots existieren für Research, Monatsprozess-OOS, Research-Challenger, Forward-Monat und den späteren Pipeline-Finalreport. Historische Zielerreichung erzeugt weder Freshness noch statistische Unterstützung oder Adoption.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_11_2026-07-16.md`
 
@@ -127,18 +106,7 @@ Warmup ist feature-only, Purge folgt dem maximalen Informationshorizont plus Aus
 
 **Status:** `DONE_100`
 
-**Abnahme:**
-
-- Vertrag `protocol_v3_compact_artifact_store_v1` trennt content-addressed Objekte von einem kleinen kanonischen Referenzindex.
-- Eigene Objekt-Schemas existieren für Trades, tägliche Netto-MTM-PnL einschließlich echter Nulltage, Equity/Underwater sowie Fold-/Kandidaten-/Diagnostikevidenz.
-- SHA-256, Bytegröße und logische Kardinalität werden aus den tatsächlich kanonisch serialisierten Objektbytes berechnet und niemals als Aufruferbehauptung übernommen.
-- Jede Referenz bindet Art, Schema, Digest, Größe, Kardinalität und Provenienz; die Provenienz bindet den revalidierten Elternreport, vollständigen Run-Fingerprint, Pipelinegeneration und eine gehashte Work-Unit-Identität.
-- Ein vorhandenes Objekt unter demselben Digest wird vollständig gelesen, kanonisch und semantisch validiert und niemals blind überschrieben.
-- Alle Objekte werden geschrieben, geflusht, erneut gelesen und validiert, bevor der referenz-only Index veröffentlicht wird.
-- Identische Bytes werden einmal gespeichert und dürfen mehrfach referenziert werden; unterschiedliche Inhalte besitzen unterschiedliche Content-Adressen.
-- Der Index enthält keine Rohkerzen und keine eingebetteten Trade-, Daily-PnL- oder Equity-Reihen. Pfad-Traversal, Alias- und Symlink-Flucht blockieren.
-- Die versionierte Größenpolitik ist auf 12 Origins × 8 Cycles × 4 Artefaktarten = 384 Referenzen geprüft, besitzt 2× Headroom und bleibt unabhängig von 1m-Candle- oder Kurvenlängen.
-- Generierte Objekt- und Indexroots sind Git-ignoriert. Task-13-Crash-/Resume-Transaktionen, Locks und Checkpoints wurden ausdrücklich nicht vorgezogen.
+Content-addressed Objekte sind von kleinen kanonischen Referenzindizes getrennt. Tatsächliche Bytes bestimmen Digest, Größe und Kardinalität; Elternreport, Run-Fingerprint, Pipelinegeneration und Work-Unit-Provenienz werden transitiv revalidiert.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_12_2026-07-16.md`
 
@@ -150,30 +118,44 @@ Warmup ist feature-only, Purge folgt dem maximalen Informationshorizont plus Aus
 
 **Abnahme:**
 
-- Vertrag `protocol_v3_content_addressed_cache_and_transactional_resume_v1` bindet exakt 16 Pflichtidentitäten; fehlende, zusätzliche, umsortierte oder `None`-Slots blockieren.
-- Vollständiger Run-Fingerprint v2, konkrete ContextParity-Bindung, Horizon-, Execution-, Simulator-, Kosten-, Exchange-, Trial-Ledger-, Rotations- und Task-12-Store-Identitäten werden semantisch revalidiert und nicht als Aufruferdigests übernommen.
-- Kandidat und Fold besitzen bis Aufgabe 15 beziehungsweise 14 typisierte `NOT_APPLICABLE`-Zustände; Rotation besitzt einen typisierten `GENESIS`-Zustand.
-- Checkpoints binden Pre-Run-Manifest, deterministischen Seedzustand, reservierte Budgets, Stop-/Stagnationszustand, Ergebnis, Artefaktköpfe, Ledger-Receipt und eine vollständige Hashkette.
-- Same-directory Temp, Flush/`fsync`, semantischer Reload und atomarer Replace werden vor dem separaten committed `HEAD.json` erzwungen. Nur der HEAD macht einen Checkpoint für Resume sichtbar.
-- Verwaiste Temp- oder noch nicht durch HEAD veröffentlichte Checkpoints bleiben unsichtbar; die gesamte committed Kette wird bis Genesis revalidiert.
-- Writer-Locks sind create-only; blindes Stale-Overwrite ist verboten. Recovery verlangt denselben Host und einen nachweislich toten Prozess und erzeugt ein immutable Recovery-Receipt.
-- Cache-Records entstehen nur aus dem aktuellen committed HEAD. Jeder Cache-Hit revalidiert Identität, Checkpointkette, Ergebnis, Task-12-Indizes/Objekte/Reports und Trial-Ledger.
-- Cache-Reuse wird deterministisch und idempotent im permanenten Trial-Ledger erfasst, zählt nicht als unabhängiger Trial und bleibt nach einem Crash zwischen Ledger-Append und Checkpoint-HEAD exakt einmal vorhanden.
-- Fault-Injection vor und nach Temp-, Replace-, Reload-, Ledger-Append- und HEAD-Grenzen ist grün; keine Aufgabe 14 oder später wurde vorgezogen.
+- Die Task-13-Grundlage bindet exakt 16 Pflichtidentitäten; fehlende, zusätzliche, umsortierte oder `None`-Slots blockieren.
+- Checkpoints binden Pre-Run-Manifest, Seed, Budgets, Stop-/Stagnationszustand, Ergebnis, Artefaktköpfe, Ledger-Receipt und eine vollständige Hashkette.
+- Nur ein separat atomar publiziertes `HEAD.json` macht einen Checkpoint für Resume sichtbar.
+- Writer-Locks sind create-only; Recovery verlangt Same-Host-Dead-Process-Nachweis und erzeugt ein immutable Receipt.
+- Cache-Records entstehen nur aus dem aktuellen committed HEAD und revalidieren Task-12-Indizes, Objekte, Reports und Trial-Ledger transitiv.
+- Cache-Reuse ist deterministisch, idempotent und zählt nicht als unabhängiger Trial.
+- Der Task-4-/Task-13-Adapter bindet das echte Ledgerfeld `event_sha256`; ein fremder späterer Ledgerfortschritt blockiert.
+- Durch Aufgabe 14 wurde der Vertrag ohne Lockerung fortgeschrieben zu `protocol_v3_content_addressed_cache_and_transactional_resume_with_inner_folds_v2`; der Fold-Slot ist nun gebunden statt `NOT_APPLICABLE`.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_13_2026-07-16.md`
 
-## Aufgaben 14 bis 33 – verbindliche Reihenfolge
+**Korrekturbericht:** `handoff/PROTOCOL_V3_TASK_13_LEDGER_EVENT_ADAPTER_CORRECTION_2026-07-17.md`
 
 ### Aufgabe 14 – Exakten inneren 6×60-Tage-Fold-Planer bauen
 
-**Status:** `NOT_STARTED` – exakt nächste Aufgabe
+**Status:** `DONE_100`
 
-Sechs nicht überlappende 60-Tage-Validation-Folds auf den letzten 360 Entwicklungstagen; Fits wachsen ab 370 Tagen, Purge wird angewendet und Timestamp-Spies verhindern Leakage.
+**Abnahme:**
+
+- Vertrag `protocol_v3_exact_inner_6x60_day_folds_v1` erzeugt auf jedem exakt 730 Tage großen Entwicklungsfenster sechs chronologische, nicht überlappende 60-Tage-Validation-Folds.
+- Die Validation-Union umfasst lückenlos exakt die letzten 360 Entwicklungstage.
+- Die Fits beginnen am gemeinsamen `training_start`; ihre Spannen vor Purging betragen exakt 370, 430, 490, 550, 610 und 670 Tage.
+- `fit_end = validation_start - purge_duration`; die Purge-Dauer stammt ausschließlich aus der Task-9-`HorizonPolicy`.
+- Task-9-Boundary-Touch-Purge und ein fester maximaler Purge-Cutoff wirken gemeinsam; ein Event mit Signalzeit an oder nach `fit_end` bleibt auch bei kürzerem realisiertem Horizont ausgeschlossen.
+- Timestamp-Spies blockieren Fit-, Scaler-, Quantile-, Regime-, Validation-, Feature- und Labelzugriffe außerhalb ihrer kausalen Grenzen.
+- Alle zwölf Origins aus drei Boundary-Fixtures, insgesamt 36 Origin-Fenster, besitzen dieselbe exakte Fold-Struktur.
+- Der Transaktions-Fold-Slot muss `BOUND` sein und den vollständigen semantisch revalidierten Plan enthalten; alte `task14_not_implemented`-Identitäten blockieren.
+- Fold-Plan und separate Transaktions-Horizon-Identität sind gegenseitig gebunden. Abweichende Label-, Holding-, Pending-Entry- oder Purge-Horizonte blockieren.
+- Foldvertrag, Planermodul, öffentliche API und Transaction-v2-Vertrag sind pipelinegebunden; alte Cache-/Resume-Stände ohne Fold-Plan können nicht treffen.
+- Aufgabe 15 oder später wurde nicht vorgezogen.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_14_2026-07-17.md`
+
+## Aufgaben 15 bis 33 – verbindliche Reihenfolge
 
 ### Aufgabe 15 – Reine innere Auswahlfunktion extrahieren
 
-**Status:** `NOT_STARTED`
+**Status:** `NOT_STARTED` – exakt nächste Aufgabe
 
 `select_candidate(training_window, frozen_pipeline_config)` muss deterministisch, UI-unabhängig und ohne Zugriff nach `training_end` oder auf Outer-Ergebnisse arbeiten; fehlende Evidenz liefert `NO_TRADE`.
 
@@ -288,9 +270,9 @@ Erst nach Aufgaben 1–32 werden zwölf Origins und 365 OOS-Tage einmalig ausgef
 ## Fortschrittsführung
 
 ```text
-Protocol v3: Aufgabe 13/33 – Content-addressed Cache und transaktionales Resume – DONE_100
-Protocol v3: Aufgabe 14/33 – Exakten inneren 6×60-Tage-Fold-Planer bauen – NOT_STARTED
-Gesamt: 13/33 DONE_100 = 39,39 %
+Protocol v3: Aufgabe 14/33 – Exakten inneren 6×60-Tage-Fold-Planer bauen – DONE_100
+Protocol v3: Aufgabe 15/33 – Reine innere Auswahlfunktion extrahieren – NOT_STARTED
+Gesamt: 14/33 DONE_100 = 42,42 %
 ```
 
 Fortschritt wird ausschließlich als `DONE_100 / 33` ausgewiesen, nicht nach Zeit oder Token geschätzt.
