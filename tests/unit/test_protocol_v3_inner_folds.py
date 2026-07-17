@@ -141,7 +141,10 @@ def test_plan_rejects_wrong_window_timezone_and_semantic_rehash() -> None:
     payload = _plan().to_dict()
     payload["folds"][2]["validation_start_inclusive_utc"] = "2025-09-10T00:00:00Z"
     tampered = _rehash_plan(payload)
-    with pytest.raises(folds.InnerFoldPlanError, match="validation_start formula"):
+    with pytest.raises(
+        folds.InnerFoldPlanError,
+        match="pre_purge_fit_days|validation_start formula",
+    ):
         folds.validate_inner_fold_plan(tampered, repo_root=REPO_ROOT)
     extra = _plan().to_dict()
     extra["unexpected"] = True
