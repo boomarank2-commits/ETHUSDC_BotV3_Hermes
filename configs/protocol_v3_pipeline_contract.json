@@ -3,7 +3,7 @@
   "protocol_version": "3.0.0",
   "pipeline_contract_version": "monthly_refit_pipeline_v3.0.0",
   "component_contracts": {
-    "boundary_rules": "protocol_v3_monthly_boundary_and_runtime_state_v1",
+    "boundary_rules": "protocol_v3_monthly_boundary_runtime_and_inner_6x60_folds_v2",
     "candidate_families": "bounded_regime_specialists_v1",
     "context_policy": "three_market_closed_bar_context_parity_v2",
     "cost_model": "protocol_v3_actual_notional_baseline_and_stress_costs_v1",
@@ -14,7 +14,7 @@
       "permanent_trial_history_v1",
       "protocol_v3_evidence_reports_v1",
       "protocol_v3_compact_artifact_store_v1",
-      "protocol_v3_content_addressed_cache_and_transactional_resume_v1"
+      "protocol_v3_content_addressed_cache_and_transactional_resume_with_inner_folds_v2"
     ],
     "ranking": "protocol_v3_lexicographic_inner_ranking_v1",
     "search_space": "protocol_v3_bounded_search_identity_global_budget_and_run_fingerprint_v1",
@@ -22,8 +22,11 @@
   },
   "source_bindings": {
     "boundary_rules": [
+      "configs/protocol_v3_inner_fold_contract.json",
       "configs/protocol_v3_runtime_state_contract.json",
       "src/ethusdc_bot/protocol_v3/boundaries.py",
+      "src/ethusdc_bot/protocol_v3/inner_folds.py",
+      "src/ethusdc_bot/protocol_v3/inner_folds_api.py",
       "src/ethusdc_bot/protocol_v3/runtime_state.py"
     ],
     "candidate_families": [
