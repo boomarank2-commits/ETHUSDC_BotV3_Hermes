@@ -14,9 +14,12 @@
       "permanent_trial_history_v1",
       "protocol_v3_evidence_reports_v1",
       "protocol_v3_compact_artifact_store_v1",
-      "protocol_v3_content_addressed_cache_and_transactional_resume_with_inner_folds_v2"
+      "protocol_v3_content_addressed_cache_and_transactional_resume_with_inner_selection_v3"
     ],
-    "ranking": "protocol_v3_lexicographic_inner_ranking_v1",
+    "ranking": [
+      "protocol_v3_lexicographic_inner_ranking_v1",
+      "protocol_v3_pure_inner_candidate_selection_v1"
+    ],
     "search_space": "protocol_v3_bounded_search_identity_global_budget_and_run_fingerprint_v1",
     "simulator": "next_tradable_price_pessimistic_intrabar_with_fold_outer_state_and_context_parity_v2"
   },
@@ -76,9 +79,12 @@
       "src/ethusdc_bot/shadow/adoption.py"
     ],
     "ranking": [
+      "configs/protocol_v3_inner_selection_contract.json",
       "docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md",
       "src/ethusdc_bot/backtest/research_loop_runner.py",
-      "src/ethusdc_bot/backtest/research_runner.py"
+      "src/ethusdc_bot/backtest/research_runner.py",
+      "src/ethusdc_bot/protocol_v3/inner_selection.py",
+      "src/ethusdc_bot/protocol_v3/inner_selection_api.py"
     ],
     "search_space": [
       "configs/protocol_v3_run_identity_contract.json",
