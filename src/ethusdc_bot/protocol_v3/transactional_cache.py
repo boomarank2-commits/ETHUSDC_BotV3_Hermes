@@ -123,6 +123,11 @@ def _validate_transition_slots_task15(
     repository_root: str | Path,
     horizon_policy: Any,
 ) -> None:
+    # Preserve the most specific causal-boundary failure when both an old
+    # candidate placeholder and an intentionally invalid fold are supplied.
+    _model._validate_fold_slot(
+        slots[_model.FOLD_SLOT], repository_root, horizon_policy
+    )
     _validate_candidate_slot(slots, repository_root)
     rotation = slots[_model.ROTATION_SLOT].to_dict()
     if rotation != _model.build_genesis_identity_slot(
@@ -133,9 +138,6 @@ def _validate_transition_slots_task15(
         raise _model.ProtocolV3TransactionError(
             "rotation_state_identity is not the canonical genesis state"
         )
-    _model._validate_fold_slot(
-        slots[_model.FOLD_SLOT], repository_root, horizon_policy
-    )
 
 
 _model._validate_transition_slots = _validate_transition_slots_task15
