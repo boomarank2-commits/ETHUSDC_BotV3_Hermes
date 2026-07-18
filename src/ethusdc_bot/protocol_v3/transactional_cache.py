@@ -1,13 +1,144 @@
-"""Stable Protocol v3 Task-13 cache and transactional-resume surface."""
+"""Stable Protocol v3 cache/resume surface with Task-15 selection binding."""
 from __future__ import annotations
 
 from collections.abc import Mapping
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
 from . import transactional_cache_model as _model
 from . import transactional_cache_store as _store
+from .inner_selection_api import (
+    CANDIDATE_SELECTION_IDENTITY_SCHEMA,
+    NO_TRADE,
+    validate_candidate_selection_identity_payload,
+)
 from .trial_ledger import read_trial_ledger, record_cache_reuse
+
+
+# The public facade patches the exact model object already used by the Task-13
+# store. Public build, validate, checkpoint and cache calls therefore share one
+# validation path without copying the persistence engine.
+_model.TRANSACTION_CONTRACT_SCHEMA = "protocol_v3_transaction_contract_v3"
+_model.TRANSACTION_CONTRACT_VERSION = (
+    "protocol_v3_content_addressed_cache_and_transactional_resume_"
+    "with_inner_selection_v3"
+)
+_model.TRANSACTION_IDENTITY_SCHEMA_VERSION = "protocol_v3_transaction_identity_v3"
+_model.CANDIDATE_SELECTION_IDENTITY_SCHEMA = CANDIDATE_SELECTION_IDENTITY_SCHEMA
+
+_task15_contract = deepcopy(_model.CANONICAL_CONTRACT)
+_task15_contract["schema_version"] = _model.TRANSACTION_CONTRACT_SCHEMA
+_task15_contract["contract_version"] = _model.TRANSACTION_CONTRACT_VERSION
+_task15_contract["transaction_identity_schema_version"] = (
+    _model.TRANSACTION_IDENTITY_SCHEMA_VERSION
+)
+_task15_contract["identity_policy"]["bound_candidate_selection_required"] = True
+_task15_contract["deferred_scope"] = {
+    "candidate_daily_matrix_task": 16,
+    "pbo_task": 17,
+    "dsr_task": 18,
+    "router_task": 22,
+    "outer_orchestration_task": 23,
+    "rotation_persistence_task": 24,
+    "final_evaluator_task": 31,
+}
+_model.CANONICAL_CONTRACT = _task15_contract
+
+
+def _validate_candidate_slot(
+    slots: Mapping[str, _model.IdentitySlot],
+    repository_root: str | Path,
+) -> None:
+    del repository_root
+    row = slots[_model.CANDIDATE_SLOT].to_dict()
+    if row["state"] != _model.BOUND:
+        raise _model.ProtocolV3TransactionError(
+            "candidate_identity must be BOUND to a Task-15 selection decision"
+        )
+    if row["identity_schema"] != CANDIDATE_SELECTION_IDENTITY_SCHEMA:
+        raise _model.ProtocolV3TransactionError(
+            "candidate_identity schema is not the Task-15 selection schema"
+        )
+    if row["reason"] != "bound":
+        raise _model.ProtocolV3TransactionError("candidate_identity reason is invalid")
+    try:
+        normalized = validate_candidate_selection_identity_payload(row["payload"])
+    except Exception as exc:
+        raise _model.ProtocolV3TransactionError(
+            f"candidate_identity is not a valid Task-15 decision: {exc}"
+        ) from exc
+    if row["payload"] != normalized:
+        raise _model.ProtocolV3TransactionError(
+            "candidate_identity payload is not canonical"
+        )
+
+    decision = normalized["decision"]
+    if decision["fixture_only"] is True:
+        raise _model.ProtocolV3TransactionError(
+            "synthetic Task-15 candidate decisions cannot enter transaction state"
+        )
+    if decision["outcome"] != NO_TRADE or decision["selected_candidate"] is not None:
+        raise _model.ProtocolV3TransactionError(
+            "Task-15 production transaction state must remain NO_TRADE until Tasks 16-18"
+        )
+
+    config = decision["frozen_pipeline_config"]
+    run = config["run_fingerprint"]
+    expected_slots = {
+        _model.RAW_DATA_SLOT: run["raw_data"],
+        _model.CODE_PIPELINE_SLOT: {
+            "code": run["code"],
+            "pipeline": run["pipeline"],
+        },
+        _model.FEATURE_SLOT: run["features"],
+        _model.CONTEXT_SLOT: run["context"]["runtime_binding"],
+        _model.BOUNDARY_SLOT: run["boundary"],
+        _model.SIMULATOR_SLOT: run["simulator"],
+        _model.COST_SLOT: run["cost_model"],
+        _model.QUALITY_SLOT: run["quality_gates"],
+        _model.EXCHANGE_SLOT: run["exchange_info"],
+        _model.TRIAL_LEDGER_SLOT: run["trial_ledger_head"],
+    }
+    for name, expected in expected_slots.items():
+        observed = slots[name].to_dict()
+        if observed["state"] != _model.BOUND or observed["payload"] != expected:
+            raise _model.ProtocolV3TransactionError(
+                f"candidate selection identity differs from transaction slot: {name}"
+            )
+    if config["fold_identity"] != slots[_model.FOLD_SLOT].to_dict()["payload"]:
+        raise _model.ProtocolV3TransactionError(
+            "candidate selection and transaction use different Task-14 fold identities"
+        )
+
+
+def _validate_transition_slots_task15(
+    slots: Mapping[str, _model.IdentitySlot],
+    repository_root: str | Path,
+    horizon_policy: Any,
+) -> None:
+    _validate_candidate_slot(slots, repository_root)
+    rotation = slots[_model.ROTATION_SLOT].to_dict()
+    if rotation != _model.build_genesis_identity_slot(
+        _model.ROTATION_SLOT,
+        _model.ROTATION_GENESIS_SCHEMA,
+        "no_rotation_state",
+    ).to_dict():
+        raise _model.ProtocolV3TransactionError(
+            "rotation_state_identity is not the canonical genesis state"
+        )
+    _model._validate_fold_slot(
+        slots[_model.FOLD_SLOT], repository_root, horizon_policy
+    )
+
+
+_model._validate_transition_slots = _validate_transition_slots_task15
+for _extra_name in (
+    "CANDIDATE_SELECTION_IDENTITY_SCHEMA",
+    "CANONICAL_CONTRACT",
+):
+    if _extra_name not in _model.__all__:
+        _model.__all__.append(_extra_name)
 
 
 def _event_sha256(event: Mapping[str, Any]) -> str:
@@ -192,7 +323,6 @@ def _verify_receipt_event(ledger: Any, receipt: Mapping[str, Any]) -> None:
         )
 
 
-# Bind the Task-13 adapter to the actual immutable Task-4 ledger schema.
 _store._resolve_ledger_receipt = _resolve_ledger_receipt
 _store._validate_cache_ledger = _validate_cache_ledger
 _store._verify_receipt_event = _verify_receipt_event
