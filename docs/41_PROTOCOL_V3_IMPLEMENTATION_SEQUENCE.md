@@ -1,8 +1,8 @@
 # Protocol v3 – verbindliche Implementierungsreihenfolge
 
-Stand: 2026-07-17
+Stand: 2026-07-18
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 14/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 15/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -10,7 +10,7 @@ Es ist immer genau eine Aufgabe aktiv. Eine spätere Aufgabe beginnt erst, wenn 
 
 `DONE_100` erfordert vollständig umgesetzten Umfang, Wiederverwendung vorhandener Funktionen, grüne Unit-/Integrations-/Negativtests, Python-Kompilierung, PowerShell-Syntax, Whitespace-Prüfung, dokumentierte Grenzen, keinen Vorgriff auf spätere Aufgaben und einen eindeutigen GitHub-Handoff. Paper, Testtrade, Live, Orders, private Endpunkte und API-Keys bleiben gesperrt.
 
-## Aufgaben 1 bis 14 – abgeschlossen
+## Aufgaben 1 bis 15 – abgeschlossen
 
 ### Aufgabe 1 – Protocol-v3-Vertrag versioniert übernehmen
 
@@ -125,7 +125,7 @@ Content-addressed Objekte sind von kleinen kanonischen Referenzindizes getrennt.
 - Cache-Records entstehen nur aus dem aktuellen committed HEAD und revalidieren Task-12-Indizes, Objekte, Reports und Trial-Ledger transitiv.
 - Cache-Reuse ist deterministisch, idempotent und zählt nicht als unabhängiger Trial.
 - Der Task-4-/Task-13-Adapter bindet das echte Ledgerfeld `event_sha256`; ein fremder späterer Ledgerfortschritt blockiert.
-- Durch Aufgabe 14 wurde der Vertrag ohne Lockerung fortgeschrieben zu `protocol_v3_content_addressed_cache_and_transactional_resume_with_inner_folds_v2`; der Fold-Slot ist nun gebunden statt `NOT_APPLICABLE`.
+- Durch Aufgabe 15 wurde der Vertrag ohne Lockerung fortgeschrieben zu `protocol_v3_content_addressed_cache_and_transactional_resume_with_inner_selection_v3`; Fold- und Kandidatenslot sind nun beide gebunden.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_13_2026-07-16.md`
 
@@ -146,22 +146,39 @@ Content-addressed Objekte sind von kleinen kanonischen Referenzindizes getrennt.
 - Alle zwölf Origins aus drei Boundary-Fixtures, insgesamt 36 Origin-Fenster, besitzen dieselbe exakte Fold-Struktur.
 - Der Transaktions-Fold-Slot muss `BOUND` sein und den vollständigen semantisch revalidierten Plan enthalten; alte `task14_not_implemented`-Identitäten blockieren.
 - Fold-Plan und separate Transaktions-Horizon-Identität sind gegenseitig gebunden. Abweichende Label-, Holding-, Pending-Entry- oder Purge-Horizonte blockieren.
-- Foldvertrag, Planermodul, öffentliche API und Transaction-v2-Vertrag sind pipelinegebunden; alte Cache-/Resume-Stände ohne Fold-Plan können nicht treffen.
-- Aufgabe 15 oder später wurde nicht vorgezogen.
+- Foldvertrag, Planermodul und öffentliche API sind pipelinegebunden; alte Cache-/Resume-Stände ohne Fold-Plan können nicht treffen.
+- Der vorgeschaltete Re-Audit vor Aufgabe 15 fand keinen weiteren Task-14-Produktionsfehler.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_14_2026-07-17.md`
 
-## Aufgaben 15 bis 33 – verbindliche Reihenfolge
-
 ### Aufgabe 15 – Reine innere Auswahlfunktion extrahieren
 
-**Status:** `NOT_STARTED` – exakt nächste Aufgabe
+**Status:** `DONE_100`
 
-`select_candidate(training_window, frozen_pipeline_config)` muss deterministisch, UI-unabhängig und ohne Zugriff nach `training_end` oder auf Outer-Ergebnisse arbeiten; fehlende Evidenz liefert `NO_TRADE`.
+**Abnahme:**
+
+- Der stabile öffentliche Einstieg `inner_selection_api.select_candidate(training_window, frozen_pipeline_config)` verwendet ausschließlich explizite immutable Eingaben.
+- UI, aktuelle Uhrzeit, Umgebung, Netzwerk, implizite Arbeitsverzeichnisdateien und Outer-Ergebnisse sind ausgeschlossen.
+- Das Training-Window enthält exakt 730 UTC-Tage und ist vollständig an den semantisch revalidierten Task-14-Fold-Plan gebunden.
+- Manifest, Run-Fingerprint, Pipelinegeneration, Code, Daten, Kontext, Kosten, Simulator, Gates, Exchange-Info, Trial-Ledger, Origin, Zyklus und Seed werden gegenseitig gebunden.
+- Kandidateninventare bleiben innerhalb 40 generated, 12 tested, 3 Full-WFV und 2 Finalisten und müssen verschachtelte eindeutige Teilmengen sein.
+- Die Rangfolge ist exakt: Worst Fold, Median Fold, aggregiertes WFV, Joint Stress, Drawdown, Friktionsanteil, freie Parameter, kanonische Kandidaten-ID.
+- Das 3-USDC-Ziel ist kein Ranking-, Loss-, Distanz- oder Stopwert.
+- Gates werden aus Evidenz neu berechnet; behauptete Freigaben werden nicht vertraut.
+- Fehlende oder widersprüchliche Evidenz erzeugt typisiertes `NO_TRADE` mit maschinenlesbaren Blockern statt Ausnahme oder stiller Auswahl.
+- Bis Aufgaben 16 bis 18 bleibt der einzige produktiv transaktionsfähige Zustand `NO_TRADE`.
+- Synthetische vollständige Evidenz ist ausschließlich Testfixture und wird am Transaktionsrand abgelehnt.
+- Candidate-`NOT_APPLICABLE/task15_not_implemented` ist nicht mehr zulässig; der Kandidatenslot muss `BOUND` sein.
+- Transaktionsvertrag und Identität wurden zu v3 fortgeschrieben; alte Cache-/Resume-Stände ohne gebundene Auswahlentscheidung können nicht treffen.
+- Aufgabe 16 oder später wurde nicht vorgezogen.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_15_2026-07-18.md`
+
+## Aufgaben 16 bis 33 – verbindliche Reihenfolge
 
 ### Aufgabe 16 – Vollständige Kandidaten-Tagesmatrix und Promotion-Budgets
 
-**Status:** `NOT_STARTED`
+**Status:** `NOT_STARTED` – exakt nächste Aufgabe
 
 Alle zwölf getesteten Profile erhalten dieselbe vollständige 360-Tage-Netto-MTM-Reihe inklusive Nulltagen; Promotion bleibt 12 Basisreihen → 3 Full-WFV → 2 Finalisten.
 
@@ -270,9 +287,9 @@ Erst nach Aufgaben 1–32 werden zwölf Origins und 365 OOS-Tage einmalig ausgef
 ## Fortschrittsführung
 
 ```text
-Protocol v3: Aufgabe 14/33 – Exakten inneren 6×60-Tage-Fold-Planer bauen – DONE_100
-Protocol v3: Aufgabe 15/33 – Reine innere Auswahlfunktion extrahieren – NOT_STARTED
-Gesamt: 14/33 DONE_100 = 42,42 %
+Protocol v3: Aufgabe 15/33 – Reine innere Auswahlfunktion extrahieren – DONE_100
+Protocol v3: Aufgabe 16/33 – Vollständige Kandidaten-Tagesmatrix und Promotion-Budgets – NOT_STARTED
+Gesamt: 15/33 DONE_100 = 45,45 %
 ```
 
 Fortschritt wird ausschließlich als `DONE_100 / 33` ausgewiesen, nicht nach Zeit oder Token geschätzt.
