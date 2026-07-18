@@ -100,7 +100,13 @@ def _validate_candidate_slot(
         _model.EXCHANGE_SLOT: run["exchange_info"],
         _model.TRIAL_LEDGER_SLOT: run["trial_ledger_head"],
     }
+    # build_transaction_identity validates the four caller-supplied transition
+    # slots before it derives the remaining twelve slots. validate_transaction_identity
+    # later calls the same function with all sixteen slots. Cross-bind every run
+    # identity only at that complete boundary; never skip a present derived slot.
     for name, expected in expected_slots.items():
+        if name not in slots:
+            continue
         observed = slots[name].to_dict()
         if observed["state"] != _model.BOUND or observed["payload"] != expected:
             raise _model.ProtocolV3TransactionError(
