@@ -1,4 +1,4 @@
-"""Shared real Protocol-v3 fixtures for Task-13 and Task-14 tests."""
+"""Shared real Protocol-v3 fixtures for Task-13 through Task-15 tests."""
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
@@ -32,6 +32,12 @@ from ethusdc_bot.protocol_v3.inner_folds import (
     INNER_FOLD_CONTRACT_PATH,
     build_inner_fold_plan_for_origin,
 )
+from ethusdc_bot.protocol_v3.inner_selection_api import (
+    build_frozen_selection_config,
+    build_incomplete_development_support,
+    build_selection_training_window,
+    select_candidate,
+)
 from ethusdc_bot.protocol_v3.pipeline import (
     BudgetUsage,
     build_pipeline_generation,
@@ -51,7 +57,6 @@ from ethusdc_bot.protocol_v3.trial_ledger import (
     append_trial,
     build_trial_record,
     initialize_trial_ledger,
-    read_trial_ledger,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -87,7 +92,7 @@ class _FakeInspector:
         self.raw_root = raw_root
 
     def files_by_day(self, symbol: str) -> dict[date, Path]:
-        result = {}
+        result: dict[date, Path] = {}
         current = self.first_day
         while current <= self.latest_day:
             result[current] = Path(f"/{symbol}-1m-{current}.zip")
@@ -121,7 +126,10 @@ def _context() -> AlignedMarketCandles:
     )
 
 
-def _snapshot(monkeypatch: pytest.MonkeyPatch, context: AlignedMarketCandles) -> FrozenDataSnapshot:
+def _snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+    context: AlignedMarketCandles,
+) -> FrozenDataSnapshot:
     monkeypatch.setattr(snapshot_module, "_ZipMarketInspector", _FakeInspector)
     snapshot = build_three_market_data_snapshot(
         Path("/external/protocol-v3-data"),
@@ -135,13 +143,23 @@ def _snapshot(monkeypatch: pytest.MonkeyPatch, context: AlignedMarketCandles) ->
     payload = snapshot.payload()
     target_day = date(2025, 3, 1)
     for (symbol, candles), market in zip(
-        (("ETHUSDC", context.ethusdc), ("BTCUSDC", context.btcusdc), ("ETHBTC", context.ethbtc)),
+        (
+            ("ETHUSDC", context.ethusdc),
+            ("BTCUSDC", context.btcusdc),
+            ("ETHBTC", context.ethbtc),
+        ),
         payload["market_data"],
         strict=True,
     ):
-        row = next(item for item in market["utc_day_content_sha256"] if item["day"] == str(target_day))
+        row = next(
+            item
+            for item in market["utc_day_content_sha256"]
+            if item["day"] == str(target_day)
+        )
         row["content_sha256"] = compute_utc_day_content_sha256(symbol, target_day, candles)
-        market["market_content_sha256"] = snapshot_module._sha256_json(market["utc_day_content_sha256"])
+        market["market_content_sha256"] = snapshot_module._sha256_json(
+            market["utc_day_content_sha256"]
+        )
     canonical = snapshot_module._canonical_json(payload)
     frozen = FrozenDataSnapshot(canonical, hashlib.sha256(canonical.encode()).hexdigest())
     validate_frozen_data_snapshot(frozen, repo_root=REPO_ROOT)
@@ -151,23 +169,28 @@ def _snapshot(monkeypatch: pytest.MonkeyPatch, context: AlignedMarketCandles) ->
 def _exchange():
     return build_exchange_info_snapshot(
         {
-            "symbols": [{
-                "symbol": "ETHUSDC", "status": "TRADING", "baseAsset": "ETH",
-                "quoteAsset": "USDC", "isSpotTradingAllowed": True,
-                "filters": [
-                    {"filterType": "PRICE_FILTER", "minPrice": "0.01", "maxPrice": "1000000", "tickSize": "0.01"},
-                    {"filterType": "LOT_SIZE", "minQty": "0.0001", "maxQty": "9000", "stepSize": "0.0001"},
-                    {"filterType": "MARKET_LOT_SIZE", "minQty": "0.0001", "maxQty": "1200", "stepSize": "0.0001"},
-                    {"filterType": "MIN_NOTIONAL", "minNotional": "5", "applyToMarket": True, "avgPriceMins": 5},
-                ],
-            }]
+            "symbols": [
+                {
+                    "symbol": "ETHUSDC",
+                    "status": "TRADING",
+                    "baseAsset": "ETH",
+                    "quoteAsset": "USDC",
+                    "isSpotTradingAllowed": True,
+                    "filters": [
+                        {"filterType": "PRICE_FILTER", "minPrice": "0.01", "maxPrice": "1000000", "tickSize": "0.01"},
+                        {"filterType": "LOT_SIZE", "minQty": "0.0001", "maxQty": "9000", "stepSize": "0.0001"},
+                        {"filterType": "MARKET_LOT_SIZE", "minQty": "0.0001", "maxQty": "1200", "stepSize": "0.0001"},
+                        {"filterType": "MIN_NOTIONAL", "minNotional": "5", "applyToMarket": True, "avgPriceMins": 5},
+                    ],
+                }
+            ]
         },
         snapshot_as_of_utc="2026-07-07T23:59:59Z",
     )
 
 
 def _trial(ledger_root: Path):
-    ledger = initialize_trial_ledger(
+    initialize_trial_ledger(
         ledger_root,
         required_historical_import_sha256="0" * 64,
     )
@@ -256,24 +279,40 @@ def build_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         repo_root=REPO_ROOT,
     )
     boundary_plan = build_monthly_process_boundary_plan("2026-07-08")
-    manifest = build_pre_run_manifest(
-        generation,
-        boundary_plan,
-        code_commit=COMMIT,
-    )
+    manifest = build_pre_run_manifest(generation, boundary_plan, code_commit=COMMIT)
     inner_fold_plan = build_inner_fold_plan_for_origin(
-        boundary_plan.origins[0],
-        HORIZON,
-        repo_root=REPO_ROOT,
+        boundary_plan.origins[0], HORIZON, repo_root=REPO_ROOT
     )
+    training_window = build_selection_training_window(inner_fold_plan)
+    development_support = build_incomplete_development_support(
+        "tasks16_17_18_not_implemented"
+    )
+    selection_config = build_frozen_selection_config(
+        pre_run_manifest=manifest,
+        run_fingerprint=fingerprint,
+        fold_identity=inner_fold_plan.identity_payload,
+        origin_index=1,
+        cycle_index=1,
+        generated_candidate_ids=[],
+        tested_candidate_ids=[],
+        walk_forward_candidate_ids=[],
+        finalist_candidate_ids=[],
+        candidate_evidence=[],
+        development_support=development_support,
+    )
+    selection_decision = select_candidate(training_window, selection_config)
+    assert selection_decision.outcome == "NO_TRADE"
+
     index_path = _report_and_index(tmp_path, fingerprint.resume_key, generation.generation_id)
     identity = tx.build_transaction_identity(
         run_fingerprint=fingerprint,
         context_binding=binding,
         horizon_policy=HORIZON,
         work_unit_id="origin_01_cycle_01",
-        candidate_identity=tx.build_not_applicable_identity_slot(
-            tx.CANDIDATE_SLOT, "protocol_v3_candidate_identity_pending_task15_v1", "task15_not_implemented"
+        candidate_identity=tx.build_bound_identity_slot(
+            tx.CANDIDATE_SLOT,
+            tx.CANDIDATE_SELECTION_IDENTITY_SCHEMA,
+            selection_decision.candidate_identity_payload,
         ),
         fold_identity=tx.build_bound_identity_slot(
             tx.FOLD_SLOT,
@@ -281,7 +320,9 @@ def build_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             inner_fold_plan.identity_payload,
         ),
         rotation_state_identity=tx.build_genesis_identity_slot(
-            tx.ROTATION_SLOT, "protocol_v3_rotation_identity_genesis_v1", "no_rotation_state"
+            tx.ROTATION_SLOT,
+            "protocol_v3_rotation_identity_genesis_v1",
+            "no_rotation_state",
         ),
         sealed_store_heads=tx.build_sealed_store_heads_slot([index_path], tmp_path),
         repository_root=tmp_path,
@@ -295,6 +336,10 @@ def build_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         "manifest": manifest,
         "identity": identity,
         "inner_fold_plan": inner_fold_plan,
+        "training_window": training_window,
+        "selection_config": selection_config,
+        "selection_decision": selection_decision,
+        "development_support": development_support,
         "index_path": index_path,
         "budget": BudgetUsage().reserve_next_cycle(1),
         "seed": tx.build_seed_state(manifest, origin_index=1, cycle_index=1),
@@ -303,7 +348,11 @@ def build_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
 
 def _commit(state, *, status="COMPLETED", payload=None, cache_record=None, fault=None):
-    lock = tx.acquire_transaction_lock(state["identity"].transaction_id, state["repo"], owner_id="test_owner")
+    lock = tx.acquire_transaction_lock(
+        state["identity"].transaction_id,
+        state["repo"],
+        owner_id="test_owner",
+    )
     try:
         return tx.commit_checkpoint(
             identity=state["identity"],
@@ -320,6 +369,9 @@ def _commit(state, *, status="COMPLETED", payload=None, cache_record=None, fault
             fault_injector=fault,
         )
     finally:
-        current = tx.inspect_transaction_lock(state["identity"].transaction_id, state["repo"])
+        current = tx.inspect_transaction_lock(
+            state["identity"].transaction_id,
+            state["repo"],
+        )
         if current is not None and current.to_dict()["process_id"] == os.getpid():
             tx.release_transaction_lock(current, state["repo"])
