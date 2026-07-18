@@ -57,6 +57,7 @@ from ethusdc_bot.protocol_v3.trial_ledger import (
     append_trial,
     build_trial_record,
     initialize_trial_ledger,
+    read_trial_ledger,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
