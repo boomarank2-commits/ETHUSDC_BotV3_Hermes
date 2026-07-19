@@ -8,6 +8,7 @@ import hashlib
 import os
 from pathlib import Path, PurePosixPath
 import socket
+import sys
 from typing import Any
 
 from ethusdc_bot.path_safety import is_path_within
@@ -1457,6 +1458,8 @@ def _host_sha256() -> str:
 
 
 def _process_alive(process_id: int) -> bool | None:
+    if sys.platform == "win32":
+        return _windows_process_alive(process_id)
     try:
         os.kill(process_id, 0)
     except ProcessLookupError:
@@ -1470,6 +1473,37 @@ def _process_alive(process_id: int) -> bool | None:
             return None
         return None
     return True
+
+
+def _windows_process_alive(process_id: int) -> bool | None:
+    import ctypes
+    from ctypes import wintypes
+
+    process_query_limited_information = 0x1000
+    still_active = 259
+    error_invalid_parameter = 87
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.GetExitCodeProcess.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD))
+    kernel32.GetExitCodeProcess.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+    kernel32.CloseHandle.restype = wintypes.BOOL
+
+    handle = kernel32.OpenProcess(
+        process_query_limited_information,
+        False,
+        process_id,
+    )
+    if not handle:
+        return False if ctypes.get_last_error() == error_invalid_parameter else None
+    try:
+        exit_code = wintypes.DWORD()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+            return None
+        return exit_code.value == still_active
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 def _fsync_directory(path: Path) -> None:
