@@ -2,7 +2,7 @@
 
 Stand: 2026-07-19
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 22/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 23/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -323,9 +323,19 @@ Router wählt genau einen Spezialisten oder `NO_TRADE`; Bundle bindet Parameter,
 
 ### Aufgabe 23 – Zwölf äußere Monats-Origins orchestrieren
 
-**Status:** `NOT_STARTED`
+**Status:** `DONE_100`
 
 Die unveränderte Auswahlpipeline läuft an zwölf Fit-Stichtagen auf den jeweils vorherigen 730 Tagen; 365 OOS-Tage bleiben lückenlos und spätere Fits sehen frühere OOS-Ergebnisse nicht.
+
+**Umgesetzt:**
+
+- Der Orchestrator konsumiert ausschließlich den kanonischen Task-2-Boundaryplan und exakt zwölf geordnete Origin-Requests. Für jede Origin konstruiert er aus dem Task-14-Foldplan das exakte 730-Tage-Trainingsfenster und ruft intern den unveränderten Task-15-Einstieg `select_candidate(...)` auf.
+- Feature-Store- und Task-20-Assessment-Cutoff müssen exakt dem jeweiligen Fit-/Testanker entsprechen. Jede Auswahl wird an genau eine Task-22-Routerentscheidung und genau ein vollständiges `FrozenCandidateBundle` mit der Intervallgültigkeit dieser Origin gebunden.
+- Alle zwölf Origins müssen dieselbe Pipelinegeneration und denselben Code-Commit verwenden; ihre Fit-Cutoffs sind strikt chronologisch und eindeutig. Die vereinigte OOS-Tagesmenge wird semantisch als exakt 365 eindeutige, lückenlose UTC-Tage validiert.
+- Der Auswahlpfad besitzt keinen Outer-Ergebniskanal. Frühere rohe Marktbeobachtungen dürfen später innerhalb des kausalen 730-Tage-Fensters gelesen werden; frühere PnL, Rankings, Reports, Gate-Ergebnisse und menschliche Interpretationen werden durch einen expliziten Isolation-Guard blockiert.
+- Rotation/Flat-Handoff bleibt Aufgabe 24; tägliches MTM, Trades und Zeitaggregation bleiben Aufgabe 25. Damit werden keine späteren Aufgaben vorgezogen.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_23_2026-07-19.md`
 
 ### Aufgabe 24 – 24h-Aktivierung und Outer-Rotation-State
 
