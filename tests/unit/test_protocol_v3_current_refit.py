@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 import importlib.util
-import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -13,7 +12,7 @@ import pytest
 from ethusdc_bot.protocol_v3 import boundaries, current_refit, current_refit_api
 from ethusdc_bot.protocol_v3 import inner_folds, inner_selection, outer_origins
 from ethusdc_bot.protocol_v3 import pipeline, router_bundle
-from ethusdc_bot.protocol_v3.global_budget import build_pre_run_manifest
+from ethusdc_bot.protocol_v3.pipeline import build_pre_run_manifest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _TASK27_PATH = Path(__file__).with_name(
@@ -233,7 +232,7 @@ def test_late_or_wrong_anchor_refit_fails_closed(state) -> None:
         _,
         _,
     ) = state
-    with pytest.raises(current_refit.CurrentRefitError, match="missed T\+24h"):
+    with pytest.raises(current_refit.CurrentRefitError, match=r"missed T\+24h"):
         current_refit.build_current_refit_decision(
             historical_boundary_plan=plan,
             current_boundary_plan=current_plan,
