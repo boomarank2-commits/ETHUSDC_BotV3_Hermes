@@ -1,46 +1,66 @@
-# Current Status – Protocol v3
+# Current Status – GPT 1 / Protocol v3
 
-Updated: 2026-07-19
+Stand: 2026-07-19
 
-## GitHub-Wahrheit
+## Verbindlicher Gesamtstand
 
-- Repository: `boomarank2-commits/ETHUSDC_BotV3_Hermes`
-- Branch: `codex/research-resume-and-ui-state-v1`
-- Draft PR: `#17`
-- letzter fachlicher Commit: `a65d18048bb404a5da9b3a26f2f19a7e2c160088`
-- GitHub-CI: Run `29700342819` erfolgreich, 1.197 Tests
-- lokaler Branch und Origin waren nach dem Push identisch
+`27/33 = 81,82 % DONE_100`.
 
-## Protocol-v3-Fortschritt
+Abgeschlossene Aufgaben: `1 bis 27`.
 
-`26/33 = 78,79 % DONE_100`.
+Nächste Aufgabe: `28 – Aktueller 730-Tage-Refit und Champion/Challenger/Cash-Entscheidung`.
 
-Aufgabe 27 ist aktiv: `IN_PROGRESS`.
+Aufgabe 28 bleibt bis zum grünen GitHub-CI-Lauf des vollständigen Task-27-Dokumentations-Heads `NOT_STARTED`.
 
-In diesem Arbeitsblock abgeschlossen und CI-bestätigt:
+## Repository-Wahrheit
 
-- Aufgabe 24 – 24h-Aktivierung und Outer-Rotation-State;
-- Aufgabe 25 – tägliches MTM-Ledger und getrennte Zeitaggregationen;
-- Aufgabe-25-Korrektur – `NO_TRADE`/nicht routbare Bundles können keine Tradezeilen erzeugen;
-- Aufgabe 26 – fail-closed Monthly Quality Gate, Stress und Pflichtmetriken.
+- Repository: `boomarank2-commits/ETHUSDC_BotV3_Hermes`;
+- Branch: `codex/research-resume-and-ui-state-v1`;
+- Draft-PR: `#17`;
+- letzter vollständig grüner technischer Head: `1b9a47035ebf72d1e00508b8ed78021615363f71`;
+- grüner GitHub-CI-Lauf: `29706161878`;
+- vollständige Suite: `1.205 Tests erfolgreich`;
+- Python-Compile, PowerShell-Syntax und Whitespace: erfolgreich.
 
-Für Aufgabe 27 sind Manifest/Seed, 10.000er Circular-Stationary-Bootstrap für `L={5,10,20}`, 500. Ordnungsstatistik, Capture-Ratios und historische Safety-Locks implementiert und CI-grün. Aufgabe 27 ist noch nicht fertig, weil die beiden Benchmarkwerte noch direkt an echte Hindsight-Solver statt nur an content-gehashte Evidenz gebunden werden müssen.
+## Aufgabe 27 – DONE_100
 
-## Sicherheitswahrheit
+Abschlussbericht:
+`handoff/PROTOCOL_V3_TASK_27_2026-07-19.md`
 
-- Der vorhandene Zeitraum `2025-07-08..2026-07-07` bleibt `consumed_audit` und `NOT_FRESH`.
-- Historical Bootstrap und Hindsight bleiben `diagnostic_only`.
-- Kein Protocol-v3-Finalstatus vor Aufgabe 31 auf einem wirklich neuen `sealed_final_holdout`.
-- Keine automatische Adoption.
-- API-Keys, Trading-API, Orders, Paper, Testtrade und Live bleiben gesperrt.
-- Der Bot darf noch nicht gestartet oder als Zielerreicher bezeichnet werden.
+Umgesetzt:
 
-## Einstieg für GPT 1 / neuen Chat
+- echter `all_candle_one_trade_close_hindsight` auf vollständigen 365-Tage-ETHUSDC-Prozessdaten;
+- echter `candidate_matched_volume_filtered_hindsight` mit kandidatengleicher Tradezahl, Haltedauer, Long-only, einem Lot, T+24, Exit-only-Handoff, Rundung und Kosten;
+- positive-Volumen- und vollständige Tages-/Minutenrasterprüfung;
+- transitive Bindung an Frozen-Data-Snapshot, 365 Tagesdigests, Exchange Info, Execution Rules, Fees, Slippage, Solver-Code und Pipelinegeneration;
+- Bindung an vollständige Task-22-Bundle-Kette, Task-23-Origin-Hashes/Run-Fingerprints, Task-24-Rotationszustände und Task-25-Ledger;
+- vollständige Solver-Input-/Output-/Trade-/Tagesdigests;
+- Historical Diagnostics konsumiert ausschließlich gebundene Solverergebnisse; der freie Caller-Claim-Kanal wurde entfernt;
+- deterministischer 10.000er Circular-Stationary-Bootstrap und Capture-Ratios bleiben erhalten;
+- umfangreiche Negativtests für Datenraster, Volumen, Lookahead, Tradezahl, Haltedauer, Bundle, Origin, Handoff, Kosten, Hashes und unerlaubtes Feedback.
 
-1. Repository und Branch oben auschecken; PR #17 lesen.
-2. `AGENTS.md`, `docs/41_PROTOCOL_V3_IMPLEMENTATION_SEQUENCE.md` und `handoff/PROTOCOL_V3_TASK_27_IN_PROGRESS_2026-07-19.md` vollständig lesen.
-3. Prüfen, dass HEAD mindestens `a65d180` enthält und der Worktree sauber ist.
-4. Ausschließlich Aufgabe 27 fortsetzen; Aufgabe 28 darf erst nach Task-27-Tests, Handoff, Commit, Push und grüner CI beginnen.
-5. Keine Benchmarkzahl aus Reports, menschlicher Interpretation oder Caller-Claims übernehmen.
+## Harte Evidenzbedeutung
 
-Der exakte technische Auftrag steht in `handoff/NEXT_ACTION.md`.
+Jede historische Task-27-Ausgabe bleibt:
+
+- `NOT_FRESH`;
+- `diagnostic_only=true`;
+- `statistically_supported=false`;
+- `sealed_bootstrap_target_supported=false`;
+- `canonical_adoption_eligible=false`.
+
+Aufgabe 27 erzeugt keinen Protocol-v3-Finalstatus und beweist weder Startbereitschaft noch 3 USDC pro Tag.
+
+## Sicherheitsstatus
+
+- kein Backtest-, Paper-, Testtrade-, Live- oder Order-Start;
+- keine API-Keys oder privaten Endpunkte;
+- keine Secrets committed;
+- keine Quality-Gates gelockert;
+- keine Fake-Trades oder Fake-Reports;
+- kein kanonischer Adoption-Pfad geöffnet;
+- der Bot darf nicht gestartet werden.
+
+## Nächster Einstieg
+
+Nach grünem CI des Dokumentations-Heads ausschließlich Aufgabe 28 gemäß `handoff/NEXT_ACTION.md` und `docs/41_PROTOCOL_V3_IMPLEMENTATION_SEQUENCE.md` beginnen. Aufgaben 29 bis 33 bleiben strikt gesperrt.
