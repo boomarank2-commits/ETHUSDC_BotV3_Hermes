@@ -1,0 +1,124 @@
+ntstehen nur aus dem aktuellen committed HEAD und revalidieren Task-12-Indizes, Objekte, Reports und Trial-Ledger transitiv.
+-- Cache-Reuse ist deterministisch, idempotent und zählt nicht als unabhängiger Trial.
++- Cache-Reuse ist deterministisch, idempotent und zählt nicht als unabhängiger Trial. Checkpoint-, Cache- und Replace-Temp-Pfade blockieren als Symlinks oder Nicht-Dateien vor jedem Lesen.
+ - Der Task-4-/Task-13-Adapter bindet das echte Ledgerfeld `event_sha256`; ein fremder späterer Ledgerfortschritt blockiert.
+ - Durch Aufgabe 15 wurde der Vertrag ohne Lockerung fortgeschrieben zu `protocol_v3_content_addressed_cache_and_transactional_resume_with_inner_selection_v3`; Fold- und Kandidatenslot sind nun beide gebunden.
+ 
+ **Bericht:** `handoff/PROTOCOL_V3_TASK_13_2026-07-16.md`
+ 
+-**Korrekturbericht:** `handoff/PROTOCOL_V3_TASK_13_LEDGER_EVENT_ADAPTER_CORRECTION_2026-07-17.md`
++**Korrekturberichte:**
++
++- `handoff/PROTOCOL_V3_TASK_13_LEDGER_EVENT_ADAPTER_CORRECTION_2026-07-17.md`;
++- `handoff/PROTOCOL_V3_TASK_11_14_REAUDIT_2026-07-19.md`.
+ 
+ ### Aufgabe 14 – Exakten inneren 6×60-Tage-Fold-Planer bauen
+ 
+@@ -141,16 +149,18 @@
+ - Die Validation-Union umfasst lückenlos exakt die letzten 360 Entwicklungstage.
+ - Die Fits beginnen am gemeinsamen `training_start`; ihre Spannen vor Purging betragen exakt 370, 430, 490, 550, 610 und 670 Tage.
+ - `fit_end = validation_start - purge_duration`; die Purge-Dauer stammt ausschließlich aus der Task-9-`HorizonPolicy`.
+-- Task-9-Boundary-Touch-Purge und ein fester maximaler Purge-Cutoff wirken gemeinsam; ein Event mit Signalzeit an oder nach `fit_end` bleibt auch bei kürzerem realisiertem Horizont ausgeschlossen.
++- Task-9-Boundary-Touch-Purge und ein fester maximaler Purge-Cutoff wirken gemeinsam; Trainingsevidenz bleibt nur innerhalb des halboffenen Fitintervalls `[fit_start, fit_end)`.
+ - Timestamp-Spies blockieren Fit-, Scaler-, Quantile-, Regime-, Validation-, Feature- und Labelzugriffe außerhalb ihrer kausalen Grenzen.
+ - Alle zwölf Origins aus drei Boundary-Fixtures, insgesamt 36 Origin-Fenster, besitzen dieselbe exakte Fold-Struktur.
+ - Der Transaktions-Fold-Slot muss `BOUND` sein und den vollständigen semantisch revalidierten Plan enthalten; alte `task14_not_implemented`-Identitäten blockieren.
+ - Fold-Plan und separate Transaktions-Horizon-Identität sind gegenseitig gebunden. Abweichende Label-, Holding-, Pending-Entry- oder Purge-Horizonte blockieren.
+ - Foldvertrag, Planermodul und öffentliche API sind pipelinegebunden; alte Cache-/Resume-Stände ohne Fold-Plan können nicht treffen.
+-- Der vorgeschaltete Re-Audit vor Aufgabe 15 fand keinen weiteren Task-14-Produktionsfehler.
++- Der erneute Re-Audit korrigierte die zuvor übersehene untere Fit-Grenze: Warmup-Ereignisse vor `fit_start` können nicht als Fit-/Label-Evidenz erhalten bleiben.
+ 
+ **Bericht:** `handoff/PROTOCOL_V3_TASK_14_2026-07-17.md`
+ 
++**Re-Audit:** `handoff/PROTOCOL_V3_TASK_11_14_REAUDIT_2026-07-19.md`
++
+ ### Aufgabe 15 – Reine innere Auswahlfunktion extrahieren
+ 
+ **Status:** `DONE_100`
+--- a/.github/workflows/review-ci.yml
++++ b/.github/workflows/review-ci.yml
+@@ -26,18 +26,6 @@
+         with:
+           fetch-depth: 0
+ 
+-      - name: Package source snapshot for audit
+-        shell: bash
+-        run: git archive --format=zip --output=source-snapshot.zip HEAD
+-
+-      - name: Upload source snapshot for audit
+-        uses: actions/upload-artifact@v4
+-        with:
+-          name: source-snapshot-${{ github.sha }}
+-          path: source-snapshot.zip
+-          if-no-files-found: error
+-          retention-days: 2
+-
+       - name: Set up Python 3.12
+         uses: actions/setup-python@v5
+         with:
+--- /dev/null
++++ b/handoff/PROTOCOL_V3_TASK_11_14_REAUDIT_2026-07-19.md
+@@ -0,0 +1,140 @@
++# Protocol v3 – Re-Audit und Korrekturen Aufgaben 11 bis 14
++
++Stand: 2026-07-19
++
++## Status
++
++Die Aufgaben 11 bis 14 wurden am tatsächlichen Produktionscode des Ausgangs-Heads
++
++`44edb2129471132bace8acf8da9a10a59f248a02`
++
++neu adversarial geprüft. Die Prüfung beschränkte sich nicht auf Handoff-Texte oder bereits vorhandene Positivtests. Für jeden Verdacht wurde zuerst ein reproduzierender Negativtest gegen den unveränderten Code ausgeführt. Nur reproduzierbare Abweichungen wurden korrigiert.
++
++Die fachliche Reihenfolge bleibt unverändert:
++
++```text
++Aufgabe 15 = DONE_100, aber vor Aufgabe 16 erneut adversarial zu prüfen
++Aufgabe 16 = NOT_STARTED
++```
++
++Paper, Testtrade, Live, Orders, private Endpunkte, Trading-API und API-Keys bleiben gesperrt.
++
++## Aufgabe 11 – Report- und Registrierungsleser
++
++### Gefundener Fehler
++
++`read_protocol_v3_report(...)` und `read_forward_window_registration(...)` öffneten den vom Aufrufer übergebenen Pfad, bevor geprüft wurde, ob er innerhalb des jeweils festen Protocol-v3-Roots lag und keine Symlink-Komponente enthielt.
++
++Ein fremder oder symlinkierter JSON-Pfad wurde danach zwar abgelehnt, seine Bytes konnten aber vorher bereits gelesen beziehungsweise geparst werden. Damit war die dokumentierte Root-/Symlink-Sperre in der falschen Reihenfolge implementiert.
++
++### Korrektur
++
++Vor dem ersten Bytezugriff wird jetzt:
++
++1. ein echtes, nicht symlinkiertes Repository-Root verlangt;
++2. der Pfad lexikalisch einem erlaubten festen Report- oder Registrierungsroot zugeordnet;
++3. jede existierende Pfadkomponente auf Symlinks geprüft;
++4. der Pfad strikt aufgelöst;
++5. die aufgelöste Lage erneut gegen den ausgewählten festen Root geprüft.
++
++Erst danach wird JSON gelesen und anschließend weiterhin die genaue kanonische Datei aus `artifact_kind`, `report_id` beziehungsweise `registration_id` verlangt.
++
++Neue Regressionstests beweisen, dass ungültiges JSON außerhalb des Roots und ein symlinkierter Registrierungspfad vor dem JSON-Open blockieren.
++
++## Aufgabe 12 – Kompakter Artefaktstore
++
++### Gefundener Fehler
++
++Die frühere Task-12-Korrektur schützte den stabilen öffentlichen Facade-Leser. Das Kernmodul `artifact_store.py` las einen Indexpfad bei direktem Import aber weiterhin vor seiner Root-Prüfung. Das Verhalten hing damit von der Importreihenfolge und davon ab, ob zuvor `artifact_store_api.py` die Kernfunktion monkey-gepatcht hatte.
++
++### Korrektur
++
++Die Vorabprüfung liegt jetzt zusätzlich im Kernmodul selbst. Ein frischer Prozess, der ausschließlich `artifact_store` direkt importiert, blockiert fremde und symlinkierte Indexpfade vor dem ersten JSON-Zugriff.
++
++Die öffentliche Facade bleibt kompatibel und darf weiterhin denselben Kern aufrufen. Es wurde keine zweite Store-Architektur gebaut.
++
++## Aufgabe 13 – Stale-Lock-Recovery und Temp-Pfade
++
++### Gefundener Fehler 1: Recovery-Rennen
++
++Wenn ein immutable Recovery-Receipt bereits existierte, löschte ein wiederholter Recovery-Aufruf den aktuell vorhandenen Lockpfad blind. In folgendem Rennen konnte dadurch ein gültiges neues Writer-Lock gelöscht werden:
++
++1. altes Lock wird erfolgreich in das Recovery-Root verschoben;
++2. ein neuer Writer erwirbt denselben aktiven
