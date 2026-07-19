@@ -9,7 +9,8 @@
     "cost_model": "protocol_v3_actual_notional_baseline_and_stress_costs_v1",
     "feature_contract": [
       "causal_multitimeframe_features_with_dynamic_warmup_v1",
-      "protocol_v3_causal_multitimeframe_feature_store_v1"
+      "protocol_v3_causal_multitimeframe_feature_store_v1",
+      "protocol_v3_causal_opportunity_regime_v1"
     ],
     "quality_gates": [
       "quality_gate_v1",
@@ -61,11 +62,14 @@
     ],
     "feature_contract": [
       "configs/protocol_v3_feature_store_contract.json",
+      "configs/protocol_v3_opportunity_regime_contract.json",
       "configs/protocol_v3_data_snapshot_contract.json",
       "src/ethusdc_bot/backtest/features.py",
       "src/ethusdc_bot/protocol_v3/data_snapshot.py",
       "src/ethusdc_bot/protocol_v3/feature_store.py",
-      "src/ethusdc_bot/protocol_v3/feature_store_api.py"
+      "src/ethusdc_bot/protocol_v3/feature_store_api.py",
+      "src/ethusdc_bot/protocol_v3/opportunity_regime.py",
+      "src/ethusdc_bot/protocol_v3/opportunity_regime_api.py"
     ],
     "quality_gates": [
       "configs/protocol_v3_artifact_store_contract.json",

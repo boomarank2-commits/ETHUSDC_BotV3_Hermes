@@ -2,7 +2,7 @@
 
 Stand: 2026-07-18
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 19/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 20/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -268,9 +268,23 @@ Nur abgeschlossene 5m/15m/30m/1h/4h/1d- sowie Wochen-/Monatsfeatures; Scaler, Qu
 
 ### Aufgabe 20 – Opportunity- und Regime-Schicht implementieren
 
-**Status:** `NOT_STARTED`
+**Status:** `DONE_100`
 
 Bewegungskapazität, Trend, Range, Kompression und Stress werden kausal erkannt; unbekanntes oder widersprüchliches Regime führt `NO_TRADE`.
+
+**Abnahme:**
+
+- Die Schicht konsumiert ausschließlich den Task-19-Feature-Store, dessen foldgebundenen Fit-State und dieselbe Task-14-Foldidentität; Source-Replay gegen den Task-10-Kontext bleibt Pflicht.
+- Realisierte 24h-Volatilität, 14h-ATR, erwartete 20h-Range, 4h-Kompression, 24h-Trend, Trend-Effizienz, robuster 4h-Anker, Pullback-Tiefe sowie BTCUSDC-/ETHBTC-Kontext werden nur aus abgeschlossenen Bars berechnet.
+- Alle Regimegrenzen werden ausschließlich aus dem jeweiligen Fold-Fitintervall als Type-7-Quantile gefittet; mindestens 60 vollständige kausale Metrikzeilen sind Pflicht und Warmup bleibt ausgeschlossen.
+- Die vorhandenen vier Quality-Gate-Regime `down_low/down_high/up_low/up_high` bleiben kompatibel und werden um getrennte Opportunity-, Range- und Strukturdiagnostik ergänzt.
+- Opportunity bewertet nur Bewegungskapazität und bestimmt niemals die Long-Richtung.
+- `TREND`, `COMPRESSION` und `RANGE` erzeugen lediglich einen unverbindlichen Familienhinweis für den späteren Router. Sie wählen weder Strategie noch Signal.
+- `STRESS`, niedrige Opportunity, widersprüchlicher Drei-Markt-Kontext, unbekannte Struktur und unvollständiger Warmup erzwingen jeweils `NO_TRADE`.
+- Fit-State und Assessment sind kompakt identitätsgebunden und werden vollständig aus Store, Feature-Fit, Fold und Kontextzeitpunkt replayt.
+- Spezialisten, Router, Outer-Orchestrierung und Orders wurden nicht vorgezogen.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_20_2026-07-19.md`
 
 ### Aufgabe 21 – Lokale Spezialisten hinter der bestehenden Engine bauen
 
