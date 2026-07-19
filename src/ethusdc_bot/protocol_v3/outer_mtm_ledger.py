@@ -301,6 +301,14 @@ def _normalize_origin(
     validate_outer_rotation_state(value.rotation_state, origin=boundary)
     if value.rotation_state.new_candidate_bundle_sha256 != bundle:
         raise OuterMtmLedgerError("origin rotation state candidate bundle mismatch")
+    bundle_payload = selected["frozen_candidate_bundle"]
+    if value.closed_trades and (
+        bundle_payload["router_decision"]["outcome"] == "NO_TRADE"
+        or bundle_payload["research_simulation_routable"] is not True
+    ):
+        raise OuterMtmLedgerError(
+            "NO_TRADE or non-routable frozen bundle cannot produce trades"
+        )
     opening = _decimal(value.opening_equity_usdc, "opening_equity_usdc")
     if opening != expected_opening_equity:
         raise OuterMtmLedgerError(

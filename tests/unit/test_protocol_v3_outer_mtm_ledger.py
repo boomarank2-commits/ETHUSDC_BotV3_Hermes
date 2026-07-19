@@ -149,17 +149,13 @@ def test_zero_process_keeps_all_365_days_12_deployments_13_months_and_5_quarters
     )
 
 
-def test_trade_net_is_mtm_total_but_remains_a_separate_diagnostic(state) -> None:
+def test_no_trade_bundle_cannot_produce_synthetic_trades(state) -> None:
     plan, process = state
     gain_day = plan.origins[0].test_start_inclusive
-    result = ledger.build_outer_mtm_ledger(
-        plan, process, _inputs(plan, process, gain_day=gain_day, include_trade=True)
-    ).to_dict()
-    assert result["totals"]["net_mtm_usdc"] == "1"
-    assert result["totals"]["closed_trade_net_usdc_diagnostic"] == "1"
-    assert result["totals"]["trade_count"] == 1
-    assert sum(row["exit_trade_count"] for row in result["calendar_months"]) == 1
-    assert sum(row["exit_trade_count"] for row in result["calendar_quarters"]) == 1
+    with pytest.raises(ledger.OuterMtmLedgerError, match="cannot produce trades"):
+        ledger.build_outer_mtm_ledger(
+            plan, process, _inputs(plan, process, gain_day=gain_day, include_trade=True)
+        )
 
 
 def test_missing_zero_day_and_broken_equity_delta_fail_closed(state) -> None:
@@ -251,32 +247,25 @@ def test_wrong_rotation_bundle_and_wrong_exit_origin_fail_closed(state) -> None:
         bad_trade,
         trade_inputs[0].friction_events,
     )
-    with pytest.raises(ledger.OuterMtmLedgerError, match="UTC exit origin"):
+    with pytest.raises(ledger.OuterMtmLedgerError, match="cannot produce trades"):
         ledger.build_outer_mtm_ledger(plan, process, trade_inputs)
 
 
-def test_trade_friction_and_mtm_total_mismatch_cannot_be_hidden(state) -> None:
+def test_trade_friction_and_mtm_helpers_fail_closed(state) -> None:
     plan, process = state
     inputs = _inputs(
         plan, process, gain_day=plan.origins[0].test_start_inclusive, include_trade=True
     )
     bad_events = deepcopy(list(inputs[0].friction_events))
     bad_events[0]["amount_usdc"] = "0.1"
-    changed = list(inputs)
-    changed[0] = ledger.OriginLedgerInput(
-        inputs[0].origin_index,
-        inputs[0].origin_selection_sha256,
-        inputs[0].candidate_bundle_sha256,
-        inputs[0].rotation_state,
-        inputs[0].opening_equity_usdc,
-        inputs[0].ending_open_position_bundle_sha256,
-        inputs[0].daily_mtm,
-        inputs[0].closed_trades,
-        bad_events,
-    )
+    trades = [
+        ledger._trade(row, plan.origins[0], inputs[0].rotation_state)
+        for row in inputs[0].closed_trades
+    ]
+    events = [ledger._friction(row, plan.origins[0]) for row in bad_events]
     with pytest.raises(ledger.OuterMtmLedgerError, match="friction totals"):
-        ledger.build_outer_mtm_ledger(plan, process, changed)
+        ledger._validate_trade_friction(trades, events)
 
     no_gain = _inputs(plan, process, include_trade=True)
-    with pytest.raises(ledger.OuterMtmLedgerError, match="MTM total"):
+    with pytest.raises(ledger.OuterMtmLedgerError, match="cannot produce trades"):
         ledger.build_outer_mtm_ledger(plan, process, no_gain)
