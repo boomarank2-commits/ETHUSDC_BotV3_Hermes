@@ -1,33 +1,65 @@
-# Next Action
+# Next Action – GPT 1 / neuer Codex-Chat
 
-Immediate sequence for branch `codex/ui-responsiveness-and-next-iteration`:
+## Exakt aktive Aufgabe
 
-1. Relaunch the existing dashboard only through `START_DASHBOARD.bat` so the committed asynchronous refresh code is active.
-2. Verify the completed run appears without UI blocking and no second supervisor starts automatically.
-3. Use the existing data-check button, wait for the Data Gate, then start the next canonical Training/WFV run through the UI button only.
-4. Verify 40/12/3/2, context 6/2, six folds, audit false, final holdout false, and all trading locks after cycle 1.
-5. Let the run complete without code or parameter changes.
-6. Use the new validation/WFV signal funnels to decide whether inactivity is dominated by threshold, volatility, cooldown, position occupancy, session, or context veto.
+`Aufgabe 27 – Hindsight-Benchmarks, Capture-Ratios und Bootstrap – IN_PROGRESS`
 
-Evidence to preserve:
+Kein späterer Punkt darf vorgezogen werden.
 
-- The rotation patch already found a positive post-cost WFV profile, but only 28 trades across 546 days.
-- Fold trades are 4/4/2/2/12/4 and the maximum no-trade gap is 135 days.
-- More trades alone are not success; preserve PF 1.4688, drawdown 6.3884, cost realism, and fold stability as comparison dimensions.
-- Do not invent a new engine, strategy family, router, cluster system, or Multi-Timeframe pipeline until that attribution exists.
+## Nächster Implementierungsschritt
 
-Rolling-origin rule:
+Ersetze den derzeitigen allgemeinen `benchmark_evidence`-Zulieferkanal in `src/ethusdc_bot/protocol_v3/historical_diagnostics.py` durch semantisch validierte Solver-Evidenz:
 
-- Do not report 0/0 as a failed robustness test; it is unavailable with only 1095 complete days.
-- One current 730+365 historical origin needs 1460 days; three need 2190 days.
-- A formal ranking-capable rolling-origin result also requires a time-local pipeline refit; the existing fixed-candidate replay is diagnostic only.
+1. `all_candle_one_trade_close_hindsight`
+   - vollständige ETHUSDC-Prozessdaten;
+   - höchstens ein Roundtrip je UTC-Tag;
+   - positive Volumenpunkte;
+   - Long-only, ein Lot, echte Binance-Rundung;
+   - unveränderte Task-7-/8-Kosten und Fills;
+   - ausschließlich optimistische Diagnostik.
 
-Hard safety boundaries:
+2. `candidate_matched_volume_filtered_hindsight`
+   - identische maximale Tradezahl und Haltedauer des jeweils eingefrorenen Kandidaten;
+   - Long-only, ein Lot;
+   - identische Task-24-Exit-only-Handoff-/Flat-State-Maschine;
+   - identische Rundung, Fees, Slippage und Prozessend-Liquidation;
+   - positive Volumenpunkte und vollständige 365-Tage-Abdeckung.
 
-- No final holdout evaluation.
-- No Quality-Gate relaxation or cost reduction.
-- No Live, Paper, Testtrade, orders, API keys, account access, shorts, margin, futures, leverage, merge, force-push, or direct alternate production run.
-# Morgen zuerst: reboot-sicherer Resume-State und die dreistufige UI-Anzeige
+3. Evidenzbindung
+   - Raw-Data-/Snapshot-Hash;
+   - Code-/Pipelinegeneration;
+   - Task-22-Bundle-Kette und Task-23-Origin-Hashes;
+   - Task-24-Rotationszustände;
+   - Execution-, Cost- und Exchange-Info-Identitäten;
+   - Solver-Input-/Output-Digests;
+   - keine Caller-Digest-Behauptungen ohne transitive Neuvalidierung.
 
-Die vollständige Agenda steht in `handoff/TOMORROW_AGENDA.md`. Der aktuelle
-Lauf darf nicht unterbrochen oder durch einen zweiten Runner ersetzt werden.
+4. Negative Tests
+   - fehlende oder doppelte Tage;
+   - Null-/Negativvolumen;
+   - Lookahead;
+   - zu viele Trades oder zu lange Haltedauer;
+   - falsches Bundle/Handoff/Kostenprofil;
+   - manipulierte Benchmarkwerte trotz neuem Hash;
+   - Feedback in Auswahl oder Monthly Gate.
+
+5. Abschluss von Aufgabe 27
+   - gezielte Tests;
+   - vollständige Suite;
+   - `docs/41...` auf `DONE_100` und 27/33 aktualisieren;
+   - finalen Task-27-Handoff schreiben;
+   - Commit und Push auf Branch `codex/research-resume-and-ui-state-v1`;
+   - GitHub-CI abwarten und erst danach Aufgabe 28 beginnen.
+
+## Danach verbleibende Aufgaben
+
+- 28 – aktueller 730-Tage-Refit und Champion/Challenger/Cash;
+- 29 – strikt orderfreier Research-Challenger-Shadow;
+- 30 – vollständige UI-/Bedienzustände;
+- 31 – Final-Evaluator für ein wirklich frisches versiegeltes Jahr;
+- 32 – End-to-End-Parität, Fehler-Injektion und Abnahme;
+- 33 – erster vollständiger Protocol-v3-Research-Lauf und Abschlussbericht.
+
+## Harte Sperren
+
+Keine Gates lockern, keine Fake-Trades/-Reports, kein Audit als Trainingsergebnis, kein Finalclaim aus historischer Diagnostik und keine Aktivierung von Orders, Paper, Testtrade oder Live.
