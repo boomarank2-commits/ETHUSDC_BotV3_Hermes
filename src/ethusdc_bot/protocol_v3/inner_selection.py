@@ -118,6 +118,7 @@ _CANONICAL_CONTRACT: Final = {
         "min_development_dsr": _MIN_DSR,
         "production_missing_support_result": NO_TRADE,
         "production_matrix_complete_allowed_from_task16": True,
+        "production_pbo_complete_allowed_from_task17": True,
         "synthetic_pbo_dsr_support_is_fixture_only": True,
     },
     "purity_policy": {
@@ -435,6 +436,58 @@ def build_matrix_development_support(
     return validate_development_support({**basis, "support_sha256": _digest(basis)})
 
 
+def build_pbo_development_support(
+    evidence: Any,
+    *,
+    cycle_index: int,
+) -> DevelopmentSupport:
+    from .pbo import COMPLETE as PBO_COMPLETE, validate_pbo_evidence
+
+    validated = validate_pbo_evidence(evidence)
+    pbo = validated.to_dict()
+    matrix_identity = pbo["matrix_identity"]
+    matrix = matrix_identity["matrix"]
+    cycle = _positive_int(cycle_index, "cycle_index")
+    rows = [row for row in matrix["cycles"] if row["cycle_index"] == cycle]
+    if len(rows) != 1:
+        raise InnerSelectionError("Task-17 PBO matrix does not contain the requested cycle")
+    tested = rows[0]["tested_candidate_ids"]
+    matrix_row = {
+        "state": COMPLETE,
+        "schema_version": "protocol_v3_candidate_daily_matrix_v1",
+        "candidate_ids": tested,
+        "day_count": _REQUIRED_MATRIX_DAYS,
+        "value": matrix_identity,
+        "evidence_sha256": matrix_identity["matrix_sha256"],
+        "reason": "task16_complete_candidate_daily_matrix",
+    }
+    if pbo["state"] != PBO_COMPLETE:
+        pbo_row = _incomplete_support_row(
+            "protocol_v3_pbo_evidence_v1",
+            "task17_insufficient_evidence",
+        )
+    else:
+        pbo_row = {
+            "state": COMPLETE,
+            "schema_version": "protocol_v3_pbo_evidence_v1",
+            "candidate_ids": tested,
+            "day_count": _REQUIRED_MATRIX_DAYS,
+            "value": validated.identity_payload,
+            "evidence_sha256": validated.evidence_sha256,
+            "reason": "task17_complete_exact_cscv",
+        }
+    basis = {
+        "schema_version": DEVELOPMENT_EVIDENCE_SCHEMA,
+        "protocol_version": PROTOCOL_VERSION,
+        "mode": PRODUCTION,
+        "matrix": matrix_row,
+        "pbo": pbo_row,
+        "dsr": _incomplete_support_row("protocol_v3_dsr_pending_task18_v1", "task18_not_implemented"),
+        "safety": _SAFETY,
+    }
+    return validate_development_support({**basis, "support_sha256": _digest(basis)})
+
+
 def build_synthetic_complete_development_support(
     *,
     tested_candidate_ids: Sequence[str],
@@ -506,10 +559,14 @@ def validate_development_support(
     dsr = _validate_support_row(root["dsr"], "dsr", mode)
     states = {matrix["state"], pbo["state"], dsr["state"]}
     if mode == PRODUCTION:
-        if pbo["state"] != INSUFFICIENT_EVIDENCE or dsr["state"] != INSUFFICIENT_EVIDENCE:
-            raise InnerSelectionError("production PBO and DSR remain insufficient until Tasks 17-18")
+        if dsr["state"] != INSUFFICIENT_EVIDENCE:
+            raise InnerSelectionError("production DSR remains insufficient until Task 18")
         if matrix["state"] not in {INSUFFICIENT_EVIDENCE, COMPLETE}:
             raise InnerSelectionError("production matrix support state is invalid")
+        if pbo["state"] not in {INSUFFICIENT_EVIDENCE, COMPLETE}:
+            raise InnerSelectionError("production PBO support state is invalid")
+        if pbo["state"] == COMPLETE and matrix["state"] != COMPLETE:
+            raise InnerSelectionError("complete PBO requires complete Task-16 matrix evidence")
     if mode == SYNTHETIC_TEST_FIXTURE:
         if states != {COMPLETE}:
             raise InnerSelectionError("synthetic complete support must complete matrix, PBO and DSR")
@@ -578,6 +635,7 @@ def build_frozen_selection_config(
     if support["mode"] == SYNTHETIC_TEST_FIXTURE and support["matrix"]["candidate_ids"] != tested:
         raise InnerSelectionError("synthetic matrix inventory differs from tested candidates")
     _cross_validate_task16_matrix_support(support, origin, cycle, tested)
+    _cross_validate_task17_pbo_support(support, origin, cycle, tested)
     seed = origin_cycle_seed(manifest, origin_index=origin, cycle_index=cycle, stage="inner_selection")
     _cross_validate_manifest_fingerprint_fold(manifest, fingerprint, fold, origin)
     basis = {
@@ -649,6 +707,7 @@ def validate_frozen_selection_config(
     if support["mode"] == SYNTHETIC_TEST_FIXTURE and support["matrix"]["candidate_ids"] != tested:
         raise InnerSelectionError("synthetic matrix inventory differs from tested candidates")
     _cross_validate_task16_matrix_support(support, origin, cycle, tested)
+    _cross_validate_task17_pbo_support(support, origin, cycle, tested)
     _cross_validate_manifest_fingerprint_fold(manifest, fingerprint, fold, origin)
     normalized = {
         **root,
@@ -787,9 +846,11 @@ def _selection_basis(
         blockers.add("TASK18_DSR_INSUFFICIENT_EVIDENCE")
     if not c["stage_candidate_ids"]["finalists"]:
         blockers.add("NO_FINALISTS")
+    pbo_score, pbo_cash_pass = _pbo_selection_values(support, c["cycle_index"])
     if (
         support["pbo"]["state"] == COMPLETE
-        and support["pbo"]["value"] > _MAX_PBO
+        and pbo_score is not None
+        and pbo_score > _MAX_PBO
     ):
         blockers.add("DEVELOPMENT_PBO_GATE_FAILED")
 
@@ -819,6 +880,7 @@ def _selection_basis(
             and math.isfinite(float(dsr_score))
             and float(dsr_score) >= _MIN_DSR
         )
+        beats_cash = pbo_cash_pass.get(candidate_id)
 
         rank: dict[str, Any] | None = None
         ranking_error: str | None = None
@@ -837,6 +899,11 @@ def _selection_basis(
             "quality_gate_passed": gate_passed,
             "development_dsr": dsr_score,
             "development_dsr_passed": dsr_passed,
+            "development_pbo": pbo_score,
+            "development_pbo_passed": (
+                pbo_score is not None and pbo_score <= _MAX_PBO
+            ),
+            "development_beats_cash": beats_cash,
             "quality_gate_report_sha256": _digest(gate),
             "ranking_error": ranking_error,
         }
@@ -852,7 +919,11 @@ def _selection_basis(
             candidate_rejections.add(
                 f"DEVELOPMENT_DSR_GATE_FAILED:{candidate_id}"
             )
-        if gate_passed and rank is not None and dsr_passed:
+        if support["pbo"]["state"] == COMPLETE and beats_cash is not True:
+            candidate_rejections.add(
+                f"DEVELOPMENT_CASH_BASELINE_NOT_BEATEN:{candidate_id}"
+            )
+        if gate_passed and rank is not None and dsr_passed and beats_cash is True:
             eligible.append((_rank_key(rank), row["candidate"], gate))
 
     ranking_rows.sort(key=lambda row: row["canonical_candidate_id"])
@@ -1031,6 +1102,51 @@ def _cross_validate_task16_matrix_support(
         raise InnerSelectionError("Task-16 matrix inventory differs from selected cycle")
 
 
+def _cross_validate_task17_pbo_support(
+    support: Mapping[str, Any],
+    origin_index: int,
+    cycle_index: int,
+    tested_candidate_ids: Sequence[str],
+) -> None:
+    pbo = support["pbo"]
+    if pbo["state"] != COMPLETE or support["mode"] != PRODUCTION:
+        return
+    identity = pbo["value"]
+    evidence = identity["evidence"]
+    matrix_identity = support["matrix"]["value"]
+    if evidence["matrix_identity"] != matrix_identity:
+        raise InnerSelectionError("Task-17 PBO and Task-16 matrix identities differ")
+    matrix = matrix_identity["matrix"]
+    if matrix["origin_index"] != origin_index:
+        raise InnerSelectionError("Task-17 PBO belongs to a different origin")
+    cycles = [row for row in matrix["cycles"] if row["cycle_index"] == cycle_index]
+    if len(cycles) != 1 or cycles[0]["tested_candidate_ids"] != list(tested_candidate_ids):
+        raise InnerSelectionError("Task-17 PBO inventory differs from selected cycle")
+
+
+def _pbo_selection_values(
+    support: Mapping[str, Any],
+    cycle_index: int,
+) -> tuple[float | None, dict[str, bool]]:
+    row = support["pbo"]
+    if row["state"] != COMPLETE:
+        return None, {}
+    if support["mode"] == SYNTHETIC_TEST_FIXTURE:
+        return float(row["value"]), {
+            candidate_id: True for candidate_id in row["candidate_ids"]
+        }
+    evidence = row["value"]["evidence"]
+    matrix = evidence["matrix_identity"]["matrix"]
+    cycle_rows = [item for item in matrix["cycles"] if item["cycle_index"] == cycle_index]
+    if len(cycle_rows) != 1:
+        raise InnerSelectionError("Task-17 PBO cycle binding is invalid")
+    beats_by_profile = evidence["candidate_beats_cash"]
+    result: dict[str, bool] = {}
+    for profile in cycle_rows[0]["profiles"]:
+        result[profile["candidate_id"]] = beats_by_profile[profile["profile_id"]]
+    return float(evidence["development_pbo"]), result
+
+
 def _validate_support_row(value: Any, name: str, mode: str) -> dict[str, Any]:
     row = dict(_mapping(value, f"development_support.{name}"))
     _exact_keys(row, {"state", "schema_version", "candidate_ids", "day_count", "value", "evidence_sha256", "reason"}, f"development_support.{name}")
@@ -1042,7 +1158,7 @@ def _validate_support_row(value: Any, name: str, mode: str) -> dict[str, Any]:
         if row["candidate_ids"] or row["day_count"] != 0 or row["value"] is not None or row["evidence_sha256"] != ZERO_HASH:
             raise InnerSelectionError(f"{name} insufficient-evidence row is not canonical")
     elif row["state"] == COMPLETE:
-        if mode == PRODUCTION and name != "matrix":
+        if mode == PRODUCTION and name not in {"matrix", "pbo"}:
             raise InnerSelectionError(f"production {name} support is not implemented")
         empty_production_matrix = (
             mode == PRODUCTION and name == "matrix" and not row["candidate_ids"]
@@ -1065,7 +1181,16 @@ def _validate_support_row(value: Any, name: str, mode: str) -> dict[str, Any]:
                     raise InnerSelectionError("matrix support digest differs from Task-16 identity")
                 row["value"] = identity
         if name == "pbo":
-            row["value"] = _finite_number(row["value"], "pbo.value")
+            if mode == SYNTHETIC_TEST_FIXTURE:
+                row["value"] = _finite_number(row["value"], "pbo.value")
+            else:
+                from .pbo import validate_pbo_identity_payload
+                identity = validate_pbo_identity_payload(_mapping(row["value"], "pbo.value"))
+                if row["evidence_sha256"] != identity["evidence_sha256"]:
+                    raise InnerSelectionError("PBO support digest differs from Task-17 identity")
+                if identity["evidence"]["state"] != COMPLETE:
+                    raise InnerSelectionError("complete PBO support contains insufficient evidence")
+                row["value"] = identity
         if name == "dsr":
             if not isinstance(row["value"], Mapping):
                 raise InnerSelectionError("dsr.value must be a candidate-score mapping")
@@ -1250,6 +1375,7 @@ __all__ = [
     "build_frozen_selection_config",
     "build_incomplete_development_support",
     "build_matrix_development_support",
+    "build_pbo_development_support",
     "build_selection_training_window",
     "build_synthetic_complete_development_support",
     "load_inner_selection_contract",

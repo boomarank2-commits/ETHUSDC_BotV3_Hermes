@@ -208,9 +208,22 @@ Content-addressed Objekte sind von kleinen kanonischen Referenzindizes getrennt.
 
 ### Aufgabe 17 – PBO/CSCV exakt implementieren
 
-**Status:** `NOT_STARTED`
+**Status:** `DONE_100`
 
-PBO nach zwölf zusammenhängenden Blöcken und 924 Splits; unvollständige oder ungleiche Reihen liefern `INSUFFICIENT_EVIDENCE`.
+**Abnahme:**
+
+- PBO konsumiert ausschließlich die vollständige, ledgergebundene Task-16-Origin-Matrix aller getesteten Profile.
+- Zwölf chronologische 30-Tage-Blöcke erzeugen lexikographisch exakt `C(12,6)=924` eindeutige IS-Kombinationen mit jeweils 180 IS- und 180 komplementären OOS-Tagen.
+- IS-Auswahl verwendet die mittlere tägliche Netto-MTM-PnL; Gleichstand entscheidet primär die kanonische Kandidaten-ID und bei gebundenem Cache-Reuse sekundär die kanonische Profil-ID.
+- Eine immutable Cash-/`NO_TRADE`-Nullspalte mit kanonischer ID nimmt an jeder IS-Auswahl und jedem OOS-Rang teil, zählt aber weder als Trial noch zum Minimum von zwei Tradingprofilen.
+- OOS-Gleichstände verwenden den exakten Durchschnittsrang mit `1=schlechtester`, `M=bester`; Omega, Lambda und `development_pbo` werden ohne Zwischenrundung berechnet.
+- Der separate Cash-Vergleich verlangt je Tradingprofil einen strikt positiven aggregierten 360-Tage-Mittelwert; Gleichstand reicht nicht.
+- Weniger als zwei Tradingprofile liefert typisiertes `INSUFFICIENT_EVIDENCE` ohne numerischen Ersatzwert.
+- Golden Fixtures belegen konstante positive Reihen mit `PBO=0`, spiegelbildliche Überanpassung mit `PBO=1` und identische Nullreihen mit `PBO=1`.
+- Die Task-15-Auswahl konsumiert produktive Task-17-Evidenz, bleibt ohne Task-18-DSR aber typisiert `NO_TRADE`.
+- DSR, Outer-Bootstrap und Monthly Gates wurden nicht vorgezogen.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_17_2026-07-19.md`
 
 ### Aufgabe 18 – DSR und Multiple-Testing-Diagnostik implementieren
 
@@ -313,7 +326,8 @@ Erst nach Aufgaben 1–32 werden zwölf Origins und 365 OOS-Tage einmalig ausgef
 ```text
 Protocol v3: Aufgabe 15/33 – Reine innere Auswahlfunktion extrahieren – DONE_100
 Protocol v3: Aufgabe 16/33 – Vollständige Kandidaten-Tagesmatrix und Promotion-Budgets – DONE_100
-Gesamt: 15/33 DONE_100 = 45,45 %
+Protocol v3: Aufgabe 17/33 – PBO/CSCV exakt implementieren – DONE_100
+Gesamt: 17/33 DONE_100 = 51,52 %
 ```
 
 Fortschritt wird ausschließlich als `DONE_100 / 33` ausgewiesen, nicht nach Zeit oder Token geschätzt.

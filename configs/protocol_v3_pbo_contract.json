@@ -1,0 +1,49 @@
+{
+  "schema_version": "protocol_v3_pbo_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_exact_cscv_pbo_v1",
+  "evidence_schema_version": "protocol_v3_pbo_evidence_v1",
+  "identity_schema_version": "protocol_v3_pbo_identity_v1",
+  "cash_id": "protocol_v3_cash_no_trade_v1",
+  "partition_policy": {
+    "days": 360,
+    "blocks": 12,
+    "days_per_block": 30,
+    "is_blocks": 6,
+    "split_count": 924,
+    "oos_is_exact_complement": true
+  },
+  "ranking_policy": {
+    "is_metric": "mean_daily_net_mtm_usdc",
+    "is_tie_primary": "canonical_candidate_id_ascending",
+    "duplicate_candidate_tie_secondary": "canonical_profile_id_ascending",
+    "oos_ties": "average_rank",
+    "oos_rank_worst": 1,
+    "cash_participates_in_is_and_oos": true,
+    "no_rounding_before_decisions": true
+  },
+  "formula": {
+    "omega": "(rank_minus_0.5)/M",
+    "lambda": "ln(omega/(1-omega))",
+    "pbo": "count(lambda<=0)/924",
+    "maximum_release_pbo": 0.1,
+    "trading_profile_must_strictly_beat_cash": true
+  },
+  "insufficient_evidence": {
+    "minimum_trading_profiles": 2,
+    "numeric_replacement_forbidden": true
+  },
+  "deferred_scope": {
+    "dsr_task": 18,
+    "outer_bootstrap_task": 27,
+    "monthly_gate_task": 26
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}
