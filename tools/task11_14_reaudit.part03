@@ -1,0 +1,151 @@
+e,
++    )
++    stale_lock = type(active)(active.path, stale_canonical, stale_sha)
++    recovery_root = state["repo"] / tx.LOCK_RECOVERY_ROOT
++    recovery_root.mkdir(parents=True, exist_ok=True)
++    receipt = recovery_root / f"{stale_sha}.json"
++    receipt.write_bytes((stale_canonical + "\n").encode("utf-8"))
++
++    monkeypatch.setattr(
++        store_module,
++        "inspect_transaction_lock",
++        lambda *args, **kwargs: stale_lock,
++    )
++    monkeypatch.setattr(store_module, "_process_alive", lambda process_id: False)
++    with pytest.raises(tx.ProtocolV3TransactionError, match="changed|different"):
++        store_module.recover_stale_transaction_lock(
++            state["identity"].transaction_id,
++            state["repo"],
++        )
++    assert active.path.exists()
++    assert tx.inspect_transaction_lock(
++        state["identity"].transaction_id,
++        state["repo"],
++    ) == active
++    tx.release_transaction_lock(active, state["repo"])
++
++
++def test_checkpoint_temp_symlink_is_rejected_before_reading_target(state) -> None:
++    lock = tx.acquire_transaction_lock(
++        state["identity"].transaction_id,
++        state["repo"],
++        owner_id="temp_symlink_owner",
++    )
++    outside = state["repo"] / "outside_checkpoint_temp.json"
++    outside.write_text("not-json", encoding="utf-8")
++    captured: dict[str, Path] = {}
++    original_publish = store_module._publish_checkpoint
++
++    def capture(path, raw, owner_id, fault):
++        del raw, owner_id, fault
++        captured["path"] = path
++        raise RuntimeError("capture_checkpoint_path")
++
++    store_module._publish_checkpoint = capture
++    try:
++        with pytest.raises(RuntimeError, match="capture_checkpoint_path"):
++            tx.commit_checkpoint(
++                identity=state["identity"],
++                pre_run_manifest=state["manifest"],
++                seed_state=state["seed"],
++                budget_usage=state["budget"],
++                stop_state=state["stop"],
++                result_status="COMPLETED",
++                result_payload={"decision": "NO_TRADE"},
++                repository_root=state["repo"],
++                trial_ledger_root=state["ledger_root"],
++                lock=lock,
++            )
++    finally:
++        store_module._publish_checkpoint = original_publish
++    final_path = captured["path"]
++    temp = final_path.parent / f".{final_path.name}.temp_symlink_owner.tmp"
++    try:
++        temp.symlink_to(outside)
++    except (OSError, NotImplementedError):
++        tx.release_transaction_lock(lock, state["repo"])
++        pytest.skip("symlink creation is unavailable")
++    try:
++        with pytest.raises(tx.ProtocolV3TransactionError, match="symlink"):
++            tx.commit_checkpoint(
++                identity=state["identity"],
++                pre_run_manifest=state["manifest"],
++                seed_state=state["seed"],
++                budget_usage=state["budget"],
++                stop_state=state["stop"],
++                result_status="COMPLETED",
++                result_payload={"decision": "NO_TRADE"},
++                repository_root=state["repo"],
++                trial_ledger_root=state["ledger_root"],
++                lock=lock,
++            )
++    finally:
++        if temp.is_symlink():
++            temp.unlink()
++        tx.release_transaction_lock(lock, state["repo"])
+--- a/tests/unit/test_protocol_v3_inner_folds.py
++++ b/tests/unit/test_protocol_v3_inner_folds.py
+@@ -311,3 +311,26 @@
+             ),
+             repository_root=state["repo"],
+         )
++
++
++def test_purge_never_retains_training_events_before_fold_fit_start() -> None:
++    plan = _plan()
++    fold = plan.folds[0]
++    warmup_label = InformationInterval(
++        "warmup_label",
++        fold.fit_start_ms - 60_000,
++        fold.fit_start_ms - 1,
++    )
++    first_fit_event = InformationInterval(
++        "first_fit_event",
++        fold.fit_start_ms,
++        fold.fit_start_ms,
++    )
++    result = folds.purge_fold_training_events(
++        plan,
++        1,
++        [warmup_label, first_fit_event],
++        repo_root=REPO_ROOT,
++    )
++    assert [row.event_id for row in result.kept] == ["first_fit_event"]
++    assert [row.event_id for row in result.purged] == ["warmup_label"]
+--- a/docs/41_PROTOCOL_V3_IMPLEMENTATION_SEQUENCE.md
++++ b/docs/41_PROTOCOL_V3_IMPLEMENTATION_SEQUENCE.md
+@@ -98,19 +98,24 @@
+ 
+ **Status:** `DONE_100`
+ 
+-Getrennte, versionierte Reportarten und feste Roots existieren für Research, Monatsprozess-OOS, Research-Challenger, Forward-Monat und den späteren Pipeline-Finalreport. Historische Zielerreichung erzeugt weder Freshness noch statistische Unterstützung oder Adoption.
++Getrennte, versionierte Reportarten und feste Roots existieren für Research, Monatsprozess-OOS, Research-Challenger, Forward-Monat und den späteren Pipeline-Finalreport. Historische Zielerreichung erzeugt weder Freshness noch statistische Unterstützung oder Adoption. Report- und Registrierungsleser prüfen feste Roots und Symlinks vor dem ersten Bytezugriff.
+ 
+ **Bericht:** `handoff/PROTOCOL_V3_TASK_11_2026-07-16.md`
+ 
++**Re-Audit:** `handoff/PROTOCOL_V3_TASK_11_14_REAUDIT_2026-07-19.md`
++
+ ### Aufgabe 12 – Kompakte Artefaktarchitektur
+ 
+ **Status:** `DONE_100`
+ 
+-Content-addressed Objekte sind von kleinen kanonischen Referenzindizes getrennt. Tatsächliche Bytes bestimmen Digest, Größe und Kardinalität; Elternreport, Run-Fingerprint, Pipelinegeneration und Work-Unit-Provenienz werden transitiv revalidiert.
++Content-addressed Objekte sind von kleinen kanonischen Referenzindizes getrennt. Tatsächliche Bytes bestimmen Digest, Größe und Kardinalität; Elternreport, Run-Fingerprint, Pipelinegeneration und Work-Unit-Provenienz werden transitiv revalidiert. Die Indexpfad-Sperre sitzt sowohl in der öffentlichen Facade als auch importreihenfolgeunabhängig im Kernmodul vor dem ersten Read.
+ 
+ **Bericht:** `handoff/PROTOCOL_V3_TASK_12_2026-07-16.md`
+ 
+-**Korrekturbericht:** `handoff/PROTOCOL_V3_TASK_12_PATH_GUARD_CORRECTION_2026-07-16.md`
++**Korrekturberichte:**
++
++- `handoff/PROTOCOL_V3_TASK_12_PATH_GUARD_CORRECTION_2026-07-16.md`;
++- `handoff/PROTOCOL_V3_TASK_11_14_REAUDIT_2026-07-19.md`.
+ 
+ ### Aufgabe 13 – Content-addressed Cache und transaktionales Resume
+ 
+@@ -121,15 +126,18 @@
+ - Die Task-13-Grundlage bindet exakt 16 Pflichtidentitäten; fehlende, zusätzliche, umsortierte oder `None`-Slots blockieren.
+ - Checkpoints binden Pre-Run-Manifest, Seed, Budgets, Stop-/Stagnationszustand, Ergebnis, Artefaktköpfe, Ledger-Receipt und eine vollständige Hashkette.
+ - Nur ein separat atomar publiziertes `HEAD.json` macht einen Checkpoint für Resume sichtbar.
+-- Writer-Locks sind create-only; Recovery verlangt Same-Host-Dead-Process-Nachweis und erzeugt ein immutable Receipt.
++- Writer-Locks sind create-only; Recovery verlangt Same-Host-Dead-Process-Nachweis und erzeugt ein immutable Receipt. Ein vorhandenes altes Receipt darf niemals ein später neu erworbenes Lock löschen.
+ - Cache-Records e
