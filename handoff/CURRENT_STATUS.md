@@ -8,19 +8,18 @@ Stand: 2026-07-19
 
 Abgeschlossene Aufgaben: `1 bis 27`.
 
-Nächste Aufgabe: `28 – Aktueller 730-Tage-Refit und Champion/Challenger/Cash-Entscheidung`.
+Aktive Aufgabe: `28 – Aktueller 730-Tage-Refit und Champion/Challenger/Cash-Entscheidung – IN_PROGRESS`.
 
-Aufgabe 28 bleibt bis zum grünen GitHub-CI-Lauf des vollständigen Task-27-Dokumentations-Heads `NOT_STARTED`.
+Aufgaben 29 bis 33 bleiben strikt `NOT_STARTED`.
 
 ## Repository-Wahrheit
 
 - Repository: `boomarank2-commits/ETHUSDC_BotV3_Hermes`;
 - Branch: `codex/research-resume-and-ui-state-v1`;
 - Draft-PR: `#17`;
-- letzter vollständig grüner technischer Head: `1b9a47035ebf72d1e00508b8ed78021615363f71`;
-- grüner GitHub-CI-Lauf: `29706161878`;
-- vollständige Suite: `1.205 Tests erfolgreich`;
-- Python-Compile, PowerShell-Syntax und Whitespace: erfolgreich.
+- Task-27-Dokumentations-Head: `69535fe71717a12ec5fcd4d856ee022f123ce127`;
+- grüner GitHub-CI-Lauf: `29706573398`;
+- vollständige Tests, Python-Compile, PowerShell-Syntax und Whitespace: erfolgreich.
 
 ## Aufgabe 27 – DONE_100
 
@@ -29,27 +28,23 @@ Abschlussbericht:
 
 Umgesetzt:
 
-- echter `all_candle_one_trade_close_hindsight` auf vollständigen 365-Tage-ETHUSDC-Prozessdaten;
-- echter `candidate_matched_volume_filtered_hindsight` mit kandidatengleicher Tradezahl, Haltedauer, Long-only, einem Lot, T+24, Exit-only-Handoff, Rundung und Kosten;
-- positive-Volumen- und vollständige Tages-/Minutenrasterprüfung;
-- transitive Bindung an Frozen-Data-Snapshot, 365 Tagesdigests, Exchange Info, Execution Rules, Fees, Slippage, Solver-Code und Pipelinegeneration;
-- Bindung an vollständige Task-22-Bundle-Kette, Task-23-Origin-Hashes/Run-Fingerprints, Task-24-Rotationszustände und Task-25-Ledger;
-- vollständige Solver-Input-/Output-/Trade-/Tagesdigests;
-- Historical Diagnostics konsumiert ausschließlich gebundene Solverergebnisse; der freie Caller-Claim-Kanal wurde entfernt;
-- deterministischer 10.000er Circular-Stationary-Bootstrap und Capture-Ratios bleiben erhalten;
-- umfangreiche Negativtests für Datenraster, Volumen, Lookahead, Tradezahl, Haltedauer, Bundle, Origin, Handoff, Kosten, Hashes und unerlaubtes Feedback.
+- echte, kosten- und ausführungsgebundene All-Candle- und kandidatengleiche Hindsight-Solver;
+- vollständige Bindung an Rohdaten-Snapshot, 365 Tagesdigests, Pipeline, Solver-Code, Exchange Info, Kosten, Task-22-Bundles, Task-23-Origins, Task-24-Rotation/Handoff und Task-25-Ledger;
+- Historical Diagnostics ohne freien Caller-Claim-Kanal;
+- deterministischer Stationary Bootstrap und fail-closed Negativtests;
+- sämtliche historischen Ergebnisse bleiben `NOT_FRESH`, `diagnostic_only`, nicht statistisch unterstützt und nicht adoption-/finalfähig.
 
-## Harte Evidenzbedeutung
+## Aufgabe 28 – IN_PROGRESS
 
-Jede historische Task-27-Ausgabe bleibt:
+Verbindlicher Arbeitsumfang:
 
-- `NOT_FRESH`;
-- `diagnostic_only=true`;
-- `statistically_supported=false`;
-- `sealed_bootstrap_target_supported=false`;
-- `canonical_adoption_eligible=false`.
-
-Aufgabe 27 erzeugt keinen Protocol-v3-Finalstatus und beweist weder Startbereitschaft noch 3 USDC pro Tag.
+- dieselbe unveränderte Task-15-/Task-22-Auswahlpipeline exakt auf `[T-730 Tage,T)`;
+- vollständige Vorabbindung von Zielanker, Drei-Markt-Snapshot, Code, Pipelinegeneration, Exchange Info, Kosten, Trial-Ledger, Feature-/Regime-Fit-State, Seed und Gate-Evidenz;
+- deterministische paarweise Champion/Challenger/Cash-Entscheidung;
+- vollständiges `FrozenCandidateBundle` oder fail-closed `NO_TRADE` mit `as_of_day`, `valid_from=T+24h`, `valid_until`, `entry_enabled_at`, Vorgänger, Wechselgrund und Stressstatus;
+- keine Zukunftsdaten, keine Outer-/Hindsight-Rückwirkung und kein menschliches Ergebnisfeedback;
+- jede Ausgabe bleibt `NOT_FRESH`, `diagnostic_only`, `canonical_adoption_eligible=false` und `manual_research_shadow_start_required=true`;
+- Task 29, UI, Paper, Testtrade, Live und Orders bleiben unberührt und gesperrt.
 
 ## Sicherheitsstatus
 
@@ -58,9 +53,9 @@ Aufgabe 27 erzeugt keinen Protocol-v3-Finalstatus und beweist weder Startbereits
 - keine Secrets committed;
 - keine Quality-Gates gelockert;
 - keine Fake-Trades oder Fake-Reports;
-- kein kanonischer Adoption-Pfad geöffnet;
+- kein kanonischer Adoption- oder Finalpfad geöffnet;
 - der Bot darf nicht gestartet werden.
 
 ## Nächster Einstieg
 
-Nach grünem CI des Dokumentations-Heads ausschließlich Aufgabe 28 gemäß `handoff/NEXT_ACTION.md` und `docs/41_PROTOCOL_V3_IMPLEMENTATION_SEQUENCE.md` beginnen. Aufgaben 29 bis 33 bleiben strikt gesperrt.
+Aufgabe 28 minimal in der vorhandenen Task-15-/Task-22-/Task-23-Struktur umsetzen, negative Tests ergänzen und erst nach vollständiger Suite, Handoff, Commit, Push und grüner GitHub-CI auf `DONE_100` setzen.
