@@ -5,6 +5,9 @@ from datetime import UTC, datetime
 import hashlib
 import importlib.util
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -393,3 +396,30 @@ def test_transaction_rejects_legacy_pending_and_fixture_candidate(state) -> None
             ),
             **common,
         )
+
+
+def test_task15_core_modules_are_import_order_independent() -> None:
+    assert selection._selection_basis.__module__ == selection.__name__
+    assert inner_selection_api.select_candidate is selection.select_candidate
+
+    code = (
+        "from pathlib import Path;"
+        "import ethusdc_bot.protocol_v3.transactional_cache_model as model;"
+        f"contract=model.load_transaction_contract(Path(r'{REPO_ROOT}'));"
+        "print(model.TRANSACTION_CONTRACT_VERSION);"
+        "print(contract['contract_version'])"
+    )
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(REPO_ROOT / "src")
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        text=True,
+        capture_output=True,
+        check=True,
+        env=env,
+    )
+    observed = result.stdout.strip().splitlines()
+    assert observed == [
+        tx.TRANSACTION_CONTRACT_VERSION,
+        tx.TRANSACTION_CONTRACT_VERSION,
+    ]

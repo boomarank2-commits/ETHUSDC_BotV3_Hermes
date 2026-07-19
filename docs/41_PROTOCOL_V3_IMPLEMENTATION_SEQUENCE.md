@@ -167,7 +167,7 @@ Content-addressed Objekte sind von kleinen kanonischen Referenzindizes getrennt.
 
 **Abnahme:**
 
-- Der stabile öffentliche Einstieg `inner_selection_api.select_candidate(training_window, frozen_pipeline_config)` verwendet ausschließlich explizite immutable Eingaben.
+- Der stabile öffentliche Einstieg `inner_selection_api.select_candidate(training_window, frozen_pipeline_config)` verwendet ausschließlich explizite immutable Eingaben. Core und Facade besitzen dieselbe im Kern definierte fail-closed Entscheidungsfunktion; kein Import-Monkey-Patch verändert das Verhalten.
 - UI, aktuelle Uhrzeit, Umgebung, Netzwerk, implizite Arbeitsverzeichnisdateien und Outer-Ergebnisse sind ausgeschlossen.
 - Das Training-Window enthält exakt 730 UTC-Tage und ist vollständig an den semantisch revalidierten Task-14-Fold-Plan gebunden.
 - Manifest, Run-Fingerprint, Pipelinegeneration, Code, Daten, Kontext, Kosten, Simulator, Gates, Exchange-Info, Trial-Ledger, Origin, Zyklus und Seed werden gegenseitig gebunden.
@@ -179,10 +179,12 @@ Content-addressed Objekte sind von kleinen kanonischen Referenzindizes getrennt.
 - Bis Aufgaben 16 bis 18 bleibt der einzige produktiv transaktionsfähige Zustand `NO_TRADE`.
 - Synthetische vollständige Evidenz ist ausschließlich Testfixture und wird am Transaktionsrand abgelehnt.
 - Candidate-`NOT_APPLICABLE/task15_not_implemented` ist nicht mehr zulässig; der Kandidatenslot muss `BOUND` sein.
-- Transaktionsvertrag und Identität wurden zu v3 fortgeschrieben; alte Cache-/Resume-Stände ohne gebundene Auswahlentscheidung können nicht treffen.
+- Transaktionsvertrag und Identität wurden zu v3 fortgeschrieben; alte Cache-/Resume-Stände ohne gebundene Auswahlentscheidung können nicht treffen. Das Kernmodell besitzt diese v3-Wahrheit selbst und lädt den JSON-Vertrag unabhängig von der Importreihenfolge.
 - Aufgabe 16 oder später wurde nicht vorgezogen.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_15_2026-07-18.md`
+
+**Korrekturbericht:** `handoff/PROTOCOL_V3_TASK_15_IMPORT_ORDER_CORRECTION_2026-07-19.md`
 
 ## Aufgaben 16 bis 33 – verbindliche Reihenfolge
 
