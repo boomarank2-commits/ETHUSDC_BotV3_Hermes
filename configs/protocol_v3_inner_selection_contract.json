@@ -36,7 +36,8 @@
     "max_development_pbo": 0.1,
     "min_development_dsr": 0.95,
     "production_missing_support_result": "NO_TRADE",
-    "synthetic_complete_support_is_fixture_only": true
+    "production_matrix_complete_allowed_from_task16": true,
+    "synthetic_pbo_dsr_support_is_fixture_only": true
   },
   "purity_policy": {
     "explicit_inputs_only": true,

@@ -117,7 +117,8 @@ _CANONICAL_CONTRACT: Final = {
         "max_development_pbo": _MAX_PBO,
         "min_development_dsr": _MIN_DSR,
         "production_missing_support_result": NO_TRADE,
-        "synthetic_complete_support_is_fixture_only": True,
+        "production_matrix_complete_allowed_from_task16": True,
+        "synthetic_pbo_dsr_support_is_fixture_only": True,
     },
     "purity_policy": {
         "explicit_inputs_only": True,
@@ -400,6 +401,40 @@ def build_incomplete_development_support(reason: str) -> DevelopmentSupport:
     return validate_development_support({**basis, "support_sha256": _digest(basis)})
 
 
+def build_matrix_development_support(
+    matrix: Any,
+    *,
+    cycle_index: int,
+) -> DevelopmentSupport:
+    from .candidate_matrix import validate_candidate_daily_matrix
+
+    validated = validate_candidate_daily_matrix(matrix)
+    identity = validated.identity_payload
+    cycle = _positive_int(cycle_index, "cycle_index")
+    rows = [row for row in validated.to_dict()["cycles"] if row["cycle_index"] == cycle]
+    if len(rows) != 1:
+        raise InnerSelectionError("Task-16 matrix does not contain the requested cycle")
+    tested = rows[0]["tested_candidate_ids"]
+    basis = {
+        "schema_version": DEVELOPMENT_EVIDENCE_SCHEMA,
+        "protocol_version": PROTOCOL_VERSION,
+        "mode": PRODUCTION,
+        "matrix": {
+            "state": COMPLETE,
+            "schema_version": "protocol_v3_candidate_daily_matrix_v1",
+            "candidate_ids": tested,
+            "day_count": _REQUIRED_MATRIX_DAYS,
+            "value": identity,
+            "evidence_sha256": validated.matrix_sha256,
+            "reason": "task16_complete_candidate_daily_matrix",
+        },
+        "pbo": _incomplete_support_row("protocol_v3_pbo_pending_task17_v1", "task17_not_implemented"),
+        "dsr": _incomplete_support_row("protocol_v3_dsr_pending_task18_v1", "task18_not_implemented"),
+        "safety": _SAFETY,
+    }
+    return validate_development_support({**basis, "support_sha256": _digest(basis)})
+
+
 def build_synthetic_complete_development_support(
     *,
     tested_candidate_ids: Sequence[str],
@@ -470,8 +505,11 @@ def validate_development_support(
     pbo = _validate_support_row(root["pbo"], "pbo", mode)
     dsr = _validate_support_row(root["dsr"], "dsr", mode)
     states = {matrix["state"], pbo["state"], dsr["state"]}
-    if mode == PRODUCTION and states != {INSUFFICIENT_EVIDENCE}:
-        raise InnerSelectionError("Task-15 production support must remain insufficient until Tasks 16-18")
+    if mode == PRODUCTION:
+        if pbo["state"] != INSUFFICIENT_EVIDENCE or dsr["state"] != INSUFFICIENT_EVIDENCE:
+            raise InnerSelectionError("production PBO and DSR remain insufficient until Tasks 17-18")
+        if matrix["state"] not in {INSUFFICIENT_EVIDENCE, COMPLETE}:
+            raise InnerSelectionError("production matrix support state is invalid")
     if mode == SYNTHETIC_TEST_FIXTURE:
         if states != {COMPLETE}:
             raise InnerSelectionError("synthetic complete support must complete matrix, PBO and DSR")
@@ -539,6 +577,7 @@ def build_frozen_selection_config(
     support = validate_development_support(development_support).to_dict()
     if support["mode"] == SYNTHETIC_TEST_FIXTURE and support["matrix"]["candidate_ids"] != tested:
         raise InnerSelectionError("synthetic matrix inventory differs from tested candidates")
+    _cross_validate_task16_matrix_support(support, origin, cycle, tested)
     seed = origin_cycle_seed(manifest, origin_index=origin, cycle_index=cycle, stage="inner_selection")
     _cross_validate_manifest_fingerprint_fold(manifest, fingerprint, fold, origin)
     basis = {
@@ -609,6 +648,7 @@ def validate_frozen_selection_config(
     support = validate_development_support(root["development_support"]).to_dict()
     if support["mode"] == SYNTHETIC_TEST_FIXTURE and support["matrix"]["candidate_ids"] != tested:
         raise InnerSelectionError("synthetic matrix inventory differs from tested candidates")
+    _cross_validate_task16_matrix_support(support, origin, cycle, tested)
     _cross_validate_manifest_fingerprint_fold(manifest, fingerprint, fold, origin)
     normalized = {
         **root,
@@ -973,6 +1013,24 @@ def _incomplete_support_row(schema: str, reason: str) -> dict[str, Any]:
     }
 
 
+def _cross_validate_task16_matrix_support(
+    support: Mapping[str, Any],
+    origin_index: int,
+    cycle_index: int,
+    tested_candidate_ids: Sequence[str],
+) -> None:
+    matrix = support["matrix"]
+    if matrix["state"] != COMPLETE or support["mode"] != PRODUCTION:
+        return
+    identity = matrix["value"]
+    payload = identity["matrix"]
+    if payload["origin_index"] != origin_index:
+        raise InnerSelectionError("Task-16 matrix belongs to a different origin")
+    cycles = [row for row in payload["cycles"] if row["cycle_index"] == cycle_index]
+    if len(cycles) != 1 or cycles[0]["tested_candidate_ids"] != list(tested_candidate_ids):
+        raise InnerSelectionError("Task-16 matrix inventory differs from selected cycle")
+
+
 def _validate_support_row(value: Any, name: str, mode: str) -> dict[str, Any]:
     row = dict(_mapping(value, f"development_support.{name}"))
     _exact_keys(row, {"state", "schema_version", "candidate_ids", "day_count", "value", "evidence_sha256", "reason"}, f"development_support.{name}")
@@ -984,15 +1042,28 @@ def _validate_support_row(value: Any, name: str, mode: str) -> dict[str, Any]:
         if row["candidate_ids"] or row["day_count"] != 0 or row["value"] is not None or row["evidence_sha256"] != ZERO_HASH:
             raise InnerSelectionError(f"{name} insufficient-evidence row is not canonical")
     elif row["state"] == COMPLETE:
-        if mode != SYNTHETIC_TEST_FIXTURE:
-            raise InnerSelectionError(f"{name} complete support is fixture-only in Task 15")
-        if not row["candidate_ids"] or row["day_count"] != _REQUIRED_MATRIX_DAYS:
+        if mode == PRODUCTION and name != "matrix":
+            raise InnerSelectionError(f"production {name} support is not implemented")
+        empty_production_matrix = (
+            mode == PRODUCTION and name == "matrix" and not row["candidate_ids"]
+        )
+        if (
+            (not row["candidate_ids"] and not empty_production_matrix)
+            or row["day_count"] != _REQUIRED_MATRIX_DAYS
+        ):
             raise InnerSelectionError(f"{name} complete support has wrong inventory or day count")
         _sha256(row["evidence_sha256"], f"{name}.evidence_sha256")
         if row["evidence_sha256"] == ZERO_HASH:
             raise InnerSelectionError(f"{name} complete support requires nonzero evidence digest")
-        if name == "matrix" and row["value"] is not None:
-            raise InnerSelectionError("matrix support value must be null; Task 16 owns matrix content")
+        if name == "matrix":
+            if mode == SYNTHETIC_TEST_FIXTURE and row["value"] is not None:
+                raise InnerSelectionError("synthetic matrix support value must be null")
+            if mode == PRODUCTION:
+                from .candidate_matrix import validate_candidate_matrix_identity_payload
+                identity = validate_candidate_matrix_identity_payload(_mapping(row["value"], "matrix.value"))
+                if row["evidence_sha256"] != identity["matrix_sha256"]:
+                    raise InnerSelectionError("matrix support digest differs from Task-16 identity")
+                row["value"] = identity
         if name == "pbo":
             row["value"] = _finite_number(row["value"], "pbo.value")
         if name == "dsr":
@@ -1178,6 +1249,7 @@ __all__ = [
     "build_candidate_selection_identity_payload",
     "build_frozen_selection_config",
     "build_incomplete_development_support",
+    "build_matrix_development_support",
     "build_selection_training_window",
     "build_synthetic_complete_development_support",
     "load_inner_selection_contract",

@@ -190,9 +190,21 @@ Content-addressed Objekte sind von kleinen kanonischen Referenzindizes getrennt.
 
 ### Aufgabe 16 – Vollständige Kandidaten-Tagesmatrix und Promotion-Budgets
 
-**Status:** `NOT_STARTED` – exakt nächste Aufgabe
+**Status:** `DONE_100`
 
-Alle zwölf getesteten Profile erhalten dieselbe vollständige 360-Tage-Netto-MTM-Reihe inklusive Nulltagen; Promotion bleibt 12 Basisreihen → 3 Full-WFV → 2 Finalisten.
+**Abnahme:**
+
+- Jede deklarierte getestete Kandidateninstanz besitzt sechs an den Task-14-Plan gebundene 60-Tage-Reihen und damit exakt dieselbe geordnete 360-Tage-Netto-MTM-Basis.
+- Nulltage bleiben explizite `0.0`; fehlende, zusätzliche, doppelte, umsortierte oder nichtfinite Tageswerte blockieren.
+- Alle getesteten Profile aller Cycles bleiben in der Origin-Matrix, unabhängig von Promotion oder Finalistenstatus.
+- Profile, Foldprovenienz, Tagesraster, Tagesinhalt, Cycles und Gesamtmatrix sind kanonisch gehasht und semantisch revalidiert.
+- Promotion bleibt eine verschachtelte Teilmenge innerhalb `tested <= 12`, `promoted <= min(3, tested)` und `finalists <= min(2, promoted)`; kleine oder leere legitime Inventare werden nicht aufgefüllt.
+- Jede datenbewertete Reihe muss exakt mit einem immutable Trial im permanenten Ledger übereinstimmen. Cache-Reuse benötigt ein sichtbares Origin-/Cycle-Receipt und erhöht den unabhängigen Trial-Count nicht.
+- Foldwerte werden ausschließlich als tägliche Netto-MTM-Deltas verkettet; Fold-Resets absoluter Equity werden nicht als zusätzliche PnL interpretiert.
+- Die reine Task-15-Auswahl kann produktive Task-16-Matrixevidenz konsumieren, bleibt ohne Task-17-PBO und Task-18-DSR typisiert `NO_TRADE`.
+- PBO, DSR, Features, Regime und Outer-Ergebnisse wurden nicht vorgezogen.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_16_2026-07-19.md`
 
 ### Aufgabe 17 – PBO/CSCV exakt implementieren
 
@@ -300,7 +312,7 @@ Erst nach Aufgaben 1–32 werden zwölf Origins und 365 OOS-Tage einmalig ausgef
 
 ```text
 Protocol v3: Aufgabe 15/33 – Reine innere Auswahlfunktion extrahieren – DONE_100
-Protocol v3: Aufgabe 16/33 – Vollständige Kandidaten-Tagesmatrix und Promotion-Budgets – NOT_STARTED
+Protocol v3: Aufgabe 16/33 – Vollständige Kandidaten-Tagesmatrix und Promotion-Budgets – DONE_100
 Gesamt: 15/33 DONE_100 = 45,45 %
 ```
 
