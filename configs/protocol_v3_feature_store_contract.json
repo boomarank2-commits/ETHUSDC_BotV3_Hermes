@@ -1,0 +1,63 @@
+{
+  "schema_version": "protocol_v3_feature_store_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_causal_multitimeframe_feature_store_v1",
+  "store_schema_version": "protocol_v3_multitimeframe_feature_store_v1",
+  "fit_state_schema_version": "protocol_v3_fold_feature_fit_state_v1",
+  "source": {
+    "context_binding": "three_market_closed_bar_context_parity_v2",
+    "interval": "1m",
+    "exact_common_three_market_grid_required": true
+  },
+  "timeframes": [
+    {"id": "5m", "kind": "fixed_utc", "minutes": 5},
+    {"id": "15m", "kind": "fixed_utc", "minutes": 15},
+    {"id": "30m", "kind": "fixed_utc", "minutes": 30},
+    {"id": "1h", "kind": "fixed_utc", "minutes": 60},
+    {"id": "4h", "kind": "fixed_utc", "minutes": 240},
+    {"id": "1d", "kind": "fixed_utc", "minutes": 1440},
+    {"id": "1w", "kind": "calendar_utc_monday", "minutes": 10080},
+    {"id": "1mo", "kind": "calendar_utc_month", "minutes": null}
+  ],
+  "bar_policy": {
+    "only_exactly_complete_buckets_visible": true,
+    "information_timestamp": "close_time_exclusive_ms",
+    "decision_may_read_close_time_lte_context_timestamp": true,
+    "missing_duplicate_or_nonfinite_source_blocks": true,
+    "first_partial_bucket_is_not_emitted": true,
+    "last_partial_bucket_is_not_emitted": true
+  },
+  "feature_policy": {
+    "fields": ["return_1", "range_bps", "body_bps", "close_location", "volume"],
+    "first_return_is_null": true,
+    "opportunity_and_regime_classification_deferred_to_task20": true
+  },
+  "fit_policy": {
+    "source": "exact_task14_fold_fit_interval",
+    "bar_open_gte_fit_start": true,
+    "bar_close_lte_fit_end": true,
+    "warmup_excluded_from_scalers_and_quantiles": true,
+    "scaler": "sample_mean_and_sample_std_ddof_1",
+    "zero_variance_scale": 1.0,
+    "quantiles": [0.25, 0.5, 0.75],
+    "quantile_estimator": "linear_type7",
+    "minimum_observations": 2
+  },
+  "identity_policy": {
+    "canonical_json": true,
+    "sha256_bound": true,
+    "context_identity_required": true,
+    "fold_identity_required_for_fit_state": true,
+    "deterministic_replay_required": true
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden",
+    "may_create_signal": false,
+    "may_create_pnl": false
+  }
+}

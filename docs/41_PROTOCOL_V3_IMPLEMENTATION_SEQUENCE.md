@@ -2,7 +2,7 @@
 
 Stand: 2026-07-18
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 18/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 19/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -248,9 +248,23 @@ DSR bindet permanenten Trial-Count, Autokorrelation, Schiefe und Kurtosis; unvol
 
 ### Aufgabe 19 – Kausalen Multi-Timeframe-Feature-Store bauen
 
-**Status:** `NOT_STARTED`
+**Status:** `DONE_100`
 
 Nur abgeschlossene 5m/15m/30m/1h/4h/1d- sowie Wochen-/Monatsfeatures; Scaler, Quantile und Feature-State sind fold-sicher, hashbar und replaybar.
+
+**Abnahme:**
+
+- Der Store konsumiert ausschließlich den semantisch validierten gemeinsamen Task-10-Drei-Markt-Kontext und bindet dessen Snapshot-, Grid-, Marktinhalt- und Kontextidentität.
+- `ETHUSDC`, `BTCUSDC` und `ETHBTC` besitzen dieselben eingefrorenen Zeitebenen `5m/15m/30m/1h/4h/1d/1w/1mo`; Kontextmärkte erhalten weiterhin keinerlei Orderrecht.
+- Feste Zeitebenen sind UTC-epochverankert, Wochen beginnen Montag 00:00 UTC und Monate folgen exakten UTC-Kalendergrenzen.
+- Erste und letzte Teilbuckets sowie jeder nicht exakt vollständige Bucket werden nicht emittiert. Der Informationstimestamp ist immer das exklusive Bar-Ende; Snapshots dürfen nur Bars mit `close_time_exclusive_ms <= context_timestamp_ms` lesen.
+- Die feste Task-19-Featurebasis umfasst kausalen Vorbar-Return, Range, Body, Close-Position und Volumen. Opportunity- und Regimeklassifikation bleibt ausdrücklich Aufgabe 20.
+- Scaler und Type-7-Quantile werden je Task-14-Fold nur aus Bars mit `open>=fit_start` und `close<=fit_end` gefittet; Warmup geht nicht in Fit-Statistiken ein.
+- Feature Store und Fold-Fit-State besitzen kompakte SHA-256-Identitäten, vollständige Replay-Validierung und unveränderte Safety Locks ohne Signal- oder PnL-Recht.
+- Präfix-Replay, unfertige Bars, zukünftige Snapshot-Zugriffe, neu gehashte Manipulationen und abweichende Foldgrenzen sind getestet und blockieren fail-closed.
+- Opportunity/Regime, Spezialisten, Router und Outer-Orchestrierung wurden nicht vorgezogen.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_19_2026-07-19.md`
 
 ### Aufgabe 20 – Opportunity- und Regime-Schicht implementieren
 
