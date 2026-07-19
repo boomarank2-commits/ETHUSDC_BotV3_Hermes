@@ -2,7 +2,7 @@
 
 Stand: 2026-07-19
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 26/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 27/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -383,13 +383,23 @@ Alle inneren, Outer-, Kalender-, Konzentrations-, Stress-, Nachbarschafts-, Regi
 
 ### Aufgabe 27 – Hindsight-Benchmarks, Capture-Ratios und Bootstrap
 
-**Status:** `IN_PROGRESS`
+**Status:** `DONE_100`
 
 Hindsight bleibt reine Diagnostik; Capture-Ratios, Overfit-Sperren und reproduzierbarer Stationary Bootstrap trennen historische Zielerreichung von frischer Unterstützung.
 
-Zwischenstand: Der deterministische 10.000er Circular-Stationary-Bootstrap, Manifest-/Seed-Bindung, beide Capture-Ratios, manuelle Leakage-/Overfit-Sperre und sämtliche historischen Nicht-Frische-/Nicht-Adoption-Locks sind implementiert. Vor `DONE_100` fehlt noch die direkte, semantisch validierte Bindung der beiden Benchmarkwerte an ihre tatsächlichen All-Candle- beziehungsweise kandidatengleichen Hindsight-Solver; ein bloßer Inhaltsdigest externer Zahlen genügt nicht.
+**Abnahme:**
 
-**Zwischenbericht:** `handoff/PROTOCOL_V3_TASK_27_IN_PROGRESS_2026-07-19.md`
+- `all_candle_one_trade_close_hindsight` läuft auf exakt 365 vollständigen UTC-Tagen beziehungsweise 525.600 geordneten ETHUSDC-1m-Kerzen, nutzt ausschließlich positive Volumenpunkte und erlaubt höchstens einen LONG-Roundtrip je UTC-Tag.
+- `candidate_matched_volume_filtered_hindsight` ist ein echter ein-Lot-/LONG-only-Solver mit der aus dem Baseline-Ledger abgeleiteten maximalen tatsächlichen Tradezahl, der eingefrorenen Kandidaten-Haltedauer, T+24, Bundle-Gültigkeit, Monatsrotation und Exit-only-/Flat-Handoff.
+- Beide Solver verwenden dieselbe Task-7-/8-Ausführungs-, Rundungs-, Exchange-, Gebühren- und Slippage-Logik; Monatsgrenzen liquidieren nicht und der Prozessend-Close folgt derselben Task-24-Terminalausführung.
+- Frozen-Data-Snapshot, alle 365 ETHUSDC-Tagesdigests, vollständiger Prozessdatenhash, Exchange Info, Execution Rules, Solver-Code und Pipelinegeneration sind transitiv gebunden.
+- Die vollständige Task-22-Bundle-Kette, alle Task-23-Origin-Hashes/Run-Fingerprints, alle Task-24-Rotationszustände und das Task-25-Ledger sind semantisch gebunden. Persistierte Bindings verlangen vollständiges Quellen-Replay.
+- Der frühere freie `benchmark_evidence`-/Caller-Claim-Kanal ist entfernt. Capture-Ratios werden ausschließlich aus den gebundenen Solver-Ausgaben berechnet und dürfen Auswahl oder Monthly Gate niemals beeinflussen.
+- Der deterministische 10.000er Circular-Stationary-Bootstrap für `L={5,10,20}`, Manifest-/Seed-Bindung, exakt 500. Ordnungsstatistik und manuelle Leakage-/Overfit-Sperre bleiben erhalten.
+- Fehlende/doppelte Tage oder Minuten, ungültiges Volumen, Lookahead, zu viele Trades, überschrittene Haltedauer, überlappende Trades sowie neu gehashte Bundle-, Origin-, Handoff-, Kosten-, Hash-, Feedback-, Freshness- und Adoption-Manipulationen blockieren fail-closed.
+- Sämtliche historischen Ergebnisse bleiben `NOT_FRESH`, `diagnostic_only`, `statistically_supported=false`, `sealed_bootstrap_target_supported=false` und `canonical_adoption_eligible=false`.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_27_2026-07-19.md`
 
 ### Aufgabe 28 – Aktuellen 730-Tage-Refit und Champion/Challenger/Cash-Entscheidung
 
@@ -430,10 +440,10 @@ Erst nach Aufgaben 1–32 werden zwölf Origins und 365 OOS-Tage einmalig ausgef
 ## Fortschrittsführung
 
 ```text
-Protocol v3: Aufgabe 15/33 – Reine innere Auswahlfunktion extrahieren – DONE_100
-Protocol v3: Aufgabe 16/33 – Vollständige Kandidaten-Tagesmatrix und Promotion-Budgets – DONE_100
-Protocol v3: Aufgabe 17/33 – PBO/CSCV exakt implementieren – DONE_100
-Gesamt: 17/33 DONE_100 = 51,52 %
+Protocol v3: Aufgabe 25/33 – Tägliches MTM-Ledger und zwei Zeitaggregationen – DONE_100
+Protocol v3: Aufgabe 26/33 – Monthly Quality Gate, Stress und Pflichtmetriken – DONE_100
+Protocol v3: Aufgabe 27/33 – Hindsight-Benchmarks, Capture-Ratios und Bootstrap – DONE_100
+Gesamt: 27/33 DONE_100 = 81,82 %
 ```
 
 Fortschritt wird ausschließlich als `DONE_100 / 33` ausgewiesen, nicht nach Zeit oder Token geschätzt.
