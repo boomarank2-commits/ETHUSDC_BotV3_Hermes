@@ -1,0 +1,31 @@
+{
+  "schema_version": "protocol_v3_specialists_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_bounded_local_specialists_v1",
+  "specialists": [
+    {"id": "trend_pullback_reclaim", "base_family": "pullback_in_trend", "required_structure": "TREND", "confirmation": "closed_15m_pullback_then_reclaim"},
+    {"id": "compression_breakout_retest", "base_family": "breakout_volatility_filter", "required_structure": "COMPRESSION", "confirmation": "closed_15m_breakout_then_held_retest"},
+    {"id": "range_reversion_confirmed", "base_family": "mean_reversion_regime_filter", "required_structure": "RANGE", "confirmation": "closed_15m_range_reentry"},
+    {"id": "multiday_swing_trend", "base_family": "momentum_trend_filter", "required_structure": "TREND", "confirmation": "closed_1d_and_4h_trend_alignment"},
+    {"id": "no_trade", "base_family": null, "required_structure": null, "confirmation": "always_block"}
+  ],
+  "engine_policy": {
+    "reuse_existing_simulator": true,
+    "second_simulation_engine_forbidden": true,
+    "task20_assessment_must_be_prevalidated": true,
+    "specialist_gate_may_confirm_existing_raw_signal_only": true,
+    "specialist_gate_may_create_signal": false
+  },
+  "bounds": {
+    "trend_pullback_reclaim_max_hold_minutes": [60, 720],
+    "compression_breakout_retest_max_hold_minutes": [60, 720],
+    "range_reversion_confirmed_max_hold_minutes": [15, 240],
+    "multiday_swing_trend_max_hold_minutes": [1440, 10080]
+  },
+  "deferred_scope": {"router_task": 22, "outer_orchestration_task": 23},
+  "safety": {
+    "api_keys": "forbidden", "live": "locked", "orders": "locked",
+    "paper": "locked", "testtrade": "locked", "trading_api": "forbidden",
+    "long_only": true, "symbol": "ETHUSDC", "may_create_signal": false
+  }
+}

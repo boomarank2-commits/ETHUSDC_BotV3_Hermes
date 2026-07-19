@@ -4,7 +4,10 @@
   "pipeline_contract_version": "monthly_refit_pipeline_v3.0.0",
   "component_contracts": {
     "boundary_rules": "protocol_v3_monthly_boundary_runtime_and_inner_6x60_folds_v2",
-    "candidate_families": "bounded_regime_specialists_v1",
+    "candidate_families": [
+      "bounded_regime_specialists_v1",
+      "protocol_v3_bounded_local_specialists_v1"
+    ],
     "context_policy": "three_market_closed_bar_context_parity_v2",
     "cost_model": "protocol_v3_actual_notional_baseline_and_stress_costs_v1",
     "feature_contract": [
@@ -40,8 +43,11 @@
       "src/ethusdc_bot/protocol_v3/runtime_state.py"
     ],
     "candidate_families": [
+      "configs/protocol_v3_specialists_contract.json",
       "src/ethusdc_bot/backtest/search_space.py",
-      "src/ethusdc_bot/backtest/simulator.py"
+      "src/ethusdc_bot/backtest/simulator.py",
+      "src/ethusdc_bot/protocol_v3/specialists.py",
+      "src/ethusdc_bot/protocol_v3/specialists_api.py"
     ],
     "context_policy": [
       "configs/protocol_v3_context_parity_contract.json",

@@ -2,7 +2,7 @@
 
 Stand: 2026-07-18
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 20/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 21/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -288,9 +288,22 @@ Bewegungskapazität, Trend, Range, Kompression und Stress werden kausal erkannt;
 
 ### Aufgabe 21 – Lokale Spezialisten hinter der bestehenden Engine bauen
 
-**Status:** `NOT_STARTED`
+**Status:** `DONE_100`
 
 Pullback/Reclaim, Breakout/Retest, bestätigte Range-Reversion und Mehrtagesswing werden als kleine begrenzte Familien hinter derselben Engine geprüft.
+
+**Abnahme:**
+
+- Vier begrenzte Spezialisten mappen exakt auf die vorhandenen Engine-Familien `pullback_in_trend`, `breakout_volatility_filter`, `mean_reversion_regime_filter` und `momentum_trend_filter`; eine zweite Simulationsengine existiert nicht.
+- `trend_pullback_reclaim` verlangt Task-20-`TREND`, einen abgeschlossenen 15m-Pullback und anschließenden Reclaim.
+- `compression_breakout_retest` verlangt Task-20-`COMPRESSION`, abgeschlossenen 15m-Breakout und gehaltenen Retest statt Impulskauf.
+- `range_reversion_confirmed` verlangt Task-20-`RANGE` und Wiedereintritt in die abgeschlossene 15m-Range.
+- `multiday_swing_trend` verlangt Task-20-`TREND` sowie ausgerichteten abgeschlossenen 1d-/4h-Trend und besitzt einen klar begrenzten Mehrtages-Haltehorizont.
+- Der Spezialisten-Gate darf ausschließlich ein bereits vorhandenes Rohsignal der Basisengine bestätigen. Ohne Rohsignal, bei Regime-Mismatch, fehlender Bestätigung oder `no_trade` bleibt `allowed=false`.
+- ETHUSDC, LONG-only, Haltezeitgrenzen, kanonische Bundle-Identität und Safety Locks werden fail-closed validiert.
+- Spezialisten liefern nur Filterevidenz. Auswahl zwischen Spezialisten und lokaler Edge-Nachweis bleiben Aufgabe 22.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_21_2026-07-19.md`
 
 ### Aufgabe 22 – Router, NO_TRADE und FrozenCandidateBundle verbinden
 
