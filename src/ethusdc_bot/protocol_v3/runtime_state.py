@@ -939,6 +939,64 @@ def validate_outer_rotation_state(
             raise RuntimeStateError("rotation timestamps do not match boundary")
 
 
+def restore_outer_rotation_state(
+    value: Mapping[str, Any],
+    *,
+    origin: MonthlyOriginBoundary | None = None,
+) -> OuterRotationState:
+    """Reconstruct and semantically revalidate a persisted rotation-state basis."""
+
+    if not isinstance(value, Mapping):
+        raise RuntimeStateError("persisted outer rotation state must be an object")
+    root = dict(value)
+    required = {
+        "schema_version", "contract_version", "origin_index",
+        "retiring_candidate_bundle_sha256", "open_position",
+        "new_candidate_bundle_sha256", "anchor_utc", "valid_from_utc",
+        "valid_until_utc", "flat_time_utc", "entry_enabled_at_utc",
+        "retiring_configuration_mode", "new_configuration_mode",
+        "discarded_pending_entry", "discarded_cooldown",
+        "discarded_scaler_state", "discarded_runtime_model_state",
+        "monthly_boundary_liquidation",
+    }
+    if set(root) != required:
+        raise RuntimeStateError("persisted outer rotation state fields are invalid")
+    position_raw = root["open_position"]
+    if position_raw is None:
+        position = None
+    elif isinstance(position_raw, Mapping):
+        try:
+            position = OpenPositionState(**dict(position_raw))
+        except (TypeError, ValueError) as exc:
+            raise RuntimeStateError("persisted open position is invalid") from exc
+    else:
+        raise RuntimeStateError("persisted open position must be an object or null")
+    state = OuterRotationState(
+        schema_version=root["schema_version"],
+        contract_version=root["contract_version"],
+        origin_index=root["origin_index"],
+        retiring_candidate_bundle_sha256=root["retiring_candidate_bundle_sha256"],
+        open_position=position,
+        new_candidate_bundle_sha256=root["new_candidate_bundle_sha256"],
+        anchor_utc=_parse_utc_text(root["anchor_utc"], "anchor_utc"),
+        valid_from_utc=_parse_utc_text(root["valid_from_utc"], "valid_from_utc"),
+        valid_until_utc=_parse_utc_text(root["valid_until_utc"], "valid_until_utc"),
+        flat_time_utc=_optional_utc_text(root["flat_time_utc"], "flat_time_utc"),
+        entry_enabled_at_utc=_optional_utc_text(root["entry_enabled_at_utc"], "entry_enabled_at_utc"),
+        retiring_configuration_mode=root["retiring_configuration_mode"],
+        new_configuration_mode=root["new_configuration_mode"],
+        discarded_pending_entry=root["discarded_pending_entry"],
+        discarded_cooldown=root["discarded_cooldown"],
+        discarded_scaler_state=root["discarded_scaler_state"],
+        discarded_runtime_model_state=root["discarded_runtime_model_state"],
+        monthly_boundary_liquidation=root["monthly_boundary_liquidation"],
+    )
+    validate_outer_rotation_state(state, origin=origin)
+    if state.basis() != root:
+        raise RuntimeStateError("persisted outer rotation state is not canonical")
+    return state
+
+
 def _terminal_liquidation(
     position: OpenPositionState,
     terminal_bar: Candle,
@@ -1040,6 +1098,20 @@ def _utc(value: datetime, label: str) -> datetime:
     return value.astimezone(UTC)
 
 
+def _parse_utc_text(value: Any, label: str) -> datetime:
+    if not isinstance(value, str):
+        raise RuntimeStateError(f"{label} must be UTC text")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise RuntimeStateError(f"{label} is invalid") from exc
+    return _utc(parsed, label)
+
+
+def _optional_utc_text(value: Any, label: str) -> datetime | None:
+    return None if value is None else _parse_utc_text(value, label)
+
+
 def _iso(value: datetime) -> str:
     return _utc(value, "datetime").isoformat().replace("+00:00", "Z")
 
@@ -1094,6 +1166,7 @@ __all__ = [
     "finalize_outer_process",
     "load_runtime_state_contract",
     "purge_training_events",
+    "restore_outer_rotation_state",
     "validate_outer_rotation_state",
     "validate_runtime_state_contract",
 ]

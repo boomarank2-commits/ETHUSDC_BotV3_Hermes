@@ -2,7 +2,7 @@
 
 Stand: 2026-07-19
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 23/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 24/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -339,9 +339,17 @@ Die unveränderte Auswahlpipeline läuft an zwölf Fit-Stichtagen auf den jeweil
 
 ### Aufgabe 24 – 24h-Aktivierung und Outer-Rotation-State
 
-**Status:** `NOT_STARTED`
+**Status:** `DONE_100`
 
 Neue Entries erst `T+24h` und nach `flat_time`; altes Bundle bleibt exit-only, Rotation-State wird versioniert, hashbar und resume-fähig.
+
+- Der bereits in Aufgabe 9 eingefrorene semantische Rotationszustand bleibt die einzige Runtime-Wahrheit: erster Origin flat, höchstens ein getragenes Lot, Vorgänger strikt `exit_only`, keine Pending-Entry-/Cooldown-/Scaler-/Modellzustände und Entry-Freigabe exakt bei `max(valid_from, flat_time)`.
+- Persistierter Zustand wird aus kanonischem JSON rekonstruiert und erneut vollständig semantisch validiert. Nichtkanonische Zeitstempel, fehlende oder zusätzliche Felder und selbst neu gehashte Widersprüche werden fail-closed abgewiesen.
+- Die gebundene Rotation-Identity verknüpft exakt Task-23-Prozess/Origin/Selection mit dem Task-22-Frozen-Bundle und dem Task-13-Transaktionsvertrag. Ein Origin-, Selection-, Bundle- oder Zustandswechsel erzeugt eine andere Transaktions-, Cache- und Resume-Identität.
+- Der bisherige kanonische Genesis-Slot bleibt für vorgelagerte Inner-Transaktionen kompatibel. Sobald ein Outer-Rotationszustand existiert, ist nur der konkrete Task-24-Bound-Slot resume-fähig; es wurde kein zweiter Zustandskanal geschaffen.
+- Tägliches MTM, Trades und die beiden Zeitaggregationen bleiben strikt Aufgabe 25.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_24_2026-07-19.md`
 
 ### Aufgabe 25 – Tägliches MTM-Ledger und zwei Zeitaggregationen
 

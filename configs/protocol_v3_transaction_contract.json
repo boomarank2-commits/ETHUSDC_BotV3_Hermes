@@ -41,6 +41,8 @@
     "concrete_context_parity_binding_required": true,
     "bound_inner_fold_plan_required": true,
     "bound_candidate_selection_required": true,
+    "bound_outer_rotation_state_supported": true,
+    "outer_rotation_state_must_match_origin_selection_and_bundle": true,
     "trial_ledger_head_is_decision_time_head": true,
     "sealed_store_heads_are_transitively_revalidated": true
   },
@@ -54,6 +56,7 @@
     "atomic_replace_required": true,
     "head_is_committed_visibility_marker": true,
     "resume_uses_last_committed_head_only": true,
+    "resume_requires_exact_rotation_state_identity": true,
     "orphan_temp_or_checkpoint_is_not_committed": true
   },
   "lock_policy": {

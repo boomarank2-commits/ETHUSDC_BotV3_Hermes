@@ -49,7 +49,14 @@ from ethusdc_bot.protocol_v3.run_identity import (
     RunFingerprint,
     validate_run_fingerprint,
 )
-from ethusdc_bot.protocol_v3.runtime_state import HorizonPolicy
+from ethusdc_bot.protocol_v3.boundaries import MonthlyOriginBoundary, MonthlyProcessBoundaryPlan
+from ethusdc_bot.protocol_v3.outer_origins import OuterOriginProcess, validate_outer_origin_process
+from ethusdc_bot.protocol_v3.runtime_state import (
+    HorizonPolicy,
+    OuterRotationState,
+    restore_outer_rotation_state,
+    validate_outer_rotation_state,
+)
 
 TRANSACTION_CONTRACT_PATH: Final = Path(
     "configs/protocol_v3_transaction_contract.json"
@@ -99,6 +106,7 @@ CANDIDATE_PENDING_SCHEMA: Final = (
 FOLD_PENDING_SCHEMA: Final = "protocol_v3_fold_identity_pending_task14_v1"
 FOLD_IDENTITY_SCHEMA: Final = INNER_FOLD_IDENTITY_SCHEMA
 ROTATION_GENESIS_SCHEMA: Final = "protocol_v3_rotation_identity_genesis_v1"
+ROTATION_BOUND_SCHEMA: Final = "protocol_v3_bound_outer_rotation_identity_v1"
 STORE_HEADS_SCHEMA: Final = "protocol_v3_sealed_store_heads_v1"
 REQUIRED_IDENTITY_SLOTS: Final = (
     RAW_DATA_SLOT,
@@ -178,6 +186,8 @@ CANONICAL_CONTRACT: dict[str, Any] = {
         "concrete_context_parity_binding_required": True,
         "bound_inner_fold_plan_required": True,
         "bound_candidate_selection_required": True,
+        "bound_outer_rotation_state_supported": True,
+        "outer_rotation_state_must_match_origin_selection_and_bundle": True,
         "trial_ledger_head_is_decision_time_head": True,
         "sealed_store_heads_are_transitively_revalidated": True,
     },
@@ -191,6 +201,7 @@ CANONICAL_CONTRACT: dict[str, Any] = {
         "atomic_replace_required": True,
         "head_is_committed_visibility_marker": True,
         "resume_uses_last_committed_head_only": True,
+        "resume_requires_exact_rotation_state_identity": True,
         "orphan_temp_or_checkpoint_is_not_committed": True,
     },
     "lock_policy": {
@@ -492,6 +503,37 @@ def build_sealed_store_heads_slot(
         STORE_HEADS_SCHEMA,
         {"indexes": heads},
     )
+
+
+def build_rotation_state_identity_slot(
+    state: OuterRotationState,
+    *,
+    origin: MonthlyOriginBoundary,
+    outer_process: OuterOriginProcess,
+    boundary_plan: MonthlyProcessBoundaryPlan,
+) -> IdentitySlot:
+    """Bind one semantic Task-24 rotation state to its Task-23 origin and bundle."""
+
+    process = validate_outer_origin_process(outer_process, boundary_plan=boundary_plan)
+    validate_outer_rotation_state(state, origin=origin)
+    rows = [row for row in process.to_dict()["origins"] if row["origin_index"] == origin.origin_index]
+    if len(rows) != 1:
+        raise ProtocolV3TransactionError("outer process lacks the rotation origin")
+    row = rows[0]
+    bundle_sha = row["frozen_candidate_bundle"]["bundle_sha256"]
+    if state.new_candidate_bundle_sha256 != bundle_sha:
+        raise ProtocolV3TransactionError("rotation state does not bind the origin's frozen bundle")
+    decision_sha = row["selection_decision"]["decision_sha256"]
+    payload = {
+        "outer_process_sha256": process.process_sha256,
+        "origin_selection_sha256": row["origin_sha256"],
+        "origin_index": origin.origin_index,
+        "selection_decision_sha256": decision_sha,
+        "candidate_bundle_sha256": bundle_sha,
+        "rotation_state": state.basis(),
+        "rotation_state_sha256": state.state_sha256,
+    }
+    return build_bound_identity_slot(ROTATION_SLOT, ROTATION_BOUND_SCHEMA, payload)
 
 
 def build_transaction_identity(
@@ -797,14 +839,33 @@ def _validate_transition_slots(
     _validate_fold_slot(slots[FOLD_SLOT], repository_root, horizon_policy)
     _validate_candidate_slot(slots)
     rotation = slots[ROTATION_SLOT].to_dict()
-    if rotation != build_genesis_identity_slot(
+    genesis = build_genesis_identity_slot(
         ROTATION_SLOT,
         ROTATION_GENESIS_SCHEMA,
         "no_rotation_state",
-    ).to_dict():
+    ).to_dict()
+    if rotation == genesis:
+        return
+    if rotation["state"] != BOUND or rotation["identity_schema"] != ROTATION_BOUND_SCHEMA or rotation["reason"] != "bound":
         raise ProtocolV3TransactionError(
-            "rotation_state_identity is not the canonical genesis state"
+            "rotation_state_identity is neither canonical genesis nor Task-24 bound state"
         )
+    payload = rotation["payload"]
+    required = {"outer_process_sha256", "origin_selection_sha256", "origin_index",
+                "selection_decision_sha256", "candidate_bundle_sha256", "rotation_state",
+                "rotation_state_sha256"}
+    if set(payload) != required:
+        raise ProtocolV3TransactionError("bound rotation identity fields are invalid")
+    sha256(payload["outer_process_sha256"], "rotation.outer_process_sha256")
+    sha256(payload["origin_selection_sha256"], "rotation.origin_selection_sha256")
+    sha256(payload["selection_decision_sha256"], "rotation.selection_decision_sha256")
+    sha256(payload["candidate_bundle_sha256"], "rotation.candidate_bundle_sha256")
+    state = restore_outer_rotation_state(payload["rotation_state"])
+    if state.state_sha256 != payload["rotation_state_sha256"] or state.origin_index != payload["origin_index"] or state.new_candidate_bundle_sha256 != payload["candidate_bundle_sha256"]:
+        raise ProtocolV3TransactionError("bound rotation state identity mismatch")
+    candidate = slots[CANDIDATE_SLOT].to_dict()["payload"]
+    if candidate.get("decision_sha256") != payload["selection_decision_sha256"]:
+        raise ProtocolV3TransactionError("rotation selection differs from candidate identity slot")
 
 
 def _validate_candidate_slot(slots: Mapping[str, IdentitySlot]) -> None:
@@ -1458,6 +1519,7 @@ __all__ = [
     "FOLD_IDENTITY_SCHEMA",
     "FOLD_PENDING_SCHEMA",
     "ROTATION_GENESIS_SCHEMA",
+    "ROTATION_BOUND_SCHEMA",
     "STORE_HEADS_SCHEMA",
     "CANDIDATE_SLOT",
     "FOLD_SLOT",
@@ -1473,6 +1535,7 @@ __all__ = [
     "build_genesis_identity_slot",
     "build_not_applicable_identity_slot",
     "build_sealed_store_heads_slot",
+    "build_rotation_state_identity_slot",
     "build_seed_state",
     "build_stop_state",
     "build_transaction_identity",
