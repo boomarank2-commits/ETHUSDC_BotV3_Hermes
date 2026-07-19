@@ -6,6 +6,10 @@ Stand: 2026-07-19
 
 Aufgabe 15 war am Branch-Stand nach dem Re-Audit der Aufgaben 11 bis 14 als `DONE_100` dokumentiert. Vor Aufgabe 16 wurde der tatsächliche Task-15-Code erneut in frischen Prozessen und ohne vorherigen Facade-Import geprüft.
 
+Veröffentlichter kombinierter Korrekturcommit:
+
+`087d816ac4299489a94a51efa3991b7fee62163e`
+
 ## Gefundener Fehler 1 – Transaktionsvertrag nur nach Facade-Import v3
 
 `configs/protocol_v3_transaction_contract.json` verlangte bereits:
@@ -66,6 +70,8 @@ vollständige Suite: 1.118 Tests erfolgreich
 python -m compileall -q src: erfolgreich
 frischer Core-Import des Transaktionsvertrags: erfolgreich v3
 ```
+
+Die verbindliche GitHub-Review-CI ist auf dem nachfolgenden normalen Connector-Commit erneut auszuführen. Erst ein grüner finaler Head bestätigt den Abschluss.
 
 ## Nicht verändert
 
