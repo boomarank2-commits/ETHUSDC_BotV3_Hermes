@@ -119,6 +119,7 @@ _CANONICAL_CONTRACT: Final = {
         "production_missing_support_result": NO_TRADE,
         "production_matrix_complete_allowed_from_task16": True,
         "production_pbo_complete_allowed_from_task17": True,
+        "production_dsr_complete_allowed_from_task18": True,
         "synthetic_pbo_dsr_support_is_fixture_only": True,
     },
     "purity_policy": {
@@ -488,6 +489,90 @@ def build_pbo_development_support(
     return validate_development_support({**basis, "support_sha256": _digest(basis)})
 
 
+def build_dsr_development_support(
+    evidence_by_candidate: Mapping[str, Any],
+    *,
+    cycle_index: int,
+    trial_ledger: Any,
+) -> DevelopmentSupport:
+    """Bind Task-18 DSR evidence for every tested profile in one inner cycle."""
+
+    from .dsr import COMPLETE as DSR_COMPLETE, validate_dsr_for_ledger
+
+    if not isinstance(evidence_by_candidate, Mapping) or not evidence_by_candidate:
+        raise InnerSelectionError("Task-18 DSR evidence mapping must not be empty")
+    evidence = {
+        _candidate_id(candidate_id): validate_dsr_for_ledger(value, trial_ledger)
+        for candidate_id, value in evidence_by_candidate.items()
+    }
+    first = next(iter(evidence.values())).to_dict()
+    pbo_identity = first["pbo_identity"]
+    matrix_identity = pbo_identity["evidence"]["matrix_identity"]
+    matrix = matrix_identity["matrix"]
+    cycle = _positive_int(cycle_index, "cycle_index")
+    cycles = [row for row in matrix["cycles"] if row["cycle_index"] == cycle]
+    if len(cycles) != 1:
+        raise InnerSelectionError("Task-18 DSR matrix does not contain the requested cycle")
+    tested = cycles[0]["tested_candidate_ids"]
+    if set(evidence) != set(tested):
+        raise InnerSelectionError("Task-18 DSR evidence must cover every tested candidate exactly")
+    profile_by_candidate = {row["candidate_id"]: row["profile_id"] for row in cycles[0]["profiles"]}
+    identities: dict[str, Any] = {}
+    for candidate_id, validated in sorted(evidence.items()):
+        payload = validated.to_dict()
+        if payload["pbo_identity"] != pbo_identity:
+            raise InnerSelectionError("Task-18 DSR rows bind different PBO evidence")
+        if payload["selected_profile_id"] != profile_by_candidate[candidate_id]:
+            raise InnerSelectionError("Task-18 DSR profile differs from its cycle candidate")
+        identities[candidate_id] = validated.identity_payload
+    pbo_payload = pbo_identity["evidence"]
+    matrix_row = {
+        "state": COMPLETE,
+        "schema_version": "protocol_v3_candidate_daily_matrix_v1",
+        "candidate_ids": tested,
+        "day_count": _REQUIRED_MATRIX_DAYS,
+        "value": matrix_identity,
+        "evidence_sha256": matrix_identity["matrix_sha256"],
+        "reason": "task16_complete_candidate_daily_matrix",
+    }
+    pbo_row = {
+        "state": COMPLETE,
+        "schema_version": "protocol_v3_pbo_evidence_v1",
+        "candidate_ids": tested,
+        "day_count": _REQUIRED_MATRIX_DAYS,
+        "value": pbo_identity,
+        "evidence_sha256": pbo_identity["evidence_sha256"],
+        "reason": "task17_complete_exact_cscv",
+    }
+    if pbo_payload["state"] != COMPLETE:
+        pbo_row = _incomplete_support_row("protocol_v3_pbo_evidence_v1", "task17_insufficient_evidence")
+    if all(row.to_dict()["state"] == DSR_COMPLETE for row in evidence.values()):
+        dsr_row = {
+            "state": COMPLETE,
+            "schema_version": "protocol_v3_dsr_evidence_v1",
+            "candidate_ids": tested,
+            "day_count": _REQUIRED_MATRIX_DAYS,
+            "value": identities,
+            "evidence_sha256": _digest(identities),
+            "reason": "task18_complete_exact_deflated_sharpe",
+        }
+    else:
+        dsr_row = _incomplete_support_row(
+            "protocol_v3_dsr_evidence_v1",
+            "task18_insufficient_trial_history_or_statistics",
+        )
+    basis = {
+        "schema_version": DEVELOPMENT_EVIDENCE_SCHEMA,
+        "protocol_version": PROTOCOL_VERSION,
+        "mode": PRODUCTION,
+        "matrix": matrix_row,
+        "pbo": pbo_row,
+        "dsr": dsr_row,
+        "safety": _SAFETY,
+    }
+    return validate_development_support({**basis, "support_sha256": _digest(basis)})
+
+
 def build_synthetic_complete_development_support(
     *,
     tested_candidate_ids: Sequence[str],
@@ -559,14 +644,20 @@ def validate_development_support(
     dsr = _validate_support_row(root["dsr"], "dsr", mode)
     states = {matrix["state"], pbo["state"], dsr["state"]}
     if mode == PRODUCTION:
-        if dsr["state"] != INSUFFICIENT_EVIDENCE:
-            raise InnerSelectionError("production DSR remains insufficient until Task 18")
+        if dsr["state"] not in {INSUFFICIENT_EVIDENCE, COMPLETE}:
+            raise InnerSelectionError("production DSR support state is invalid")
         if matrix["state"] not in {INSUFFICIENT_EVIDENCE, COMPLETE}:
             raise InnerSelectionError("production matrix support state is invalid")
         if pbo["state"] not in {INSUFFICIENT_EVIDENCE, COMPLETE}:
             raise InnerSelectionError("production PBO support state is invalid")
         if pbo["state"] == COMPLETE and matrix["state"] != COMPLETE:
             raise InnerSelectionError("complete PBO requires complete Task-16 matrix evidence")
+        if dsr["state"] == COMPLETE and (pbo["state"] != COMPLETE or matrix["state"] != COMPLETE):
+            raise InnerSelectionError("complete DSR requires complete Task-16 and Task-17 evidence")
+        if dsr["state"] == COMPLETE:
+            ids = matrix["candidate_ids"]
+            if pbo["candidate_ids"] != ids or dsr["candidate_ids"] != ids:
+                raise InnerSelectionError("production development support inventories differ")
     if mode == SYNTHETIC_TEST_FIXTURE:
         if states != {COMPLETE}:
             raise InnerSelectionError("synthetic complete support must complete matrix, PBO and DSR")
@@ -636,6 +727,7 @@ def build_frozen_selection_config(
         raise InnerSelectionError("synthetic matrix inventory differs from tested candidates")
     _cross_validate_task16_matrix_support(support, origin, cycle, tested)
     _cross_validate_task17_pbo_support(support, origin, cycle, tested)
+    _cross_validate_task18_dsr_support(support, origin, cycle, tested)
     seed = origin_cycle_seed(manifest, origin_index=origin, cycle_index=cycle, stage="inner_selection")
     _cross_validate_manifest_fingerprint_fold(manifest, fingerprint, fold, origin)
     basis = {
@@ -708,6 +800,7 @@ def validate_frozen_selection_config(
         raise InnerSelectionError("synthetic matrix inventory differs from tested candidates")
     _cross_validate_task16_matrix_support(support, origin, cycle, tested)
     _cross_validate_task17_pbo_support(support, origin, cycle, tested)
+    _cross_validate_task18_dsr_support(support, origin, cycle, tested)
     _cross_validate_manifest_fingerprint_fold(manifest, fingerprint, fold, origin)
     normalized = {
         **root,
@@ -857,11 +950,7 @@ def _selection_basis(
     eligible: list[tuple[tuple[Any, ...], dict[str, Any], dict[str, Any]]] = []
     ranking_rows: list[dict[str, Any]] = []
     candidate_rejections: set[str] = set()
-    dsr_values = (
-        support["dsr"]["value"]
-        if support["dsr"]["state"] == COMPLETE
-        else {}
-    )
+    dsr_values = _dsr_selection_values(support)
 
     for row in c["candidate_evidence"]:
         candidate_id = row["candidate"]["canonical_candidate_id"]
@@ -1147,6 +1236,47 @@ def _pbo_selection_values(
     return float(evidence["development_pbo"]), result
 
 
+def _cross_validate_task18_dsr_support(
+    support: Mapping[str, Any],
+    origin_index: int,
+    cycle_index: int,
+    tested_candidate_ids: Sequence[str],
+) -> None:
+    row = support["dsr"]
+    if row["state"] != COMPLETE or support["mode"] != PRODUCTION:
+        return
+    identities = row["value"]
+    if set(identities) != set(tested_candidate_ids):
+        raise InnerSelectionError("Task-18 DSR inventory differs from selected cycle")
+    for candidate_id, identity in identities.items():
+        evidence = identity["evidence"]
+        if evidence["pbo_identity"] != support["pbo"]["value"]:
+            raise InnerSelectionError("Task-18 DSR and Task-17 PBO identities differ")
+        if evidence["pbo_identity"]["evidence"]["matrix_identity"] != support["matrix"]["value"]:
+            raise InnerSelectionError("Task-18 DSR and Task-16 matrix identities differ")
+        matrix = evidence["pbo_identity"]["evidence"]["matrix_identity"]["matrix"]
+        if matrix["origin_index"] != origin_index:
+            raise InnerSelectionError("Task-18 DSR belongs to a different origin")
+        cycles = [item for item in matrix["cycles"] if item["cycle_index"] == cycle_index]
+        if len(cycles) != 1:
+            raise InnerSelectionError("Task-18 DSR cycle binding is invalid")
+        profiles = [item for item in cycles[0]["profiles"] if item["candidate_id"] == candidate_id]
+        if len(profiles) != 1 or evidence["selected_profile_id"] != profiles[0]["profile_id"]:
+            raise InnerSelectionError("Task-18 DSR candidate/profile binding is invalid")
+
+
+def _dsr_selection_values(support: Mapping[str, Any]) -> dict[str, float]:
+    row = support["dsr"]
+    if row["state"] != COMPLETE:
+        return {}
+    if support["mode"] == SYNTHETIC_TEST_FIXTURE:
+        return {key: float(value) for key, value in row["value"].items()}
+    return {
+        candidate_id: float(identity["evidence"]["development_dsr"])
+        for candidate_id, identity in row["value"].items()
+    }
+
+
 def _validate_support_row(value: Any, name: str, mode: str) -> dict[str, Any]:
     row = dict(_mapping(value, f"development_support.{name}"))
     _exact_keys(row, {"state", "schema_version", "candidate_ids", "day_count", "value", "evidence_sha256", "reason"}, f"development_support.{name}")
@@ -1158,7 +1288,7 @@ def _validate_support_row(value: Any, name: str, mode: str) -> dict[str, Any]:
         if row["candidate_ids"] or row["day_count"] != 0 or row["value"] is not None or row["evidence_sha256"] != ZERO_HASH:
             raise InnerSelectionError(f"{name} insufficient-evidence row is not canonical")
     elif row["state"] == COMPLETE:
-        if mode == PRODUCTION and name not in {"matrix", "pbo"}:
+        if mode == PRODUCTION and name not in {"matrix", "pbo", "dsr"}:
             raise InnerSelectionError(f"production {name} support is not implemented")
         empty_production_matrix = (
             mode == PRODUCTION and name == "matrix" and not row["candidate_ids"]
@@ -1194,7 +1324,19 @@ def _validate_support_row(value: Any, name: str, mode: str) -> dict[str, Any]:
         if name == "dsr":
             if not isinstance(row["value"], Mapping):
                 raise InnerSelectionError("dsr.value must be a candidate-score mapping")
-            row["value"] = dict(sorted((_candidate_id(key), _finite_number(score, f"dsr.{key}")) for key, score in row["value"].items()))
+            if mode == SYNTHETIC_TEST_FIXTURE:
+                row["value"] = dict(sorted((_candidate_id(key), _finite_number(score, f"dsr.{key}")) for key, score in row["value"].items()))
+            else:
+                from .dsr import COMPLETE as DSR_COMPLETE, validate_dsr_identity_payload
+                identities = {
+                    _candidate_id(key): validate_dsr_identity_payload(_mapping(identity, f"dsr.{key}"))
+                    for key, identity in row["value"].items()
+                }
+                if any(identity["evidence"]["state"] != DSR_COMPLETE for identity in identities.values()):
+                    raise InnerSelectionError("complete DSR support contains insufficient evidence")
+                if row["evidence_sha256"] != _digest(dict(sorted(identities.items()))):
+                    raise InnerSelectionError("DSR support digest differs from Task-18 identities")
+                row["value"] = dict(sorted(identities.items()))
     else:
         raise InnerSelectionError(f"{name} support state is invalid")
     return row
@@ -1374,6 +1516,7 @@ __all__ = [
     "build_candidate_selection_identity_payload",
     "build_frozen_selection_config",
     "build_incomplete_development_support",
+    "build_dsr_development_support",
     "build_matrix_development_support",
     "build_pbo_development_support",
     "build_selection_training_window",

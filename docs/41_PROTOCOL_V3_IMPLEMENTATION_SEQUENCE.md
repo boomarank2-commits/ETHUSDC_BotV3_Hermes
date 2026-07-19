@@ -2,7 +2,7 @@
 
 Stand: 2026-07-18
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 15/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 18/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -227,9 +227,24 @@ Content-addressed Objekte sind von kleinen kanonischen Referenzindizes getrennt.
 
 ### Aufgabe 18 – DSR und Multiple-Testing-Diagnostik implementieren
 
-**Status:** `NOT_STARTED`
+**Status:** `DONE_100`
 
 DSR bindet permanenten Trial-Count, Autokorrelation, Schiefe und Kurtosis; unvollständige Trial-Historie oder ungültige Statistik blockiert.
+
+**Abnahme:**
+
+- DSR konsumiert für den ausgewählten Trading-Kandidaten exakt dieselbe ledgergebundene 360-Tage-Netto-MTM-Reihe wie Task 16 und dieselbe vollständige Task-17-PBO-Identität.
+- `SR` verwendet den unannualisierten Tagesmittelwert und die Stichprobenstandardabweichung mit `ddof=1`; `K=5`, Bartlett-gewichteter VIF und `n_eff` sind ohne Zwischenrundung reproduzierbar.
+- Schiefe ist der adjustierte Fisher-Pearson-Schätzer `G1`; Kurtosis ist der unverzerrte Fisher-Exzessschätzer `G2` plus drei als Pearson-Kurtosis.
+- `N_raw` stammt ausschließlich aus dem erneut validierten vollständigen permanenten Trial-Ledger. `N_eff_trials` aus der gemeinsamen Pearson-Korrelationsmatrix bleibt reine Diagnostik und ersetzt `N_raw` nicht.
+- Nullvarianz, ungültiger DSR-Nenner, weniger als zwei vollständige Trials oder fehlendes gemeinsames Tagesraster ergeben typisiertes `INSUFFICIENT_EVIDENCE` ohne numerischen Ersatzwert.
+- Die belegbar unvollständige reale historische Trial-Inventur bleibt `INSUFFICIENT_TRIAL_HISTORY`; dadurch bleibt `NO_TRADE` die einzige zulässige Freigabeentscheidung.
+- Cash ist explizit `NOT_APPLICABLE_NO_TRADE` und erhält weder einen künstlichen DSR-Wert noch einen Gate-Pass.
+- Task-15 kann produktive Task-18-Identitäten konsumieren; Matrix-, PBO-, Profil-, Origin-, Cycle- und aktueller Ledger-Head werden vor dem Einfrieren fail-closed gegengeprüft.
+- Golden Fixtures fixieren sämtliche wesentlichen Zwischenwerte; Manipulationen, veraltete Ledger-Heads und numerische Ersatzwerte blockieren.
+- Feature Store, Regime, Outer-Bootstrap und Monthly Gates wurden nicht vorgezogen.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_18_2026-07-19.md`
 
 ### Aufgabe 19 – Kausalen Multi-Timeframe-Feature-Store bauen
 

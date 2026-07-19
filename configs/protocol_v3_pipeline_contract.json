@@ -20,7 +20,8 @@
       "protocol_v3_lexicographic_inner_ranking_v1",
       "protocol_v3_pure_inner_candidate_selection_v1",
       "protocol_v3_complete_candidate_daily_matrix_and_promotion_v1",
-      "protocol_v3_exact_cscv_pbo_v1"
+      "protocol_v3_exact_cscv_pbo_v1",
+      "protocol_v3_exact_deflated_sharpe_v1"
     ],
     "search_space": "protocol_v3_bounded_search_identity_global_budget_and_run_fingerprint_v1",
     "simulator": "next_tradable_price_pessimistic_intrabar_with_fold_outer_state_and_context_parity_v2"
@@ -84,6 +85,7 @@
       "configs/protocol_v3_candidate_matrix_contract.json",
       "configs/protocol_v3_inner_selection_contract.json",
       "configs/protocol_v3_pbo_contract.json",
+      "configs/protocol_v3_dsr_contract.json",
       "docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md",
       "src/ethusdc_bot/backtest/research_loop_runner.py",
       "src/ethusdc_bot/backtest/research_runner.py",
@@ -92,7 +94,9 @@
       "src/ethusdc_bot/protocol_v3/candidate_matrix.py",
       "src/ethusdc_bot/protocol_v3/candidate_matrix_api.py",
       "src/ethusdc_bot/protocol_v3/pbo.py",
-      "src/ethusdc_bot/protocol_v3/pbo_api.py"
+      "src/ethusdc_bot/protocol_v3/pbo_api.py",
+      "src/ethusdc_bot/protocol_v3/dsr.py",
+      "src/ethusdc_bot/protocol_v3/dsr_api.py"
     ],
     "search_space": [
       "configs/protocol_v3_run_identity_contract.json",

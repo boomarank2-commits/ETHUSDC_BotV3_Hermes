@@ -1,0 +1,46 @@
+{
+  "schema_version": "protocol_v3_dsr_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_exact_deflated_sharpe_v1",
+  "evidence_schema_version": "protocol_v3_dsr_evidence_v1",
+  "identity_schema_version": "protocol_v3_dsr_identity_v1",
+  "series_policy": {
+    "days": 360,
+    "sample_std_ddof": 1,
+    "annualization": false,
+    "lag_formula": "floor(4*(n/100)^(2/9))",
+    "lag_count_at_360": 5,
+    "autocorrelation": "centered_lag_product_over_full_centered_sum_squares",
+    "vif_floor": 1.0
+  },
+  "moment_policy": {
+    "minimum_n": 4,
+    "skew": "adjusted_fisher_pearson_G1",
+    "kurtosis": "unbiased_fisher_excess_G2_plus_3_pearson"
+  },
+  "trial_policy": {
+    "n_raw_source": "revalidated_complete_permanent_trial_ledger",
+    "n_eff_trials_is_diagnostic_only": true,
+    "sigma_sr": "sample_std_ddof_1_of_all_bound_causal_trial_sharpes",
+    "common_complete_daily_grid_required": true,
+    "minimum_n_raw": 2
+  },
+  "gate_policy": {
+    "minimum_development_dsr": 0.95,
+    "no_trade_state": "NOT_APPLICABLE_NO_TRADE",
+    "incomplete_history_state": "INSUFFICIENT_TRIAL_HISTORY",
+    "numeric_replacement_forbidden": true
+  },
+  "deferred_scope": {
+    "monthly_gate_task": 26,
+    "outer_bootstrap_task": 27
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}

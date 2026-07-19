@@ -38,6 +38,7 @@
     "production_missing_support_result": "NO_TRADE",
     "production_matrix_complete_allowed_from_task16": true,
     "production_pbo_complete_allowed_from_task17": true,
+    "production_dsr_complete_allowed_from_task18": true,
     "synthetic_pbo_dsr_support_is_fixture_only": true
   },
   "purity_policy": {
