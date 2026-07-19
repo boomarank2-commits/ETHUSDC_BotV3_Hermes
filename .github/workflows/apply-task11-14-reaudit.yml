@@ -1,0 +1,48 @@
+name: Apply Task 11-14 Reaudit
+
+on:
+  pull_request:
+    branches:
+      - main
+      - "agent/**"
+      - "review/**"
+      - "codex/**"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/research-resume-and-ui-state-v1
+          fetch-depth: 0
+
+      - name: Apply verified audit patch when complete
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f tools/task11_14_reaudit.part06 ]]; then
+            echo "Patch parts are not complete yet."
+            exit 0
+          fi
+          cat tools/task11_14_reaudit.part{01..06} > /tmp/task11_14_reaudit.patch
+          git apply --check /tmp/task11_14_reaudit.patch
+          git apply /tmp/task11_14_reaudit.patch
+          rm -f tools/task11_14_reaudit.part{01..06}
+          rm -f .github/workflows/apply-task11-14-reaudit.yml
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+          python -m pytest -q --tb=short
+          python -m compileall -q src
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Correct Protocol v3 Tasks 11-14 after re-audit"
+          git push origin HEAD:codex/research-resume-and-ui-state-v1
