@@ -1,19 +1,21 @@
 """Transitive Task-27 binding for both historical hindsight solvers.
 
-This module is intentionally downstream of Tasks 22-26. It revalidates the
-complete source chain and derives every solver constraint from frozen process
-artifacts. No caller-provided benchmark number, trade limit, holding period,
-identity digest, or result flag is accepted as truth.
+The binding is downstream of Tasks 22-26. It revalidates the exact outer
+process, MTM ledger, raw-data and exchange snapshots, run fingerprints,
+pipeline generation, candidate bundles, and rotation states before either
+hindsight solver may run. Persisted bindings are accepted only after exact
+source replay; caller-provided benchmark values are never trusted.
 """
 from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 import hashlib
 import json
 from pathlib import Path
+import struct
 from typing import Any, Final
 
 from ethusdc_bot.backtest.data_loader import Candle
@@ -56,6 +58,7 @@ BINDING_SCHEMA_VERSION: Final = "protocol_v3_bound_hindsight_benchmarks_v1"
 BINDING_CONTRACT_VERSION: Final = (
     "protocol_v3_transitively_bound_hindsight_benchmarks_v1"
 )
+_MANIFEST_SCHEMA_VERSION: Final = "protocol_v3_hindsight_binding_manifest_v1"
 _SOURCE_PATHS: Final = (
     "configs/protocol_v3_historical_diagnostics_contract.json",
     "configs/protocol_v3_pipeline_contract.json",
@@ -134,6 +137,12 @@ def build_bound_hindsight_benchmarks(
     policies = _derive_origin_policies(
         boundary_plan, process_payload, ledger_payload
     )
+    policy_rows = [policy.to_dict() for policy in policies]
+    if _digest(policy_rows) != provenance["candidate_policy_chain_sha256"]:
+        raise HindsightBindingError(
+            "derived candidate policy chain differs from upstream evidence"
+        )
+
     all_candle = solve_all_candle_one_trade_close_hindsight(
         ethusdc_process_candles,
         process_start_inclusive=boundary_plan.process_start_inclusive,
@@ -158,10 +167,7 @@ def build_bound_hindsight_benchmarks(
             raise HindsightBindingError(
                 "solver data or exchange identity differs from bound source evidence"
             )
-    if (
-        candidate_payload["input_identity"]["policy_chain_sha256"]
-        != provenance["candidate_policy_chain_sha256"]
-    ):
+    if candidate_payload["input_identity"]["policy_chain"] != policy_rows:
         raise HindsightBindingError(
             "candidate solver policy chain differs from Task-22/23/24 evidence"
         )
@@ -169,7 +175,7 @@ def build_bound_hindsight_benchmarks(
     source_binding = _source_binding(root)
     rules = build_market_execution_rules(exchange_payload)
     manifest = {
-        "schema_version": "protocol_v3_hindsight_binding_manifest_v1",
+        "schema_version": _MANIFEST_SCHEMA_VERSION,
         **snapshot_binding,
         **provenance,
         "execution_rules_sha256": rules.rules_sha256,
@@ -181,7 +187,6 @@ def build_bound_hindsight_benchmarks(
             "evidence_sha256"
         ],
     }
-    policy_rows = [policy.to_dict() for policy in policies]
     basis = {
         "schema_version": BINDING_SCHEMA_VERSION,
         "protocol_version": PROTOCOL_VERSION,
@@ -219,6 +224,8 @@ def validate_bound_hindsight_benchmarks(
     ethusdc_process_candles: Sequence[Candle] | None = None,
     exchange_info_snapshot: FrozenExchangeInfoSnapshot | Mapping[str, Any] | None = None,
 ) -> BoundHindsightBenchmarks:
+    """Validate a fresh typed result or replay every source for persisted data."""
+
     root = (
         value.to_dict()
         if isinstance(value, BoundHindsightBenchmarks)
@@ -251,6 +258,7 @@ def validate_bound_hindsight_benchmarks(
             raise HindsightBindingError(
                 "persisted hindsight binding differs from exact source replay"
             )
+
     required = {
         "schema_version",
         "protocol_version",
@@ -282,8 +290,12 @@ def validate_bound_hindsight_benchmarks(
     ):
         raise HindsightBindingError("bound hindsight benchmark version is invalid")
     manifest = dict(_mapping(root["binding_manifest"], "binding_manifest"))
-    if root["binding_manifest_sha256"] != _digest(manifest):
+    if (
+        manifest.get("schema_version") != _MANIFEST_SCHEMA_VERSION
+        or root["binding_manifest_sha256"] != _digest(manifest)
+    ):
         raise HindsightBindingError("hindsight binding manifest digest mismatch")
+
     all_solver = validate_hindsight_solver_evidence(
         root["all_candle_solver_evidence"]
     ).to_dict()
@@ -297,6 +309,20 @@ def validate_bound_hindsight_benchmarks(
         != candidate_solver["evidence_sha256"]
     ):
         raise HindsightBindingError("solver output is not bound to the manifest")
+    for solver_payload in (all_solver, candidate_solver):
+        identity = solver_payload["input_identity"]
+        if (
+            identity["ethusdc_process_data_sha256"]
+            != manifest.get("ethusdc_process_data_sha256")
+            or identity["exchange_info_snapshot_sha256"]
+            != manifest.get("exchange_info_snapshot_sha256")
+            or identity["execution_rules_sha256"]
+            != manifest.get("execution_rules_sha256")
+        ):
+            raise HindsightBindingError(
+                "solver input identity differs from the binding manifest"
+            )
+
     policies = root["candidate_policy_chain"]
     if (
         not isinstance(policies, list)
@@ -311,6 +337,8 @@ def validate_bound_hindsight_benchmarks(
     normalized = [_policy_from_dict(row).to_dict() for row in policies]
     if normalized != policies:
         raise HindsightBindingError("candidate policy chain is not canonical")
+    _validate_manifest_chains(manifest, policies)
+
     maximum = max(row["max_roundtrips_per_utc_day"] for row in policies)
     if root["candidate_max_roundtrips_per_utc_day"] != maximum:
         raise HindsightBindingError("candidate maximum trade count is inconsistent")
@@ -324,16 +352,18 @@ def validate_bound_hindsight_benchmarks(
         or root["safety"] != _SAFETY
     ):
         raise HindsightBindingError("hindsight binding safety or feedback locks failed")
+
     source_binding = manifest.get("solver_source_binding")
     if (
         not isinstance(source_binding, dict)
         or manifest.get("solver_source_binding_sha256") != _digest(source_binding)
         or set(source_binding) != set(_SOURCE_PATHS)
-        or any(not _is_sha(value) for value in source_binding.values())
+        or any(not _is_sha(item) for item in source_binding.values())
     ):
         raise HindsightBindingError("solver source-code binding is invalid")
     for key in (
         "data_snapshot_sha256",
+        "ethusdc_snapshot_market_content_sha256",
         "ethusdc_process_data_sha256",
         "ethusdc_process_day_index_sha256",
         "outer_process_sha256",
@@ -341,8 +371,10 @@ def validate_bound_hindsight_benchmarks(
         "origin_chain_sha256",
         "candidate_bundle_chain_sha256",
         "rotation_state_chain_sha256",
+        "origin_run_fingerprint_chain_sha256",
         "candidate_policy_chain_sha256",
         "current_pipeline_generation_basis_sha256",
+        "current_pipeline_contract_sha256",
         "execution_rules_sha256",
         "exchange_info_snapshot_sha256",
         "solver_source_binding_sha256",
@@ -350,13 +382,122 @@ def validate_bound_hindsight_benchmarks(
         "candidate_matched_solver_evidence_sha256",
     ):
         if not _is_sha(manifest.get(key)):
-            raise HindsightBindingError(f"hindsight binding identity is invalid: {key}")
+            raise HindsightBindingError(
+                f"hindsight binding identity is invalid: {key}"
+            )
+    if (
+        not isinstance(manifest.get("code_commit"), str)
+        or len(manifest["code_commit"]) != 40
+        or any(char not in "0123456789abcdef" for char in manifest["code_commit"])
+        or manifest.get("pipeline_generation_id")
+        != "protocol_v3_pipeline_sha256:"
+        + manifest["current_pipeline_generation_basis_sha256"]
+    ):
+        raise HindsightBindingError("code or pipeline generation identity is invalid")
+
     observed = _sha(root["binding_sha256"], "binding_sha256")
     basis = dict(root)
     basis.pop("binding_sha256")
     if observed != _digest(basis):
         raise HindsightBindingError("bound hindsight benchmark digest mismatch")
     return BoundHindsightBenchmarks(_canonical(basis), observed)
+
+
+def _validate_manifest_chains(
+    manifest: Mapping[str, Any], policies: Sequence[Mapping[str, Any]]
+) -> None:
+    day_index = manifest.get("ethusdc_process_day_index")
+    if (
+        not isinstance(day_index, list)
+        or len(day_index) != 365
+        or manifest.get("ethusdc_process_day_index_sha256") != _digest(day_index)
+    ):
+        raise HindsightBindingError("ETHUSDC process day-index binding is invalid")
+    expected_start = date.fromisoformat(
+        policies[0]["start_inclusive_utc"][:10]
+    )
+    expected_days = [
+        (expected_start + timedelta(days=index)).isoformat()
+        for index in range(365)
+    ]
+    if [row.get("day") for row in day_index] != expected_days or any(
+        not _is_sha(row.get("content_sha256")) for row in day_index
+    ):
+        raise HindsightBindingError(
+            "ETHUSDC process day index has missing, duplicate, or invalid days"
+        )
+
+    origin_hashes = manifest.get("origin_hashes")
+    bundles = manifest.get("candidate_bundle_chain")
+    rotations = manifest.get("rotation_state_chain")
+    fingerprints = manifest.get("origin_run_fingerprint_sha256")
+    if not all(
+        isinstance(rows, list) and len(rows) == 12
+        for rows in (origin_hashes, bundles, rotations, fingerprints)
+    ):
+        raise HindsightBindingError("upstream binding chains require twelve origins")
+    if (
+        manifest.get("origin_chain_sha256") != _digest(origin_hashes)
+        or manifest.get("candidate_bundle_chain_sha256") != _digest(bundles)
+        or manifest.get("rotation_state_chain_sha256") != _digest(rotations)
+        or manifest.get("origin_run_fingerprint_chain_sha256")
+        != _digest(fingerprints)
+        or any(not _is_sha(item) for item in origin_hashes)
+        or any(not _is_sha(item) for item in fingerprints)
+    ):
+        raise HindsightBindingError("upstream origin chain digest is invalid")
+
+    for index, (policy, origin_hash, bundle, rotation) in enumerate(
+        zip(policies, origin_hashes, bundles, rotations, strict=True), start=1
+    ):
+        if (
+            policy["origin_index"] != index
+            or origin_hash != policy["origin_selection_sha256"]
+            or not isinstance(bundle, Mapping)
+            or bundle.get("origin_index") != index
+            or bundle.get("bundle_sha256")
+            != policy["candidate_bundle_sha256"]
+            or not isinstance(rotation, Mapping)
+            or rotation.get("origin_index") != index
+            or rotation.get("rotation_state_sha256")
+            != policy["rotation_state_sha256"]
+            or rotation.get("new_candidate_bundle_sha256")
+            != policy["candidate_bundle_sha256"]
+        ):
+            raise HindsightBindingError(
+                "Task-22 bundle, Task-23 origin, and Task-24 rotation chain mismatch"
+            )
+        validity = bundle.get("validity")
+        if not isinstance(validity, Mapping) or (
+            validity.get("valid_from_utc") != policy["valid_from_utc"]
+            or validity.get("valid_until_utc") != policy["end_exclusive_utc"]
+        ):
+            raise HindsightBindingError(
+                "candidate bundle validity differs from solver policy"
+            )
+        for key in (
+            "bundle_sha256",
+            "router_decision_sha256",
+            "rotation_state_sha256",
+            "new_candidate_bundle_sha256",
+        ):
+            source = bundle if key in bundle else rotation
+            if not _is_sha(source.get(key)):
+                raise HindsightBindingError(
+                    f"upstream chain hash is invalid: {key}"
+                )
+        if rotation.get("open_position") is not None:
+            if (
+                rotation.get("entry_enabled_at_utc") is not None
+                or rotation.get("flat_time_utc") is not None
+            ):
+                raise HindsightBindingError(
+                    "exit-only handoff cannot be flat or entry-enabled"
+                )
+        elif rotation.get("flat_time_utc") is None:
+            raise HindsightBindingError(
+                "flat rotation requires an explicit flat_time_utc"
+            )
 
 
 def _bind_process_candles_to_snapshot(
@@ -461,11 +602,11 @@ def _bind_upstream_process(
             raise HindsightBindingError(
                 "frozen candidate bundle cost model differs from the run fingerprint"
             )
+        rotation = origin_ledger["rotation_state"]
         if (
             origin_ledger["origin_selection_sha256"] != origin["origin_sha256"]
             or origin_ledger["candidate_bundle_sha256"] != bundle["bundle_sha256"]
-            or origin_ledger["rotation_state"]["new_candidate_bundle_sha256"]
-            != bundle["bundle_sha256"]
+            or rotation["new_candidate_bundle_sha256"] != bundle["bundle_sha256"]
         ):
             raise HindsightBindingError(
                 "Task-23 origin, Task-22 bundle, and Task-24 rotation do not chain"
@@ -491,14 +632,19 @@ def _bind_upstream_process(
                 "rotation_state_sha256": origin_ledger[
                     "rotation_state_sha256"
                 ],
-                "new_candidate_bundle_sha256": origin_ledger[
-                    "rotation_state"
-                ]["new_candidate_bundle_sha256"],
-                "open_position": origin_ledger["rotation_state"]["open_position"],
-                "entry_enabled_at": origin_ledger["rotation_state"][
-                    "entry_enabled_at"
+                "new_candidate_bundle_sha256": rotation[
+                    "new_candidate_bundle_sha256"
                 ],
-                "flat_time": origin_ledger["rotation_state"]["flat_time"],
+                "open_position": rotation["open_position"],
+                "entry_enabled_at_utc": rotation["entry_enabled_at_utc"],
+                "flat_time_utc": rotation["flat_time_utc"],
+                "retiring_configuration_mode": rotation[
+                    "retiring_configuration_mode"
+                ],
+                "new_configuration_mode": rotation["new_configuration_mode"],
+                "monthly_boundary_liquidation": rotation[
+                    "monthly_boundary_liquidation"
+                ],
             }
         )
         fingerprints.append(run["fingerprint_sha256"])
@@ -523,9 +669,9 @@ def _bind_upstream_process(
         "origin_run_fingerprint_chain_sha256": _digest(fingerprints),
         "code_commit": next(iter(commits)),
         "pipeline_generation_id": next(iter(generations)),
-        "current_pipeline_generation_basis_sha256": current_pipeline.generation_id.rsplit(
-            ":", 1
-        )[1],
+        "current_pipeline_generation_basis_sha256": (
+            current_pipeline.generation_id.rsplit(":", 1)[1]
+        ),
         "current_pipeline_contract_sha256": current_basis["contract_sha256"],
         "current_pipeline_component_source_sha256": current_basis[
             "component_source_sha256"
@@ -545,7 +691,8 @@ def _derive_origin_policies(
     counts: dict[tuple[str, str], int] = defaultdict(int)
     for trade in ledger["closed_trades"]:
         bundle = _sha(
-            trade["candidate_bundle_sha256"], "trade.candidate_bundle_sha256"
+            trade["candidate_bundle_sha256"],
+            "trade.candidate_bundle_sha256",
         )
         entry_day = _parse_utc(trade["entry_time_utc"]).date().isoformat()
         counts[(bundle, entry_day)] += 1
@@ -664,15 +811,17 @@ def _snapshot(
 def _exchange(
     value: FrozenExchangeInfoSnapshot | Mapping[str, Any],
 ) -> tuple[dict[str, Any], str]:
-    root = value.to_dict() if isinstance(value, FrozenExchangeInfoSnapshot) else dict(
-        _mapping(value, "exchange_info_snapshot")
+    root = (
+        value.to_dict()
+        if isinstance(value, FrozenExchangeInfoSnapshot)
+        else dict(_mapping(value, "exchange_info_snapshot"))
     )
-    return root, _sha(root["snapshot_sha256"], "exchange_info_snapshot_sha256")
+    return root, _sha(
+        root["snapshot_sha256"], "exchange_info_snapshot_sha256"
+    )
 
 
 def _binary_candle(candle: Candle) -> bytes:
-    import struct
-
     return struct.pack(
         ">qddddd",
         candle.open_time,
@@ -691,14 +840,10 @@ def _mapping(value: Any, name: str) -> Mapping[str, Any]:
 
 
 def _midnight(value: date) -> datetime:
-    from datetime import UTC
-
     return datetime(value.year, value.month, value.day, tzinfo=UTC)
 
 
 def _parse_utc(value: Any) -> datetime:
-    from datetime import UTC
-
     if not isinstance(value, str) or not value.endswith("Z"):
         raise HindsightBindingError("timestamp must be canonical UTC text")
     try:
