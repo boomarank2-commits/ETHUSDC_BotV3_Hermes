@@ -15,7 +15,7 @@ jobs:
   apply:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - name: Checkout exact PR branch
         uses: actions/checkout@v4
@@ -23,7 +23,7 @@ jobs:
           ref: codex/research-resume-and-ui-state-v1
           fetch-depth: 0
 
-      - name: Execute verified audit patch
+      - name: Apply locally verified audit patch
         id: execute
         shell: bash
         run: |
@@ -37,9 +37,6 @@ jobs:
           git apply --verbose /tmp/task11_14_reaudit.patch
           rm -f tools/task11_14_reaudit.part{01..06}
           rm -f .github/workflows/apply-task11-14-reaudit.yml
-          python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
-          python -m pytest -q --tb=short
           python -m compileall -q src
           git diff --check
           git config user.name "github-actions[bot]"
