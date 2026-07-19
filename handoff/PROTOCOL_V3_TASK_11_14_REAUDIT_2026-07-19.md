@@ -10,6 +10,10 @@ Die Aufgaben 11 bis 14 wurden am tatsächlichen Produktionscode des Ausgangs-Hea
 
 neu adversarial geprüft. Die Prüfung beschränkte sich nicht auf Handoff-Texte oder bereits vorhandene Positivtests. Für jeden Verdacht wurde zuerst ein reproduzierender Negativtest gegen den unveränderten Code ausgeführt. Nur reproduzierbare Abweichungen wurden korrigiert.
 
+Veröffentlichter kombinierter Korrekturcommit:
+
+`ea0cf2b2f706acf985062e92d916b06ccff00668`
+
 Die fachliche Reihenfolge bleibt unverändert:
 
 ```text
