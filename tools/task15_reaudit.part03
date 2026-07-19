@@ -1,0 +1,173 @@
+ction_v3"
+ )
+ IDENTITY_SLOT_SCHEMA_VERSION: Final = (
+     "protocol_v3_transaction_identity_slot_v1"
+ )
+ TRANSACTION_IDENTITY_SCHEMA_VERSION: Final = (
+-    "protocol_v3_transaction_identity_v2"
++    "protocol_v3_transaction_identity_v3"
+ )
+ CHECKPOINT_SCHEMA_VERSION: Final = "protocol_v3_transaction_checkpoint_v1"
+ CHECKPOINT_HEAD_SCHEMA_VERSION: Final = "protocol_v3_checkpoint_head_v1"
+@@ -173,6 +177,7 @@
+         "full_run_fingerprint_v2_required": True,
+         "concrete_context_parity_binding_required": True,
+         "bound_inner_fold_plan_required": True,
++        "bound_candidate_selection_required": True,
+         "trial_ledger_head_is_decision_time_head": True,
+         "sealed_store_heads_are_transitively_revalidated": True,
+     },
+@@ -213,7 +218,9 @@
+         "after_head_replace",
+     ],
+     "deferred_scope": {
+-        "candidate_selector_task": 15,
++        "candidate_daily_matrix_task": 16,
++        "pbo_task": 17,
++        "dsr_task": 18,
+         "router_task": 22,
+         "outer_orchestration_task": 23,
+         "rotation_persistence_task": 24,
+@@ -785,15 +792,10 @@
+     repository_root: str | Path,
+     horizon_policy: HorizonPolicy,
+ ) -> None:
+-    candidate = slots[CANDIDATE_SLOT].to_dict()
+-    if candidate != build_not_applicable_identity_slot(
+-        CANDIDATE_SLOT,
+-        CANDIDATE_PENDING_SCHEMA,
+-        "task15_not_implemented",
+-    ).to_dict():
+-        raise ProtocolV3TransactionError(
+-            "candidate_identity is not the canonical Task-14 transition state"
+-        )
++    # Validate the causal fold first so malformed boundary evidence keeps the
++    # most specific failure even when a legacy candidate placeholder is present.
++    _validate_fold_slot(slots[FOLD_SLOT], repository_root, horizon_policy)
++    _validate_candidate_slot(slots)
+     rotation = slots[ROTATION_SLOT].to_dict()
+     if rotation != build_genesis_identity_slot(
+         ROTATION_SLOT,
+@@ -803,9 +805,71 @@
+         raise ProtocolV3TransactionError(
+             "rotation_state_identity is not the canonical genesis state"
+         )
+-    _validate_fold_slot(slots[FOLD_SLOT], repository_root, horizon_policy)
+ 
+ 
++def _validate_candidate_slot(slots: Mapping[str, IdentitySlot]) -> None:
++    row = slots[CANDIDATE_SLOT].to_dict()
++    if row["state"] != BOUND:
++        raise ProtocolV3TransactionError(
++            "candidate_identity must be BOUND to a Task-15 selection decision"
++        )
++    if row["identity_schema"] != CANDIDATE_SELECTION_IDENTITY_SCHEMA:
++        raise ProtocolV3TransactionError(
++            "candidate_identity schema is not the Task-15 selection schema"
++        )
++    if row["reason"] != "bound":
++        raise ProtocolV3TransactionError("candidate_identity reason is invalid")
++    try:
++        normalized = validate_candidate_selection_identity_payload(row["payload"])
++    except Exception as exc:
++        raise ProtocolV3TransactionError(
++            f"candidate_identity is not a valid Task-15 decision: {exc}"
++        ) from exc
++    if row["payload"] != normalized:
++        raise ProtocolV3TransactionError(
++            "candidate_identity payload is not canonical"
++        )
++
++    decision = normalized["decision"]
++    if decision["fixture_only"] is True:
++        raise ProtocolV3TransactionError(
++            "synthetic Task-15 candidate decisions cannot enter transaction state"
++        )
++    if decision["outcome"] != NO_TRADE or decision["selected_candidate"] is not None:
++        raise ProtocolV3TransactionError(
++            "Task-15 production transaction state must remain NO_TRADE until Tasks 16-18"
++        )
++
++    config = decision["frozen_pipeline_config"]
++    run = config["run_fingerprint"]
++    expected_slots = {
++        RAW_DATA_SLOT: run["raw_data"],
++        CODE_PIPELINE_SLOT: {
++            "code": run["code"],
++            "pipeline": run["pipeline"],
++        },
++        FEATURE_SLOT: run["features"],
++        CONTEXT_SLOT: run["context"]["runtime_binding"],
++        BOUNDARY_SLOT: run["boundary"],
++        SIMULATOR_SLOT: run["simulator"],
++        COST_SLOT: run["cost_model"],
++        QUALITY_SLOT: run["quality_gates"],
++        EXCHANGE_SLOT: run["exchange_info"],
++        TRIAL_LEDGER_SLOT: run["trial_ledger_head"],
++    }
++    for name, expected in expected_slots.items():
++        if name not in slots:
++            continue
++        observed = slots[name].to_dict()
++        if observed["state"] != BOUND or observed["payload"] != expected:
++            raise ProtocolV3TransactionError(
++                f"candidate selection identity differs from transaction slot: {name}"
++            )
++    if config["fold_identity"] != slots[FOLD_SLOT].to_dict()["payload"]:
++        raise ProtocolV3TransactionError(
++            "candidate selection and transaction use different Task-14 fold identities"
++        )
++
+ def _validate_fold_slot(
+     slot: IdentitySlot,
+     repository_root: str | Path,
+@@ -1389,6 +1453,7 @@
+     "TRANSACTION_CONTRACT_SCHEMA",
+     "TRANSACTION_CONTRACT_VERSION",
+     "TRANSACTION_IDENTITY_SCHEMA_VERSION",
++    "CANDIDATE_SELECTION_IDENTITY_SCHEMA",
+     "CANDIDATE_PENDING_SCHEMA",
+     "FOLD_IDENTITY_SCHEMA",
+     "FOLD_PENDING_SCHEMA",
+--- a/src/ethusdc_bot/protocol_v3/transactional_cache.py
++++ b/src/ethusdc_bot/protocol_v3/transactional_cache.py
+@@ -1,339 +1,8 @@
+ """Stable Protocol v3 cache/resume surface with Task-15 selection binding."""
+ from __future__ import annotations
+ 
+-from collections.abc import Mapping
+-from copy import deepcopy
+-from pathlib import Path
+-from typing import Any
+-
+ from . import transactional_cache_model as _model
+ from . import transactional_cache_store as _store
+-from .inner_selection_api import (
+-    CANDIDATE_SELECTION_IDENTITY_SCHEMA,
+-    NO_TRADE,
+-    validate_candidate_selection_identity_payload,
+-)
+-from .trial_ledger import read_trial_ledger, record_cache_reuse
+-
+-
+-# The public facade patches the exact model object already used by the Task-13
+-# store. Public build, validate, checkpoint and cache calls therefore share one
+-# validation path without copying the persistence engine.
+-_model.TRANSACTION_CONTRACT_SCHEMA = "protocol_v3_transaction_contract_v3"
+-_model.TRANSACTION_CONTRACT_VERSION = (
+-    "protocol_v3_content_addressed_cache_and_transactional_resume_"
+-    "with_inner_selection_v3"
+-)
+-_model.TRANSACTION_IDENTITY_SCHEMA_VERSION = "protocol_v3_transaction_identity_v3"
+-_model.CANDIDATE_SELECTION_IDENTITY_SCHEMA = CANDIDATE_SELECTION_IDENTITY_SCHEMA
+-
+-_task15_contract = deepcopy(_model.CANONICAL_CONTRACT)
+-_task15_contract["schema_version"] = _model.TRANSACTION_CONTRACT_SCHEMA
+-_task15_contract["contract_version"] = _model.TRANSACTION_CONTRACT_VERSION
+-_task15_contract["transaction_identity_schema_version"] = (
+-    _model.TRANSACTION_IDENTITY_SCHEMA_VERSION
+-)
+-_task15_contract["identity_policy"]["bound_candidate_selection_required"] = True
+-_task15_contract["deferred_scope"] = {
+-    "candidate_daily_matrix_task": 16,
+-    "p
