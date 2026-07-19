@@ -2,7 +2,7 @@
 
 Stand: 2026-07-19
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 24/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 25/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -353,9 +353,18 @@ Neue Entries erst `T+24h` und nach `flat_time`; altes Bundle bleibt exit-only, R
 
 ### Aufgabe 25 – Tägliches MTM-Ledger und zwei Zeitaggregationen
 
-**Status:** `NOT_STARTED`
+**Status:** `DONE_100`
 
 Daily MTM inklusive Nulltage; Deployment-Intervalle und UTC-Kalenderperioden werden ohne Doppelzählung getrennt ausgewertet.
+
+- Die zwölf Task-23-Origin-Ergebnisse und ihre Task-24-Rotationszustände werden zu exakt 365 eindeutigen, lückenlosen UTC-Tageszeilen verkettet. Jeder Tageswert ist das exakte Delta der fortlaufenden Closing-Equity; Origin-Grenzen dürfen die Equity nicht zurücksetzen.
+- Explizite Nulltage bleiben erhalten. Fehlende, zusätzliche, doppelte, umsortierte oder nichtfinite Werte sowie gebrochene Equity-Deltas blockieren fail-closed.
+- MTM-PnL wird parallel, aber strikt getrennt nach den zwölf Deployment-Intervallen sowie allen berührten UTC-Kalendermonaten und -quartalen aggregiert. Exit-Trades gehören ausschließlich zum UTC-Exit-Zeitpunkt; Gebühren und Slippage zu konkreten Ausführungstagsereignissen.
+- MTM-Gesamt-PnL ist die primäre Prozesswahrheit. Closed-Trade-Netto bleibt eine getrennte, am flachen Prozessende exakt abzustimmende Diagnose und wird niemals ein zweites Mal zum MTM-Ergebnis addiert.
+- Grenzüberschreitende Trades müssen zum getragenen Task-24-Exit-only-Lot gehören. Eine Terminal-Liquidation ist ausschließlich am letzten Tag des gesamten Prozesses zulässig.
+- Gates, Stressmetriken und Grenzwerte bleiben strikt Aufgabe 26.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_25_2026-07-19.md`
 
 ### Aufgabe 26 – Monthly Quality Gate, Stress und Pflichtmetriken
 
