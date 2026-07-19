@@ -1,8 +1,8 @@
 # Protocol v3 – verbindliche Implementierungsreihenfolge
 
-Stand: 2026-07-18
+Stand: 2026-07-19
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 21/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 22/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -307,9 +307,19 @@ Pullback/Reclaim, Breakout/Retest, bestätigte Range-Reversion und Mehrtagesswin
 
 ### Aufgabe 22 – Router, NO_TRADE und FrozenCandidateBundle verbinden
 
-**Status:** `NOT_STARTED`
+**Status:** `DONE_100`
 
 Router wählt genau einen Spezialisten oder `NO_TRADE`; Bundle bindet Parameter, Fit-State, Features, Kontext, Kosten, Rotation und Gültigkeit.
+
+**Umgesetzt:**
+
+- `NO_TRADE` ist der deterministische Default. Ein Spezialist wird nur bei vollständiger Task-15-Auswahl, exakt revalidiertem Task-20-Assessment, eindeutiger Task-21-Familienzuordnung und bestandenem Local-Edge-Replay im identischen Regime gewählt.
+- Das Local-Edge-Replay umfasst exakt sechs chronologische 60-Tage-Folds mit 360 vollständigen specialist-gefilterten Netto-MTM-Tageszeilen. Tagesraster, Foldprovenienz, Netto-/Bruttoarithmetik, Mindest-Trades, Profit-Factor und positive Fold-Untergrenze werden semantisch berechnet; der Replay-Hash wird aus dem Inhalt abgeleitet.
+- Das gehashte `FrozenCandidateBundle` bindet Routerentscheidung, Spezialistenbundle, skalare Parameter, Task-19-Scaler/Quantile und Feature-Identität, Task-20-Quantile, Drei-Markt-Kontextpolicy, Kostenmodell, Auswahl-/Edge-Evidenz, Vorgänger, Rotation und Gültigkeit.
+- `valid_from` ist exakt `as_of+24h`; maximal ein Lot, Exit-only-Vorgänger und Flat-Handoff sind eingefroren. Der konkrete resume-fähige Runtime-Rotation-State bleibt strikt Aufgabe 24.
+- Synthetische Fixtures bleiben nicht routbar. Alle Routerentscheidungen bleiben transaktionsunfähig; Orders, Paper, Testtrade, Live und Trading-API bleiben gesperrt.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_22_2026-07-19.md`
 
 ### Aufgabe 23 – Zwölf äußere Monats-Origins orchestrieren
 
