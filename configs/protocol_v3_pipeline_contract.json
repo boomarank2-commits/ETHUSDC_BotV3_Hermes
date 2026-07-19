@@ -22,7 +22,10 @@
       "permanent_trial_history_v1",
       "protocol_v3_evidence_reports_v1",
       "protocol_v3_compact_artifact_store_v1",
-      "protocol_v3_content_addressed_cache_and_transactional_resume_with_inner_selection_v3"
+      "protocol_v3_content_addressed_cache_and_transactional_resume_with_inner_selection_v3",
+      "protocol_v3_causally_bound_hindsight_solvers_v1",
+      "protocol_v3_transitively_bound_hindsight_benchmarks_v1",
+      "protocol_v3_bound_hindsight_capture_and_stationary_bootstrap_v2"
     ],
     "ranking": [
       "protocol_v3_lexicographic_inner_ranking_v1",
@@ -103,6 +106,8 @@
       "src/ethusdc_bot/protocol_v3/transactional_cache_store.py",
       "src/ethusdc_bot/protocol_v3/monthly_quality_gate.py",
       "src/ethusdc_bot/protocol_v3/monthly_quality_gate_api.py",
+      "src/ethusdc_bot/protocol_v3/hindsight_solvers.py",
+      "src/ethusdc_bot/protocol_v3/hindsight_binding.py",
       "src/ethusdc_bot/protocol_v3/historical_diagnostics.py",
       "src/ethusdc_bot/protocol_v3/historical_diagnostics_api.py",
       "src/ethusdc_bot/protocol_v3/trial_history_gate.py",
