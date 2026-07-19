@@ -319,6 +319,36 @@ def test_roundtrip_preserves_exact_meaning_and_input_order_is_deterministic(monk
     assert read_protocol_v3_report(path, tmp_path) == first
 
 
+def test_report_reader_rejects_outside_path_before_json_open(tmp_path: Path) -> None:
+    (tmp_path / REPORT_STORAGE_ROOTS[PROTOCOL_V3_RESEARCH]).mkdir(parents=True)
+    outside = tmp_path.parent / "outside_task11_report.json"
+    outside.write_text("not-json", encoding="utf-8")
+    try:
+        with pytest.raises(
+            ProtocolV3ReportError,
+            match="outside|wrong Protocol v3 root",
+        ):
+            read_protocol_v3_report(outside, tmp_path)
+    finally:
+        outside.unlink(missing_ok=True)
+
+
+def test_registration_reader_rejects_symlink_before_json_open(
+    tmp_path: Path,
+) -> None:
+    registration_root = tmp_path / reporting.FORWARD_REGISTRATION_ROOT
+    registration_root.mkdir(parents=True)
+    outside = tmp_path / "outside_task11_registration.json"
+    outside.write_text("not-json", encoding="utf-8")
+    linked = registration_root / "linked.json"
+    try:
+        linked.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation is unavailable")
+    with pytest.raises(ProtocolV3ReportError, match="symlink"):
+        read_forward_window_registration(linked, tmp_path)
+
+
 def test_wrong_root_and_symlinked_root_block(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     report = _report(PROTOCOL_V3_RESEARCH)
     path = _write_at_clock(monkeypatch, report, tmp_path, datetime(2026, 7, 16, 10, tzinfo=UTC))

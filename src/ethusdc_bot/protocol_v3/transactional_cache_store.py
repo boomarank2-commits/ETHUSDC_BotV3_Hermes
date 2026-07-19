@@ -119,7 +119,18 @@ def recover_stale_transaction_lock(
             raise m.ProtocolV3TransactionError(
                 "recovered-lock receipt conflicts"
             )
-        lock.path.unlink()
+        # The immutable receipt proves that this stale lock was already moved
+        # away atomically.  Never unlink a currently present lock here: another
+        # writer may have acquired the same transaction path after recovery.
+        if lock.path.exists() or lock.path.is_symlink():
+            current = _read_lock(lock.path, repo)
+            if current != lock:
+                raise m.ProtocolV3TransactionError(
+                    "transaction lock changed after stale-lock recovery"
+                )
+            raise m.ProtocolV3TransactionError(
+                "recovered stale lock unexpectedly remains at the active path"
+            )
     else:
         os.replace(lock.path, target)
     _fsync_directory(target.parent)
@@ -1236,6 +1247,7 @@ def _publish_checkpoint(
             )
         return
     temp = path.parent / f".{path.name}.{owner_id}.tmp"
+    _reject_unsafe_temp_path(temp, "checkpoint")
     if temp.exists() and temp.read_bytes() != raw:
         temp.unlink()
         _fsync_directory(temp.parent)
@@ -1261,6 +1273,7 @@ def _publish_immutable(path: Path, raw: bytes) -> None:
             )
         return
     temp = path.parent / f".{path.name}.tmp"
+    _reject_unsafe_temp_path(temp, "cache")
     if temp.exists():
         temp.unlink()
     _write_create_only(temp, raw)
@@ -1281,6 +1294,7 @@ def _atomic_replace(
 ) -> None:
     _ensure_directory(repo, path.parent)
     temp = path.parent / f".{path.name}.{owner_id}.tmp"
+    _reject_unsafe_temp_path(temp, "atomic replacement")
     if temp.exists():
         temp.unlink()
     _write_create_only(temp, raw)
@@ -1291,6 +1305,17 @@ def _atomic_replace(
         )
     os.replace(temp, path)
     _fsync_directory(path.parent)
+
+
+def _reject_unsafe_temp_path(path: Path, label: str) -> None:
+    if path.is_symlink():
+        raise m.ProtocolV3TransactionError(
+            f"symlinked {label} temp paths are forbidden"
+        )
+    if path.exists() and not path.is_file():
+        raise m.ProtocolV3TransactionError(
+            f"{label} temp path is not a regular file"
+        )
 
 
 def _write_create_only(path: Path, raw: bytes) -> None:

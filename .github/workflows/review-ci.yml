@@ -26,18 +26,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Package source snapshot for audit
-        shell: bash
-        run: git archive --format=zip --output=source-snapshot.zip HEAD
-
-      - name: Upload source snapshot for audit
-        uses: actions/upload-artifact@v4
-        with:
-          name: source-snapshot-${{ github.sha }}
-          path: source-snapshot.zip
-          if-no-files-found: error
-          retention-days: 2
-
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:

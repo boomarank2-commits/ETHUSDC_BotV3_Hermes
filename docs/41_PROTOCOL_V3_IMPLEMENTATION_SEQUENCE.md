@@ -98,19 +98,24 @@ ETHUSDC ist einziges Handelssymbol; BTCUSDC und ETHBTC bleiben Kontext. Entschei
 
 **Status:** `DONE_100`
 
-Getrennte, versionierte Reportarten und feste Roots existieren für Research, Monatsprozess-OOS, Research-Challenger, Forward-Monat und den späteren Pipeline-Finalreport. Historische Zielerreichung erzeugt weder Freshness noch statistische Unterstützung oder Adoption.
+Getrennte, versionierte Reportarten und feste Roots existieren für Research, Monatsprozess-OOS, Research-Challenger, Forward-Monat und den späteren Pipeline-Finalreport. Historische Zielerreichung erzeugt weder Freshness noch statistische Unterstützung oder Adoption. Report- und Registrierungsleser prüfen feste Roots und Symlinks vor dem ersten Bytezugriff.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_11_2026-07-16.md`
+
+**Re-Audit:** `handoff/PROTOCOL_V3_TASK_11_14_REAUDIT_2026-07-19.md`
 
 ### Aufgabe 12 – Kompakte Artefaktarchitektur
 
 **Status:** `DONE_100`
 
-Content-addressed Objekte sind von kleinen kanonischen Referenzindizes getrennt. Tatsächliche Bytes bestimmen Digest, Größe und Kardinalität; Elternreport, Run-Fingerprint, Pipelinegeneration und Work-Unit-Provenienz werden transitiv revalidiert.
+Content-addressed Objekte sind von kleinen kanonischen Referenzindizes getrennt. Tatsächliche Bytes bestimmen Digest, Größe und Kardinalität; Elternreport, Run-Fingerprint, Pipelinegeneration und Work-Unit-Provenienz werden transitiv revalidiert. Die Indexpfad-Sperre sitzt sowohl in der öffentlichen Facade als auch importreihenfolgeunabhängig im Kernmodul vor dem ersten Read.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_12_2026-07-16.md`
 
-**Korrekturbericht:** `handoff/PROTOCOL_V3_TASK_12_PATH_GUARD_CORRECTION_2026-07-16.md`
+**Korrekturberichte:**
+
+- `handoff/PROTOCOL_V3_TASK_12_PATH_GUARD_CORRECTION_2026-07-16.md`;
+- `handoff/PROTOCOL_V3_TASK_11_14_REAUDIT_2026-07-19.md`.
 
 ### Aufgabe 13 – Content-addressed Cache und transaktionales Resume
 
@@ -121,15 +126,18 @@ Content-addressed Objekte sind von kleinen kanonischen Referenzindizes getrennt.
 - Die Task-13-Grundlage bindet exakt 16 Pflichtidentitäten; fehlende, zusätzliche, umsortierte oder `None`-Slots blockieren.
 - Checkpoints binden Pre-Run-Manifest, Seed, Budgets, Stop-/Stagnationszustand, Ergebnis, Artefaktköpfe, Ledger-Receipt und eine vollständige Hashkette.
 - Nur ein separat atomar publiziertes `HEAD.json` macht einen Checkpoint für Resume sichtbar.
-- Writer-Locks sind create-only; Recovery verlangt Same-Host-Dead-Process-Nachweis und erzeugt ein immutable Receipt.
+- Writer-Locks sind create-only; Recovery verlangt Same-Host-Dead-Process-Nachweis und erzeugt ein immutable Receipt. Ein vorhandenes altes Receipt darf niemals ein später neu erworbenes Lock löschen.
 - Cache-Records entstehen nur aus dem aktuellen committed HEAD und revalidieren Task-12-Indizes, Objekte, Reports und Trial-Ledger transitiv.
-- Cache-Reuse ist deterministisch, idempotent und zählt nicht als unabhängiger Trial.
+- Cache-Reuse ist deterministisch, idempotent und zählt nicht als unabhängiger Trial. Checkpoint-, Cache- und Replace-Temp-Pfade blockieren als Symlinks oder Nicht-Dateien vor jedem Lesen.
 - Der Task-4-/Task-13-Adapter bindet das echte Ledgerfeld `event_sha256`; ein fremder späterer Ledgerfortschritt blockiert.
 - Durch Aufgabe 15 wurde der Vertrag ohne Lockerung fortgeschrieben zu `protocol_v3_content_addressed_cache_and_transactional_resume_with_inner_selection_v3`; Fold- und Kandidatenslot sind nun beide gebunden.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_13_2026-07-16.md`
 
-**Korrekturbericht:** `handoff/PROTOCOL_V3_TASK_13_LEDGER_EVENT_ADAPTER_CORRECTION_2026-07-17.md`
+**Korrekturberichte:**
+
+- `handoff/PROTOCOL_V3_TASK_13_LEDGER_EVENT_ADAPTER_CORRECTION_2026-07-17.md`;
+- `handoff/PROTOCOL_V3_TASK_11_14_REAUDIT_2026-07-19.md`.
 
 ### Aufgabe 14 – Exakten inneren 6×60-Tage-Fold-Planer bauen
 
@@ -141,15 +149,17 @@ Content-addressed Objekte sind von kleinen kanonischen Referenzindizes getrennt.
 - Die Validation-Union umfasst lückenlos exakt die letzten 360 Entwicklungstage.
 - Die Fits beginnen am gemeinsamen `training_start`; ihre Spannen vor Purging betragen exakt 370, 430, 490, 550, 610 und 670 Tage.
 - `fit_end = validation_start - purge_duration`; die Purge-Dauer stammt ausschließlich aus der Task-9-`HorizonPolicy`.
-- Task-9-Boundary-Touch-Purge und ein fester maximaler Purge-Cutoff wirken gemeinsam; ein Event mit Signalzeit an oder nach `fit_end` bleibt auch bei kürzerem realisiertem Horizont ausgeschlossen.
+- Task-9-Boundary-Touch-Purge und ein fester maximaler Purge-Cutoff wirken gemeinsam; Trainingsevidenz bleibt nur innerhalb des halboffenen Fitintervalls `[fit_start, fit_end)`.
 - Timestamp-Spies blockieren Fit-, Scaler-, Quantile-, Regime-, Validation-, Feature- und Labelzugriffe außerhalb ihrer kausalen Grenzen.
 - Alle zwölf Origins aus drei Boundary-Fixtures, insgesamt 36 Origin-Fenster, besitzen dieselbe exakte Fold-Struktur.
 - Der Transaktions-Fold-Slot muss `BOUND` sein und den vollständigen semantisch revalidierten Plan enthalten; alte `task14_not_implemented`-Identitäten blockieren.
 - Fold-Plan und separate Transaktions-Horizon-Identität sind gegenseitig gebunden. Abweichende Label-, Holding-, Pending-Entry- oder Purge-Horizonte blockieren.
 - Foldvertrag, Planermodul und öffentliche API sind pipelinegebunden; alte Cache-/Resume-Stände ohne Fold-Plan können nicht treffen.
-- Der vorgeschaltete Re-Audit vor Aufgabe 15 fand keinen weiteren Task-14-Produktionsfehler.
+- Der erneute Re-Audit korrigierte die zuvor übersehene untere Fit-Grenze: Warmup-Ereignisse vor `fit_start` können nicht als Fit-/Label-Evidenz erhalten bleiben.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_14_2026-07-17.md`
+
+**Re-Audit:** `handoff/PROTOCOL_V3_TASK_11_14_REAUDIT_2026-07-19.md`
 
 ### Aufgabe 15 – Reine innere Auswahlfunktion extrahieren
 

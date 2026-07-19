@@ -146,7 +146,8 @@ def write_forward_window_registration(registration: ProtocolV3WindowRegistration
     return path
 
 def read_forward_window_registration(path: str | Path, repository_root: str | Path) -> ProtocolV3WindowRegistration:
-    value, raw = _read(Path(path)); registration = validate_window_registration(value); root = _root(repository_root, FORWARD_REGISTRATION_ROOT, False); expected = root / f"{registration.to_dict()['registration_id']}.json"; _exact_path(Path(path), expected, root)
+    guarded = _guard_read_path(Path(path), repository_root, (FORWARD_REGISTRATION_ROOT,))
+    value, raw = _read(guarded); registration = validate_window_registration(value); root = _root(repository_root, FORWARD_REGISTRATION_ROOT, False); expected = root / f"{registration.to_dict()['registration_id']}.json"; _exact_path(guarded, expected, root)
     if raw != _bytes(registration.canonical_json): raise ProtocolV3ReportError("forward registration bytes are not canonical")
     return registration
 
@@ -165,7 +166,8 @@ def write_protocol_v3_report(report: ProtocolV3Report, repository_root: str | Pa
     return path
 
 def read_protocol_v3_report(path: str | Path, repository_root: str | Path) -> ProtocolV3Report:
-    value, raw = _read(Path(path)); report = validate_protocol_v3_report(value); payload = report.to_dict(); root = _root(repository_root, REPORT_STORAGE_ROOTS[str(payload["artifact_kind"])], False); expected = root / f"{payload['report_id']}.json"; _exact_path(Path(path), expected, root)
+    guarded = _guard_read_path(Path(path), repository_root, tuple(REPORT_STORAGE_ROOTS.values()))
+    value, raw = _read(guarded); report = validate_protocol_v3_report(value); payload = report.to_dict(); root = _root(repository_root, REPORT_STORAGE_ROOTS[str(payload["artifact_kind"])], False); expected = root / f"{payload['report_id']}.json"; _exact_path(guarded, expected, root)
     if raw != _bytes(report.canonical_json): raise ProtocolV3ReportError("Protocol v3 report bytes are not canonical")
     return report
 
@@ -233,6 +235,39 @@ def _root(repo_value: str | Path, relative_text: str, create: bool) -> Path:
     root = root.resolve()
     if not is_path_within(root, repo): raise ProtocolV3ReportError("storage root escapes repository_root")
     _no_symlinks(repo, root); return root
+
+def _guard_read_path(path: Path, repository_root: str | Path, allowed_roots: Sequence[str]) -> Path:
+    repo_candidate = Path(repository_root)
+    if not repo_candidate.exists() or not repo_candidate.is_dir() or repo_candidate.is_symlink():
+        raise ProtocolV3ReportError("repository_root must be an existing real directory")
+    repo = repo_candidate.resolve()
+    candidate = path if path.is_absolute() else repo / path
+    try:
+        candidate.relative_to(repo)
+    except ValueError as exc:
+        raise ProtocolV3ReportError("report path is outside Protocol v3 storage roots") from exc
+    _no_symlinks(repo, candidate)
+    selected_root: Path | None = None
+    for relative_text in allowed_roots:
+        relative_root = PurePosixPath(relative_text)
+        lexical_root = repo.joinpath(*relative_root.parts)
+        try:
+            candidate.relative_to(lexical_root)
+        except ValueError:
+            continue
+        selected_root = _root(repo, relative_text, False)
+        break
+    if selected_root is None:
+        raise ProtocolV3ReportError("report path is outside Protocol v3 storage roots")
+    try:
+        resolved = candidate.resolve(strict=True)
+    except OSError as exc:
+        raise ProtocolV3ReportError("report path is missing or unreadable") from exc
+    if path.is_symlink() or candidate.is_symlink():
+        raise ProtocolV3ReportError("report path must not be a symlink")
+    if not is_path_within(resolved, selected_root):
+        raise ProtocolV3ReportError("report path escapes its Protocol v3 storage root")
+    return resolved
 
 def _exact_path(path: Path, expected: Path, root: Path) -> None:
     if path.is_symlink(): raise ProtocolV3ReportError("report path must not be a symlink")

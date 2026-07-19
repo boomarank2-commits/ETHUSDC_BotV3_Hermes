@@ -631,14 +631,18 @@ def purge_fold_training_events(
     kept: list[InformationInterval] = []
     purged = list(task9.purged)
     for event in task9.kept:
-        if event.signal_time_ms >= fold.fit_end_ms:
+        if (
+            event.signal_time_ms < fold.fit_start_ms
+            or event.signal_time_ms >= fold.fit_end_ms
+        ):
             purged.append(event)
         else:
             kept.append(event)
     kept.sort(key=lambda row: (row.signal_time_ms, row.event_id))
     purged.sort(key=lambda row: (row.signal_time_ms, row.event_id))
     if any(
-        event.signal_time_ms >= fold.fit_end_ms
+        event.signal_time_ms < fold.fit_start_ms
+        or event.signal_time_ms >= fold.fit_end_ms
         or event.information_end_ms >= fold.validation_start_ms
         for event in kept
     ):

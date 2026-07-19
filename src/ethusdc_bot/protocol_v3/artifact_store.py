@@ -198,7 +198,7 @@ def persist_compact_artifact_bundle(*, parent_report_path: str | Path, repositor
 
 def read_compact_artifact_bundle(index_path: str | Path, repository_root: str | Path) -> CompactArtifactBundle:
     repo = _repository_root(repository_root)
-    path = Path(index_path)
+    path = _guard_index_path_before_read(Path(index_path), repo)
     value, raw = _read_strict_canonical_json(path)
     index = validate_artifact_index(value)
     if raw != _serialized_bytes(index.canonical_json):
@@ -496,6 +496,34 @@ def _ensure_safe_directory(repo: Path, directory: Path) -> None:
     _reject_symlink_components(repo, directory)
     if directory.is_symlink() or not is_path_within(directory.resolve(), repo):
         raise ProtocolV3ArtifactStoreError('artifact directory is unsafe')
+
+def _guard_index_path_before_read(path: Path, repo: Path) -> Path:
+    root = _safe_storage_root(repo, INDEX_ROOT, create=False)
+    candidate = path if path.is_absolute() else repo / path
+    try:
+        relative = candidate.relative_to(root)
+    except ValueError as exc:
+        raise ProtocolV3ArtifactStoreError(
+            "artifact index path is outside its canonical root"
+        ) from exc
+    current = root
+    for part in relative.parts:
+        current = current / part
+        if current.exists() and current.is_symlink():
+            raise ProtocolV3ArtifactStoreError(
+                "symlinked artifact index paths are forbidden"
+            )
+    try:
+        resolved = candidate.resolve(strict=True)
+    except OSError as exc:
+        raise ProtocolV3ArtifactStoreError(
+            "artifact index path is missing or unreadable"
+        ) from exc
+    if candidate.is_symlink() or not is_path_within(resolved, root):
+        raise ProtocolV3ArtifactStoreError(
+            "artifact index path is outside its canonical root"
+        )
+    return resolved
 
 def _require_exact_path(path: Path, expected: Path, root: Path) -> None:
     if path.is_symlink():

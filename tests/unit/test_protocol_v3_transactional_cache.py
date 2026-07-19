@@ -14,6 +14,7 @@ import sys
 import pytest
 
 import ethusdc_bot.protocol_v3.reporting as reporting_module
+import ethusdc_bot.protocol_v3.transactional_cache_store as store_module
 
 _SUPPORT_PATH = Path(__file__).with_name("protocol_v3_task13_support.py")
 _SPEC = importlib.util.spec_from_file_location("protocol_v3_task13_support", _SUPPORT_PATH)
@@ -231,3 +232,120 @@ def test_truncated_head_duplicate_json_and_symlink_fail_closed(state) -> None:
         tx.lookup_cache_record(
             state["identity"], state["repo"], trial_ledger_root=state["ledger_root"]
         )
+
+
+def test_recovery_never_deletes_a_new_lock_after_stale_receipt_race(
+    state,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    active = tx.acquire_transaction_lock(
+        state["identity"].transaction_id,
+        state["repo"],
+        owner_id="new_owner",
+    )
+    active_payload = active.to_dict()
+    stale_basis = {
+        **active_payload,
+        "owner_id": "stale_owner",
+        "process_id": 999_999_999,
+    }
+    stale_basis.pop("lock_sha256")
+    stale_canonical = json.dumps(
+        stale_basis,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    )
+    stale_sha = hashlib.sha256(stale_canonical.encode("utf-8")).hexdigest()
+    stale_payload = {**stale_basis, "lock_sha256": stale_sha}
+    stale_canonical = json.dumps(
+        stale_payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    )
+    stale_lock = type(active)(active.path, stale_canonical, stale_sha)
+    recovery_root = state["repo"] / tx.LOCK_RECOVERY_ROOT
+    recovery_root.mkdir(parents=True, exist_ok=True)
+    receipt = recovery_root / f"{stale_sha}.json"
+    receipt.write_bytes((stale_canonical + "\n").encode("utf-8"))
+
+    monkeypatch.setattr(
+        store_module,
+        "inspect_transaction_lock",
+        lambda *args, **kwargs: stale_lock,
+    )
+    monkeypatch.setattr(store_module, "_process_alive", lambda process_id: False)
+    with pytest.raises(tx.ProtocolV3TransactionError, match="changed|different"):
+        store_module.recover_stale_transaction_lock(
+            state["identity"].transaction_id,
+            state["repo"],
+        )
+    assert active.path.exists()
+    assert tx.inspect_transaction_lock(
+        state["identity"].transaction_id,
+        state["repo"],
+    ) == active
+    tx.release_transaction_lock(active, state["repo"])
+
+
+def test_checkpoint_temp_symlink_is_rejected_before_reading_target(state) -> None:
+    lock = tx.acquire_transaction_lock(
+        state["identity"].transaction_id,
+        state["repo"],
+        owner_id="temp_symlink_owner",
+    )
+    outside = state["repo"] / "outside_checkpoint_temp.json"
+    outside.write_text("not-json", encoding="utf-8")
+    captured: dict[str, Path] = {}
+    original_publish = store_module._publish_checkpoint
+
+    def capture(path, raw, owner_id, fault):
+        del raw, owner_id, fault
+        captured["path"] = path
+        raise RuntimeError("capture_checkpoint_path")
+
+    store_module._publish_checkpoint = capture
+    try:
+        with pytest.raises(RuntimeError, match="capture_checkpoint_path"):
+            tx.commit_checkpoint(
+                identity=state["identity"],
+                pre_run_manifest=state["manifest"],
+                seed_state=state["seed"],
+                budget_usage=state["budget"],
+                stop_state=state["stop"],
+                result_status="COMPLETED",
+                result_payload={"decision": "NO_TRADE"},
+                repository_root=state["repo"],
+                trial_ledger_root=state["ledger_root"],
+                lock=lock,
+            )
+    finally:
+        store_module._publish_checkpoint = original_publish
+    final_path = captured["path"]
+    temp = final_path.parent / f".{final_path.name}.temp_symlink_owner.tmp"
+    try:
+        temp.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        tx.release_transaction_lock(lock, state["repo"])
+        pytest.skip("symlink creation is unavailable")
+    try:
+        with pytest.raises(tx.ProtocolV3TransactionError, match="symlink"):
+            tx.commit_checkpoint(
+                identity=state["identity"],
+                pre_run_manifest=state["manifest"],
+                seed_state=state["seed"],
+                budget_usage=state["budget"],
+                stop_state=state["stop"],
+                result_status="COMPLETED",
+                result_payload={"decision": "NO_TRADE"},
+                repository_root=state["repo"],
+                trial_ledger_root=state["ledger_root"],
+                lock=lock,
+            )
+    finally:
+        if temp.is_symlink():
+            temp.unlink()
+        tx.release_transaction_lock(lock, state["repo"])

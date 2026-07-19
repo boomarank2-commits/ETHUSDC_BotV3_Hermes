@@ -311,3 +311,26 @@ def test_transaction_identity_requires_bound_semantic_fold_plan(transaction_stat
             ),
             repository_root=state["repo"],
         )
+
+
+def test_purge_never_retains_training_events_before_fold_fit_start() -> None:
+    plan = _plan()
+    fold = plan.folds[0]
+    warmup_label = InformationInterval(
+        "warmup_label",
+        fold.fit_start_ms - 60_000,
+        fold.fit_start_ms - 1,
+    )
+    first_fit_event = InformationInterval(
+        "first_fit_event",
+        fold.fit_start_ms,
+        fold.fit_start_ms,
+    )
+    result = folds.purge_fold_training_events(
+        plan,
+        1,
+        [warmup_label, first_fit_event],
+        repo_root=REPO_ROOT,
+    )
+    assert [row.event_id for row in result.kept] == ["first_fit_event"]
+    assert [row.event_id for row in result.purged] == ["warmup_label"]
