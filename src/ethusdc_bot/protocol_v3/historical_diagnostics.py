@@ -1,5 +1,4 @@
 """Task-27 hindsight capture diagnostics and deterministic stationary bootstrap."""
-
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -11,19 +10,23 @@ from pathlib import Path
 import random
 from typing import Any, Final
 
+from .boundaries import MonthlyProcessBoundaryPlan
+from .hindsight_binding import (
+    BoundHindsightBenchmarks,
+    validate_bound_hindsight_benchmarks,
+)
 from .monthly_quality_gate import (
     MonthlyQualityGateReport,
     validate_monthly_quality_gate_report,
 )
 from .outer_mtm_ledger import OuterMtmLedger, validate_outer_mtm_ledger
 from .outer_origins import OuterOriginProcess, validate_outer_origin_process
-from .boundaries import MonthlyProcessBoundaryPlan
 
 PROTOCOL_VERSION: Final = "3.0.0"
 CONTRACT_PATH: Final = Path("configs/protocol_v3_historical_diagnostics_contract.json")
-CONTRACT_SCHEMA_VERSION: Final = "protocol_v3_historical_diagnostics_contract_v1"
-CONTRACT_VERSION: Final = "protocol_v3_hindsight_capture_and_stationary_bootstrap_v1"
-REPORT_SCHEMA_VERSION: Final = "protocol_v3_historical_diagnostics_v1"
+CONTRACT_SCHEMA_VERSION: Final = "protocol_v3_historical_diagnostics_contract_v2"
+CONTRACT_VERSION: Final = "protocol_v3_bound_hindsight_capture_and_stationary_bootstrap_v2"
+REPORT_SCHEMA_VERSION: Final = "protocol_v3_historical_diagnostics_v2"
 REPLICATIONS: Final = 10_000
 BLOCK_LENGTHS: Final = (5, 10, 20)
 TARGET: Final = Decimal("3")
@@ -50,9 +53,13 @@ _BOOTSTRAP = {
     "target_usdc_per_day": 3,
 }
 _BENCHMARK = {
+    "all_candle_solver": "all_candle_one_trade_close_hindsight",
+    "candidate_matched_solver": "candidate_matched_volume_filtered_hindsight",
+    "caller_supplied_benchmark_numbers_forbidden": True,
     "all_candle_one_trade_is_optimistic_diagnostic": True,
     "candidate_matched_requires_positive_volume": True,
     "candidate_matched_requires_same_trade_limit_holding_long_only_one_lot_handoff_rounding_costs": True,
+    "full_process_raw_snapshot_solver_code_pipeline_bundle_origin_rotation_execution_and_outputs_hash_bound": True,
     "benchmark_results_never_feed_selection_or_monthly_gate": True,
     "manual_review_all_candle_ratio_min": 0.8,
     "manual_review_all_candle_ratio_max": 0.87,
@@ -87,7 +94,7 @@ _MATCHED_CONSTRAINTS = (
 
 
 class HistoricalDiagnosticsError(ValueError):
-    pass
+    """Raised when Task-27 diagnostics are incomplete or contradictory."""
 
 
 @dataclass(frozen=True)
@@ -95,7 +102,7 @@ class HistoricalDiagnostics:
     canonical_json: str
     report_sha256: str
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         value = json.loads(self.canonical_json)
         value["report_sha256"] = self.report_sha256
         return value
@@ -122,35 +129,52 @@ def build_historical_diagnostics(
     outer_process: OuterOriginProcess,
     baseline_ledger: OuterMtmLedger,
     monthly_quality_report: MonthlyQualityGateReport,
-    data_identity_sha256: str,
-    code_commit: str,
-    pipeline_generation_id: str,
-    benchmark_evidence: Mapping[str, Any],
+    bound_hindsight_benchmarks: BoundHindsightBenchmarks,
 ) -> HistoricalDiagnostics:
-    process = validate_outer_origin_process(outer_process, boundary_plan=boundary_plan)
+    """Build diagnostics only from a verified solver pair, never numeric claims."""
+
+    process = validate_outer_origin_process(
+        outer_process, boundary_plan=boundary_plan
+    )
     ledger = validate_outer_mtm_ledger(
-        baseline_ledger, boundary_plan=boundary_plan, outer_process=process
+        baseline_ledger,
+        boundary_plan=boundary_plan,
+        outer_process=process,
     ).to_dict()
     gate = validate_monthly_quality_gate_report(monthly_quality_report).to_dict()
+    bound_object = validate_bound_hindsight_benchmarks(
+        bound_hindsight_benchmarks
+    )
+    bound = bound_object.to_dict()
+    binding_manifest = bound["binding_manifest"]
     if (
         gate["outer_process_sha256"] != process.process_sha256
         or gate["baseline_ledger_sha256"] != ledger["ledger_sha256"]
+        or binding_manifest["outer_process_sha256"] != process.process_sha256
+        or binding_manifest["outer_ledger_sha256"] != ledger["ledger_sha256"]
     ):
         raise HistoricalDiagnosticsError(
-            "monthly gate and historical ledger identities differ"
+            "monthly gate, hindsight binding, and historical process identities differ"
         )
     values = [_dec(row["net_mtm_usdc"]) for row in ledger["daily_mtm"]]
     if len(values) != 365:
-        raise HistoricalDiagnosticsError("bootstrap requires exactly 365 daily values")
+        raise HistoricalDiagnosticsError(
+            "bootstrap requires exactly 365 daily values"
+        )
     pnl_digest = _digest([_text(value) for value in values])
     manifest = {
-        "schema_version": "protocol_v3_pre_bootstrap_input_manifest_v1",
+        "schema_version": "protocol_v3_pre_bootstrap_input_manifest_v2",
         "daily_pnl_sha256": pnl_digest,
-        "data_identity_sha256": _sha(data_identity_sha256),
-        "code_commit": _sha(code_commit),
-        "pipeline_generation_id": _nonempty(
-            pipeline_generation_id, "pipeline_generation_id"
-        ),
+        "data_snapshot_sha256": binding_manifest["data_snapshot_sha256"],
+        "ethusdc_process_data_sha256": binding_manifest[
+            "ethusdc_process_data_sha256"
+        ],
+        "code_commit": binding_manifest["code_commit"],
+        "pipeline_generation_id": binding_manifest["pipeline_generation_id"],
+        "solver_source_binding_sha256": binding_manifest[
+            "solver_source_binding_sha256"
+        ],
+        "hindsight_binding_sha256": bound["binding_sha256"],
         "outer_process_sha256": process.process_sha256,
         "outer_ledger_sha256": ledger["ledger_sha256"],
         "monthly_gate_report_sha256": gate["report_sha256"],
@@ -160,10 +184,11 @@ def build_historical_diagnostics(
     manifest_sha = _digest(manifest)
     seed = int(manifest_sha[:16], 16)
     bounds = _stationary_bootstrap(values, seed)
-    strict = all(_dec(row["lower_bound_usdc_per_day"]) >= TARGET for row in bounds)
-    benchmarks = _benchmarks(
-        benchmark_evidence, _dec(ledger["totals"]["net_mtm_usdc"]) / Decimal(365)
+    strict = all(
+        _dec(row["lower_bound_usdc_per_day"]) >= TARGET for row in bounds
     )
+    process_daily = _dec(ledger["totals"]["net_mtm_usdc"]) / Decimal(365)
+    benchmarks = _benchmarks(bound_object, process_daily)
     review = (
         benchmarks["all_candle_ratio_interpretable"]
         and benchmarks["all_candle_one_trade_capture_ratio_diagnostic"] is not None
@@ -182,6 +207,8 @@ def build_historical_diagnostics(
         "outer_process_sha256": process.process_sha256,
         "outer_ledger_sha256": ledger["ledger_sha256"],
         "monthly_gate_report_sha256": gate["report_sha256"],
+        "bound_hindsight_benchmarks": bound,
+        "bound_hindsight_benchmarks_sha256": bound["binding_sha256"],
         "pre_bootstrap_input_manifest": manifest,
         "pre_bootstrap_input_manifest_sha256": manifest_sha,
         "seed_uint64": seed,
@@ -210,10 +237,7 @@ def validate_historical_diagnostics(
     outer_process: OuterOriginProcess | None = None,
     baseline_ledger: OuterMtmLedger | None = None,
     monthly_quality_report: MonthlyQualityGateReport | None = None,
-    data_identity_sha256: str | None = None,
-    code_commit: str | None = None,
-    pipeline_generation_id: str | None = None,
-    benchmark_evidence: Mapping[str, Any] | None = None,
+    bound_hindsight_benchmarks: BoundHindsightBenchmarks | None = None,
 ) -> HistoricalDiagnostics:
     root = (
         value.to_dict()
@@ -226,10 +250,7 @@ def validate_historical_diagnostics(
             outer_process,
             baseline_ledger,
             monthly_quality_report,
-            data_identity_sha256,
-            code_commit,
-            pipeline_generation_id,
-            benchmark_evidence,
+            bound_hindsight_benchmarks,
         )
         if any(item is None for item in dependencies):
             raise HistoricalDiagnosticsError(
@@ -240,10 +261,7 @@ def validate_historical_diagnostics(
             outer_process=outer_process,
             baseline_ledger=baseline_ledger,
             monthly_quality_report=monthly_quality_report,
-            data_identity_sha256=data_identity_sha256,
-            code_commit=code_commit,
-            pipeline_generation_id=pipeline_generation_id,
-            benchmark_evidence=benchmark_evidence,
+            bound_hindsight_benchmarks=bound_hindsight_benchmarks,
         ).to_dict()
         if root != expected:
             raise HistoricalDiagnosticsError(
@@ -256,6 +274,8 @@ def validate_historical_diagnostics(
         "outer_process_sha256",
         "outer_ledger_sha256",
         "monthly_gate_report_sha256",
+        "bound_hindsight_benchmarks",
+        "bound_hindsight_benchmarks_sha256",
         "pre_bootstrap_input_manifest",
         "pre_bootstrap_input_manifest_sha256",
         "seed_uint64",
@@ -282,26 +302,58 @@ def validate_historical_diagnostics(
         raise HistoricalDiagnosticsError(
             "historical diagnostics fields or versions are invalid"
         )
+    bound_object = (
+        _embedded_bound_hindsight(root["bound_hindsight_benchmarks"])
+        if isinstance(value, HistoricalDiagnostics)
+        else validate_bound_hindsight_benchmarks(bound_hindsight_benchmarks)
+    )
+    bound = bound_object.to_dict()
+    if (
+        root["bound_hindsight_benchmarks"] != bound
+        or root["bound_hindsight_benchmarks_sha256"] != bound["binding_sha256"]
+        or root["outer_process_sha256"]
+        != bound["binding_manifest"]["outer_process_sha256"]
+        or root["outer_ledger_sha256"]
+        != bound["binding_manifest"]["outer_ledger_sha256"]
+    ):
+        raise HistoricalDiagnosticsError(
+            "historical report does not bind the verified solver pair"
+        )
     manifest = root["pre_bootstrap_input_manifest"]
-    if root["pre_bootstrap_input_manifest_sha256"] != _digest(manifest) or root[
-        "seed_uint64"
-    ] != int(root["pre_bootstrap_input_manifest_sha256"][:16], 16):
-        raise HistoricalDiagnosticsError("bootstrap manifest or seed identity mismatch")
+    if (
+        root["pre_bootstrap_input_manifest_sha256"] != _digest(manifest)
+        or root["seed_uint64"]
+        != int(root["pre_bootstrap_input_manifest_sha256"][:16], 16)
+        or manifest.get("hindsight_binding_sha256") != bound["binding_sha256"]
+    ):
+        raise HistoricalDiagnosticsError(
+            "bootstrap manifest, solver binding, or seed identity mismatch"
+        )
     results = root["bootstrap_results"]
     if (
         not isinstance(results, list)
-        or [row.get("expected_block_length") for row in results] != list(BLOCK_LENGTHS)
+        or [row.get("expected_block_length") for row in results]
+        != list(BLOCK_LENGTHS)
         or any(
             row.get("replications") != REPLICATIONS
             or row.get("order_statistic_one_based") != 500
             for row in results
         )
     ):
-        raise HistoricalDiagnosticsError("bootstrap result structure is invalid")
-    strict = all(_dec(row["lower_bound_usdc_per_day"]) >= TARGET for row in results)
+        raise HistoricalDiagnosticsError(
+            "bootstrap result structure is invalid"
+        )
+    strict = all(
+        _dec(row["lower_bound_usdc_per_day"]) >= TARGET for row in results
+    )
     if root["historical_bootstrap_lower_bound"] is not strict:
         raise HistoricalDiagnosticsError(
             "historical bootstrap flag contradicts lower bounds"
+        )
+    process_daily = _dec(root["benchmarks"]["process_oos_net_usdc_per_day"])
+    if root["benchmarks"] != _benchmarks(bound_object, process_daily):
+        raise HistoricalDiagnosticsError(
+            "capture ratios differ from bound solver outputs"
         )
     if (
         root["freshness"] != "NOT_FRESH"
@@ -319,18 +371,38 @@ def validate_historical_diagnostics(
         root["manual_leakage_overfit_review_required"]
         is not root["leakage_overfit_lock"]
     ):
-        raise HistoricalDiagnosticsError("manual review and leakage lock mismatch")
+        raise HistoricalDiagnosticsError(
+            "manual review and leakage lock mismatch"
+        )
     observed = _sha(root["report_sha256"])
     basis = dict(root)
     basis.pop("report_sha256")
     if observed != _digest(basis):
-        raise HistoricalDiagnosticsError("historical diagnostics digest mismatch")
+        raise HistoricalDiagnosticsError(
+            "historical diagnostics digest mismatch"
+        )
     return HistoricalDiagnostics(_canonical(basis), observed)
 
 
-def _stationary_bootstrap(values: Sequence[Decimal], seed: int) -> list[dict[str, Any]]:
+def _embedded_bound_hindsight(value: Mapping[str, Any]) -> BoundHindsightBenchmarks:
+    root = dict(_map(value, "bound_hindsight_benchmarks"))
+    observed = root.pop("binding_sha256", None)
+    if not isinstance(observed, str):
+        raise HistoricalDiagnosticsError(
+            "embedded hindsight binding digest is missing"
+        )
+    return validate_bound_hindsight_benchmarks(
+        BoundHindsightBenchmarks(_canonical(root), observed)
+    )
+
+
+def _stationary_bootstrap(
+    values: Sequence[Decimal], seed: int
+) -> list[dict[str, Any]]:
     if len(values) != 365:
-        raise HistoricalDiagnosticsError("stationary bootstrap requires 365 values")
+        raise HistoricalDiagnosticsError(
+            "stationary bootstrap requires 365 values"
+        )
     rng = random.Random(seed)
     output = []
     n = len(values)
@@ -352,7 +424,9 @@ def _stationary_bootstrap(values: Sequence[Decimal], seed: int) -> list[dict[str
         output.append(
             {
                 "expected_block_length": length,
-                "restart_probability": _text(Decimal(1) / Decimal(length)),
+                "restart_probability": _text(
+                    Decimal(1) / Decimal(length)
+                ),
                 "replications": REPLICATIONS,
                 "order_statistic_one_based": 500,
                 "lower_bound_usdc_per_day": _text(lower),
@@ -361,97 +435,92 @@ def _stationary_bootstrap(values: Sequence[Decimal], seed: int) -> list[dict[str
     return output
 
 
-def _benchmarks(value: Mapping[str, Any], process_daily: Decimal) -> dict[str, Any]:
-    root = dict(_map(value, "benchmark_evidence"))
-    required = {
-        "all_candle_one_trade_close_hindsight_usdc_per_day",
-        "candidate_matched_volume_filtered_hindsight_usdc_per_day",
-        "candidate_max_roundtrips_per_day",
-        "candidate_matched_constraints",
-        "evidence_sha256",
-    }
-    if set(root) != required:
-        raise HistoricalDiagnosticsError("benchmark evidence fields are invalid")
-    observed = root.pop("evidence_sha256")
-    if observed != _digest(root):
-        raise HistoricalDiagnosticsError("benchmark evidence digest mismatch")
-    constraints = dict(
-        _map(root["candidate_matched_constraints"], "candidate_matched_constraints")
-    )
-    if set(constraints) != set(_MATCHED_CONSTRAINTS) or any(
-        constraints[name] is not True for name in _MATCHED_CONSTRAINTS
-    ):
-        raise HistoricalDiagnosticsError(
-            "candidate-matched hindsight constraints are incomplete"
-        )
-    all_value = _dec(root["all_candle_one_trade_close_hindsight_usdc_per_day"])
-    matched = _dec(root["candidate_matched_volume_filtered_hindsight_usdc_per_day"])
-    if all_value <= 0 or matched <= 0:
-        all_ratio = matched_ratio = None
-    else:
-        all_ratio = process_daily / all_value
-        matched_ratio = process_daily / matched
-    max_roundtrips = root["candidate_max_roundtrips_per_day"]
-    if type(max_roundtrips) is not int or max_roundtrips < 0:
-        raise HistoricalDiagnosticsError("candidate_max_roundtrips_per_day is invalid")
+def _benchmarks(
+    bound: BoundHindsightBenchmarks | Mapping[str, Any],
+    process_daily: Decimal,
+) -> dict[str, Any]:
+    payload = validate_bound_hindsight_benchmarks(bound).to_dict()
+    all_solver = payload["all_candle_solver_evidence"]
+    candidate_solver = payload["candidate_matched_solver_evidence"]
+    all_value = _dec(all_solver["output"]["usdc_per_calendar_day"])
+    matched = _dec(candidate_solver["output"]["usdc_per_calendar_day"])
+    all_ratio = process_daily / all_value if all_value > 0 else None
+    matched_ratio = process_daily / matched if matched > 0 else None
+    constraints = {name: True for name in _MATCHED_CONSTRAINTS}
     return {
-        **root,
-        "evidence_sha256": observed,
+        "all_candle_one_trade_close_hindsight_usdc_per_day": _text(all_value),
+        "candidate_matched_volume_filtered_hindsight_usdc_per_day": _text(
+            matched
+        ),
+        "candidate_max_roundtrips_per_day": payload[
+            "candidate_max_roundtrips_per_utc_day"
+        ],
+        "candidate_matched_constraints": constraints,
+        "bound_hindsight_benchmarks_sha256": payload["binding_sha256"],
+        "all_candle_solver_evidence_sha256": all_solver["evidence_sha256"],
+        "candidate_matched_solver_evidence_sha256": candidate_solver[
+            "evidence_sha256"
+        ],
         "process_oos_net_usdc_per_day": _text(process_daily),
-        "all_candle_one_trade_capture_ratio_diagnostic": _text(all_ratio)
-        if all_ratio is not None
-        else None,
-        "all_candle_ratio_interpretable": max_roundtrips <= 1,
-        "candidate_matched_tradeable_capture_ratio": _text(matched_ratio)
-        if matched_ratio is not None
-        else None,
+        "all_candle_one_trade_capture_ratio_diagnostic": (
+            _text(all_ratio) if all_ratio is not None else None
+        ),
+        "all_candle_ratio_interpretable": payload[
+            "candidate_max_roundtrips_per_utc_day"
+        ]
+        <= 1,
+        "candidate_matched_tradeable_capture_ratio": (
+            _text(matched_ratio) if matched_ratio is not None else None
+        ),
     }
 
 
-def _map(v, label):
-    if not isinstance(v, Mapping):
+def _map(value: Any, label: str) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
         raise HistoricalDiagnosticsError(f"{label} must be an object")
-    return v
+    return value
 
 
-def _dec(v):
-    if isinstance(v, bool):
-        raise HistoricalDiagnosticsError("numeric value cannot be boolean")
+def _dec(value: Any) -> Decimal:
+    if isinstance(value, bool):
+        raise HistoricalDiagnosticsError(
+            "numeric value cannot be boolean"
+        )
     try:
-        x = Decimal(str(v))
+        result = Decimal(str(value))
     except (InvalidOperation, ValueError) as exc:
         raise HistoricalDiagnosticsError("numeric value is invalid") from exc
-    if not x.is_finite():
+    if not result.is_finite():
         raise HistoricalDiagnosticsError("numeric value must be finite")
-    return x
+    return result
 
 
-def _text(v):
-    return "0" if v == 0 else format(v.normalize(), "f")
+def _text(value: Decimal) -> str:
+    return "0" if value == 0 else format(value.normalize(), "f")
 
 
-def _nonempty(v, label):
-    if not isinstance(v, str) or not v.strip():
-        raise HistoricalDiagnosticsError(f"{label} must be non-empty")
-    return v
-
-
-def _sha(v):
+def _sha(value: Any) -> str:
     if (
-        not isinstance(v, str)
-        or len(v) != 64
-        or any(c not in "0123456789abcdef" for c in v)
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(char not in "0123456789abcdef" for char in value)
     ):
         raise HistoricalDiagnosticsError("identity must be sha256")
-    return v
+    return value
 
 
-def _canonical(v):
-    return json.dumps(v, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+def _canonical(value: Any) -> str:
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    )
 
 
-def _digest(v):
-    return hashlib.sha256(_canonical(v).encode()).hexdigest()
+def _digest(value: Any) -> str:
+    return hashlib.sha256(_canonical(value).encode()).hexdigest()
 
 
 __all__ = [
