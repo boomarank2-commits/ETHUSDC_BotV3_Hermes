@@ -2,7 +2,7 @@
 
 Stand: 2026-07-19
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 25/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 26/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -368,9 +368,18 @@ Daily MTM inklusive Nulltage; Deployment-Intervalle und UTC-Kalenderperioden wer
 
 ### Aufgabe 26 – Monthly Quality Gate, Stress und Pflichtmetriken
 
-**Status:** `NOT_STARTED`
+**Status:** `DONE_100`
 
 Alle inneren, Outer-, Kalender-, Konzentrations-, Stress-, Nachbarschafts-, Regime-, DSR-, PBO- und Integritätsgates werden vorab eingefroren und fail-closed ausgewertet.
+
+- `monthly_quality_gate_v1` ist als reiner, content-gehashter Evaluator umgesetzt. Die bereits eingefrorenen inneren Quality-/Nachbarschafts-/DSR-/PBO-/Cash-Belege werden ausschließlich aus den semantisch validierten Task-23-Auswahlentscheidungen übernommen; `NO_TRADE` besteht nur die Origin-Integrität und niemals ein Trading-Gate.
+- Outer-, Deployment-, UTC-Monats-/Quartals-, Drawdown-/Underwater-, Trade-, Konzentrations-, Friction- und No-Trade-Gap-Metriken werden aus dem erneut validierten Task-25-Baseline-Ledger abgeleitet. Gemeldete Metrikclaims werden nicht blind übernommen.
+- Joint- und Slippage-Stress konsumieren getrennte, erneut validierte Task-25-Ledger. Exakte 10/5-, 15/10- und 10/15-bps-Szenarien sowie derselbe Simulator werden durch eine content-gehashte Stress-Identity belegt.
+- Regime- und sämtliche Integritätsbelege benötigen eigene Inhaltsdigests. Fehlende, falsche oder nackte Bool-Claims blockieren fail-closed.
+- `GREEN` verlangt Robustheit und historisch mindestens 3 USDC/Kalendertag; `YELLOW` bedeutet ausschließlich `robustness_passed_ex_target`; sonst gilt `RED`. Jeder historische Status bleibt `diagnostic_only`, `NOT_FRESH`, nicht statistisch unterstützt und nicht adoption-/finalfähig.
+- Hindsight, Capture-Ratios und Stationary Bootstrap bleiben strikt Aufgabe 27.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_26_2026-07-19.md`
 
 ### Aufgabe 27 – Hindsight-Benchmarks, Capture-Ratios und Bootstrap
 

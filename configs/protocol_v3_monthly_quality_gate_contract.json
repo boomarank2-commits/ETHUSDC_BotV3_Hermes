@@ -1,0 +1,15 @@
+{
+  "schema_version": "protocol_v3_monthly_quality_gate_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "monthly_quality_gate_v1",
+  "outer_thresholds": {"min_trades": 120, "min_profit_factor": 1.25, "min_average_trade_usdc_exclusive": 0, "max_drawdown_usdc": 15, "max_underwater_days": 60, "min_total_net_usdc_exclusive": 0},
+  "deployment_thresholds": {"required_intervals": 12, "min_positive": 9, "min_active": 10, "min_worst_net_usdc": -5, "max_top_interval_positive_pnl_share": 0.25},
+  "calendar_thresholds": {"min_positive_month_fraction": 0.75, "min_active_month_fraction": 0.8333333333333334, "min_worst_month_net_usdc": -5, "max_no_trade_gap_days": 30, "min_quarters": 4, "all_quarters_positive": true, "min_exit_trades_per_quarter": 20},
+  "concentration_thresholds": {"max_top1_positive_pnl_share": 0.1, "max_top5_positive_pnl_share": 0.35, "net_without_top5_positive": true, "min_profit_factor_without_top5": 1.05},
+  "stress_thresholds": {"baseline_fee_bps_per_side": 10, "baseline_slippage_bps_per_side": 5, "joint_fee_bps_per_side": 15, "joint_slippage_bps_per_side": 10, "slippage_fee_bps_per_side": 10, "slippage_slippage_bps_per_side": 15, "joint_min_net_usdc_exclusive": 0, "joint_min_profit_factor": 1.1, "joint_min_net_retention": 0.5, "joint_max_drawdown_usdc": 20, "slippage_min_net_usdc_exclusive": 0, "slippage_min_profit_factor": 1.05, "max_baseline_friction_share": 0.4},
+  "integrity_policy": {"every_integrity_claim_requires_evidence_sha256": true, "regime_evidence_requires_content_digest": true, "stress_identity_requires_content_digest": true},
+  "development_thresholds": {"minimum_dsr": 0.95, "maximum_pbo": 0.1, "no_trade_is_not_a_trading_gate_pass": true},
+  "target_policy": {"target_net_usdc_per_calendar_day": 3, "green_requires_robustness_and_target": true, "yellow_means_robustness_passed_ex_target": true, "historical_result_is_diagnostic_only": true},
+  "deferred_scope": {"hindsight_capture_bootstrap_task": 27, "fresh_final_evaluator_task": 31},
+  "safety": {"api_keys": "forbidden", "live": "locked", "orders": "locked", "paper": "locked", "testtrade": "locked", "trading_api": "forbidden"}
+}

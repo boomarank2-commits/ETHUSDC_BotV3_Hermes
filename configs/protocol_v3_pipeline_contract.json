@@ -88,6 +88,7 @@
       "configs/protocol_v3_historical_trial_lower_bound.json",
       "configs/protocol_v3_report_contract.json",
       "configs/protocol_v3_transaction_contract.json",
+      "configs/protocol_v3_monthly_quality_gate_contract.json",
       "docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md",
       "docs/42_PROTOCOL_V3_EXECUTABLE_CONTRACT.md",
       "src/ethusdc_bot/backtest/quality_gates.py",
@@ -99,6 +100,8 @@
       "src/ethusdc_bot/protocol_v3/transactional_cache_api.py",
       "src/ethusdc_bot/protocol_v3/transactional_cache_model.py",
       "src/ethusdc_bot/protocol_v3/transactional_cache_store.py",
+      "src/ethusdc_bot/protocol_v3/monthly_quality_gate.py",
+      "src/ethusdc_bot/protocol_v3/monthly_quality_gate_api.py",
       "src/ethusdc_bot/protocol_v3/trial_history_gate.py",
       "src/ethusdc_bot/protocol_v3/trial_ledger.py",
       "src/ethusdc_bot/shadow/adoption.py"
