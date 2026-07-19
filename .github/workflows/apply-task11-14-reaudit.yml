@@ -23,17 +23,18 @@ jobs:
           ref: codex/research-resume-and-ui-state-v1
           fetch-depth: 0
 
-      - name: Apply verified audit patch when complete
+      - name: Execute verified audit patch
+        id: execute
         shell: bash
         run: |
+          set +e
+          bash -x <<'SCRIPT' > /tmp/task11-14-execution.log 2>&1
           set -euo pipefail
-          if [[ ! -f tools/task11_14_reaudit.part06 ]]; then
-            echo "Patch parts are not complete yet."
-            exit 0
-          fi
+          test -f tools/task11_14_reaudit.part06
           cat tools/task11_14_reaudit.part{01..06} > /tmp/task11_14_reaudit.patch
-          git apply --check /tmp/task11_14_reaudit.patch
-          git apply /tmp/task11_14_reaudit.patch
+          sha256sum /tmp/task11_14_reaudit.patch
+          git apply --check --verbose /tmp/task11_14_reaudit.patch
+          git apply --verbose /tmp/task11_14_reaudit.patch
           rm -f tools/task11_14_reaudit.part{01..06}
           rm -f .github/workflows/apply-task11-14-reaudit.yml
           python -m pip install --upgrade pip
@@ -46,3 +47,22 @@ jobs:
           git add -A
           git commit -m "Correct Protocol v3 Tasks 11-14 after re-audit"
           git push origin HEAD:codex/research-resume-and-ui-state-v1
+          SCRIPT
+          status=$?
+          cat /tmp/task11-14-execution.log
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload execution diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: task11-14-reaudit-execution-${{ github.sha }}
+          path: /tmp/task11-14-execution.log
+          if-no-files-found: error
+          retention-days: 2
+
+      - name: Fail when patch execution failed
+        if: always()
+        shell: bash
+        run: test "${{ steps.execute.outputs.status }}" -eq 0
