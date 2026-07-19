@@ -125,18 +125,24 @@ def _bound(plan, process, baseline):
                 "validity": bundle["validity"],
             }
         )
+        rotation = origin_ledger["rotation_state"]
         rotation_chain.append(
             {
                 "origin_index": boundary.origin_index,
                 "rotation_state_sha256": origin_ledger["rotation_state_sha256"],
-                "new_candidate_bundle_sha256": origin_ledger["rotation_state"][
+                "new_candidate_bundle_sha256": rotation[
                     "new_candidate_bundle_sha256"
                 ],
-                "open_position": origin_ledger["rotation_state"]["open_position"],
-                "entry_enabled_at": origin_ledger["rotation_state"][
-                    "entry_enabled_at"
+                "open_position": rotation["open_position"],
+                "entry_enabled_at_utc": rotation["entry_enabled_at_utc"],
+                "flat_time_utc": rotation["flat_time_utc"],
+                "retiring_configuration_mode": rotation[
+                    "retiring_configuration_mode"
                 ],
-                "flat_time": origin_ledger["rotation_state"]["flat_time"],
+                "new_configuration_mode": rotation["new_configuration_mode"],
+                "monthly_boundary_liquidation": rotation[
+                    "monthly_boundary_liquidation"
+                ],
             }
         )
     all_solver = hindsight_solvers._solver_evidence(
