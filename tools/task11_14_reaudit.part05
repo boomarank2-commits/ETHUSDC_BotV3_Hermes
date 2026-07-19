@@ -1,0 +1,78 @@
+ Lockpfad;
++3. ein verspäteter Retry besitzt noch die alte Lockbeobachtung;
++4. der vorhandene Code findet das alte Receipt und löscht den nun neuen Lockpfad.
++
++### Korrektur 1
++
++Ein vorhandenes Recovery-Receipt erlaubt kein `unlink()` des aktiven Pfads mehr. Ist der aktive Pfad inzwischen wieder vorhanden, wird sein vollständiger Lock-Inhalt gelesen:
++
++- anderer Lock: Recovery blockiert als Race;
++- angeblich derselbe alte Lock noch aktiv: Recovery blockiert fail-closed;
++- kein aktiver Pfad: idempotenter Erfolg.
++
++### Gefundener Fehler 2: Checkpoint-Temp-Symlink
++
++Beim Checkpoint-Publish wurde ein vorhandener Temp-Pfad per `read_bytes()` geprüft, bevor feststand, dass er eine echte reguläre Datei und kein Symlink war. Ein verwaister Temp-Symlink konnte deshalb vor der Ablehnung gelesen und anschließend geheilt werden.
++
++### Korrektur 2
++
++Checkpoint-, Cache- und atomare Replace-Temp-Pfade werden jetzt vor jedem Lesen oder Löschen auf Symlink und regulären Dateityp geprüft. Unsichere Temp-Pfade blockieren.
++
++Neue Regressionstests reproduzieren sowohl das Recovery-Rennen als auch den Temp-Symlink-Angriff.
++
++## Aufgabe 14 – Untere Fit-Grenze beim Purging
++
++### Gefundener Fehler
++
++Der öffentliche Helfer `purge_fold_training_events(...)` entfernte Ereignisse ab `fit_end`, behielt aber Ereignisse mit einer Signalzeit vor `fit_start` im Fitbestand.
++
++Das widersprach der bereits anderweitig implementierten halboffenen Fit-Grenze `[fit_start, fit_end)` und der Regel, dass Warmup vor Trainingsbeginn feature-only bleibt. Die frühere Annahme, jeder Aufrufer müsse diese Ereignisse bereits vorfiltern, war für einen öffentlichen fail-closed Boundary-Helfer nicht ausreichend und nicht durch dessen Schnittstelle erzwungen.
++
++### Korrektur
++
++Ein Ereignis bleibt nur noch erhalten, wenn seine Signalzeit innerhalb
++
++`fit_start <= signal_time < fit_end`
++
++liegt und sein Informationsende die Validation-Grenze nicht berührt. Ereignisse vor `fit_start` werden als gepurgt dokumentiert. Die abschließende Postcondition prüft nun beide Fit-Grenzen.
++
++Ein Regressionstest beweist, dass ein Warmup-Label vor `fit_start` nicht als Trainingsevidenz erhalten bleibt, während das erste Ereignis exakt an `fit_start` zulässig bleibt.
++
++## Veränderte Dateien
++
++Produktionscode:
++
++- `src/ethusdc_bot/protocol_v3/reporting.py`;
++- `src/ethusdc_bot/protocol_v3/artifact_store.py`;
++- `src/ethusdc_bot/protocol_v3/transactional_cache_store.py`;
++- `src/ethusdc_bot/protocol_v3/inner_folds.py`.
++
++Regressionstests:
++
++- `tests/unit/test_protocol_v3_reporting.py`;
++- `tests/unit/test_protocol_v3_artifact_store_path_guard.py`;
++- `tests/unit/test_protocol_v3_transactional_cache.py`;
++- `tests/unit/test_protocol_v3_inner_folds.py`.
++
++## Lokale Validierung des kombinierten Stands
++
++```text
++gezielte Aufgaben-11-bis-14-Suite: 50 Tests erfolgreich
++vollständige Suite: 1.117 Tests erfolgreich
++python -m compileall -q src: erfolgreich
++```
++
++Die verbindliche GitHub-Review-CI ist nach Veröffentlichung dieses Korrekturstands erneut auszuführen. Erst ein grüner finaler Branch-Head bestätigt den Abschluss.
++
++## Nicht verändert
++
++- keine Strategie- oder Kandidatenparameter;
++- keine Ranking- oder Quality-Gate-Schwelle;
++- keine PnL- oder Performance-Aussage;
++- keine Daten-, Fold- oder Prozessfenster;
++- keine Candidate-Matrix, PBO, DSR, Feature-Store-, Router- oder Outer-Origin-Logik;
++- keine Paper-, Testtrade-, Live- oder Orderfunktion.
++
++## Nächster Pflichtschritt
++
++Vor Aufgabe 16 muss Aufgabe 15 am korrigierten aktuellen Code adversarial geprüft werden. Insbesondere ist zu kontrollieren, dass der versionierte Transaktionsvertrag v3 nicht von Importreihenfolge oder einem erst später ausgeführten Facade-Monkey-Patch abhängt.
