@@ -383,9 +383,13 @@ Alle inneren, Outer-, Kalender-, Konzentrations-, Stress-, Nachbarschafts-, Regi
 
 ### Aufgabe 27 – Hindsight-Benchmarks, Capture-Ratios und Bootstrap
 
-**Status:** `NOT_STARTED`
+**Status:** `IN_PROGRESS`
 
 Hindsight bleibt reine Diagnostik; Capture-Ratios, Overfit-Sperren und reproduzierbarer Stationary Bootstrap trennen historische Zielerreichung von frischer Unterstützung.
+
+Zwischenstand: Der deterministische 10.000er Circular-Stationary-Bootstrap, Manifest-/Seed-Bindung, beide Capture-Ratios, manuelle Leakage-/Overfit-Sperre und sämtliche historischen Nicht-Frische-/Nicht-Adoption-Locks sind implementiert. Vor `DONE_100` fehlt noch die direkte, semantisch validierte Bindung der beiden Benchmarkwerte an ihre tatsächlichen All-Candle- beziehungsweise kandidatengleichen Hindsight-Solver; ein bloßer Inhaltsdigest externer Zahlen genügt nicht.
+
+**Zwischenbericht:** `handoff/PROTOCOL_V3_TASK_27_IN_PROGRESS_2026-07-19.md`
 
 ### Aufgabe 28 – Aktuellen 730-Tage-Refit und Champion/Challenger/Cash-Entscheidung
 
