@@ -1,9 +1,9 @@
 {
-  "schema_version": "protocol_v3_historical_diagnostics_contract_v1",
+  "schema_version": "protocol_v3_historical_diagnostics_contract_v2",
   "protocol_version": "3.0.0",
-  "contract_version": "protocol_v3_hindsight_capture_and_stationary_bootstrap_v1",
+  "contract_version": "protocol_v3_bound_hindsight_capture_and_stationary_bootstrap_v2",
   "bootstrap_policy": {"days": 365, "replications": 10000, "expected_block_lengths": [5, 10, 20], "restart_probability": "1/L", "circular": true, "prng": "python_random_mt19937_v1", "seed": "uint64_first_16_hex_sha256_canonical_pre_bootstrap_manifest", "one_sided_lower_probability": 0.05, "order_statistic_one_based": 500, "interpolation": false, "strict_target_requires_all_three": true, "target_usdc_per_day": 3},
-  "benchmark_policy": {"all_candle_one_trade_is_optimistic_diagnostic": true, "candidate_matched_requires_positive_volume": true, "candidate_matched_requires_same_trade_limit_holding_long_only_one_lot_handoff_rounding_costs": true, "benchmark_results_never_feed_selection_or_monthly_gate": true, "manual_review_all_candle_ratio_min": 0.8, "manual_review_all_candle_ratio_max": 0.87, "manual_review_candidate_matched_ratio_min": 0.95},
+  "benchmark_policy": {"all_candle_solver": "all_candle_one_trade_close_hindsight", "candidate_matched_solver": "candidate_matched_volume_filtered_hindsight", "caller_supplied_benchmark_numbers_forbidden": true, "all_candle_one_trade_is_optimistic_diagnostic": true, "candidate_matched_requires_positive_volume": true, "candidate_matched_requires_same_trade_limit_holding_long_only_one_lot_handoff_rounding_costs": true, "full_process_raw_snapshot_solver_code_pipeline_bundle_origin_rotation_execution_and_outputs_hash_bound": true, "benchmark_results_never_feed_selection_or_monthly_gate": true, "manual_review_all_candle_ratio_min": 0.8, "manual_review_all_candle_ratio_max": 0.87, "manual_review_candidate_matched_ratio_min": 0.95},
   "historical_policy": {"freshness": "NOT_FRESH", "diagnostic_only": true, "statistically_supported": false, "sealed_bootstrap_target_supported": false, "canonical_adoption_eligible": false},
   "safety": {"api_keys": "forbidden", "live": "locked", "orders": "locked", "paper": "locked", "testtrade": "locked", "trading_api": "forbidden"}
 }
