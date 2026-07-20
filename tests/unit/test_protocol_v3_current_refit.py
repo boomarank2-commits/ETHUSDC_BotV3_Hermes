@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from ethusdc_bot.backtest.simulator import StrategyCandidate
 from ethusdc_bot.protocol_v3 import boundaries, current_refit, current_refit_api
 from ethusdc_bot.protocol_v3 import inner_folds, inner_selection, outer_origins
 from ethusdc_bot.protocol_v3 import pipeline, router_bundle
@@ -31,6 +32,14 @@ _SPEC23 = importlib.util.spec_from_file_location(
 assert _SPEC23 is not None and _SPEC23.loader is not None
 task23 = importlib.util.module_from_spec(_SPEC23)
 _SPEC23.loader.exec_module(task23)
+
+_TASK15_PATH = Path(__file__).with_name("test_protocol_v3_inner_selection.py")
+_SPEC15 = importlib.util.spec_from_file_location(
+    "protocol_v3_task28_task15_support", _TASK15_PATH
+)
+assert _SPEC15 is not None and _SPEC15.loader is not None
+task15 = importlib.util.module_from_spec(_SPEC15)
+_SPEC15.loader.exec_module(task15)
 
 
 def _current_request(
@@ -85,16 +94,22 @@ def _current_request(
         * 1000
     )
     store = SimpleNamespace(
-        to_dict=lambda value=context_ms: {"common_context_timestamp_ms": value}
+        to_dict=lambda value=context_ms: {
+            "common_context_timestamp_ms": value
+        }
     )
     assessment = SimpleNamespace(
         to_dict=lambda value=context_ms: {"context_timestamp_ms": value}
     )
     feature_state = SimpleNamespace(
-        to_dict=lambda value=fold_plan.identity_payload: {"fold_identity": value}
+        to_dict=lambda value=fold_plan.identity_payload: {
+            "fold_identity": value
+        }
     )
     regime_state = SimpleNamespace(
-        to_dict=lambda value=fold_plan.identity_payload: {"fold_identity": value}
+        to_dict=lambda value=fold_plan.identity_payload: {
+            "fold_identity": value
+        }
     )
     return outer_origins.OuterOriginRequest(
         config,
@@ -348,6 +363,74 @@ def test_rehashed_rotation_or_request_time_tampering_fails(state) -> None:
     )
     with pytest.raises(current_refit.CurrentRefitError, match=r"\[T,T\+24h\]"):
         current_refit.validate_current_refit_decision(forged_early)
+
+    missing_stress = deepcopy(report.to_dict())
+    missing_stress["prior_process_diagnostic_status"].pop(
+        "joint_stress_ledger_sha256"
+    )
+    missing_basis = dict(missing_stress)
+    missing_basis.pop("report_sha256")
+    forged_missing = current_refit.CurrentRefitDecision(
+        current_refit._canonical(missing_basis), current_refit._digest(missing_basis)
+    )
+    with pytest.raises(current_refit.CurrentRefitError, match="prior process"):
+        current_refit.validate_current_refit_decision(forged_missing)
+
+
+def test_pairwise_champion_challenger_and_missing_retest_are_deterministic(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    selection_state = task15.state.__wrapped__(tmp_path / "pairwise", monkeypatch)
+    champion = StrategyCandidate("pullback_in_trend", {"lookback": 10})
+    challenger = StrategyCandidate("pullback_in_trend", {"lookback": 20})
+    missing = StrategyCandidate("pullback_in_trend", {"lookback": 30})
+    rows = task15._candidate_rows(
+        selection_state,
+        [
+            (champion, [0.30] * 6, 0.25),
+            (challenger, [0.20] * 6, 0.15),
+        ],
+    )
+    decision = inner_selection.select_candidate(
+        selection_state["training_window"],
+        task15._synthetic_config(selection_state, rows),
+    )
+    selected = decision.to_dict()["selected_candidate"]
+    assert selected["canonical_candidate_id"] == rows[0].canonical_candidate_id
+    current_origin = {
+        "selection_decision": decision.to_dict(),
+        "frozen_candidate_bundle": {
+            "router_decision": {"outcome": "SPECIALIST"},
+            "research_simulation_routable": True,
+            "bundle_sha256": "b" * 64,
+        },
+    }
+
+    def predecessor(candidate: StrategyCandidate):
+        return {
+            "bundle_sha256": "a" * 64,
+            "specialist_bundle": {
+                "base_candidate": {
+                    "family": candidate.family,
+                    "params": dict(candidate.params),
+                }
+            },
+        }
+
+    champion_choice = current_refit._pairwise_decision(
+        predecessor(champion), current_origin
+    )
+    assert champion_choice["choice"] == current_refit.CHAMPION
+    assert champion_choice["winner_candidate_id"] == rows[0].canonical_candidate_id
+
+    challenger_choice = current_refit._pairwise_decision(
+        predecessor(challenger), current_origin
+    )
+    assert challenger_choice["choice"] == current_refit.CHALLENGER
+    assert challenger_choice["winner_candidate_id"] == rows[0].canonical_candidate_id
+
+    with pytest.raises(current_refit.CurrentRefitError, match="retest"):
+        current_refit._pairwise_decision(predecessor(missing), current_origin)
 
 
 def test_rehashed_choice_feedback_freshness_or_activation_tampering_fails(state) -> None:
