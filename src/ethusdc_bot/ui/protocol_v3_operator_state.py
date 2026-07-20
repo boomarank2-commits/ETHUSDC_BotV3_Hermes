@@ -208,6 +208,7 @@ def build_protocol_v3_operator_state(
     research_progress: ProtocolV3ResearchProgress | None = None,
     exchange_info_snapshot: FrozenExchangeInfoSnapshot | None = None,
     resume_worker_available: bool = False,
+    ui_runtime_blockers: Sequence[str] = (),
     worker_status: Mapping[str, Any] | None = None,
 ) -> ProtocolV3OperatorState:
     """Derive one fail-closed dashboard state from typed canonical inputs."""
@@ -216,6 +217,7 @@ def build_protocol_v3_operator_state(
     if not isinstance(data_status, ProtocolV3DataStatus):
         raise ProtocolV3OperatorStateError("typed Protocol-v3 data status is required")
     data = data_status.to_dict()
+    runtime_blockers = _strings(ui_runtime_blockers, "UI runtime blockers")
 
     generation_payload: dict[str, Any] | None = None
     if pipeline_generation is not None:
@@ -299,6 +301,7 @@ def build_protocol_v3_operator_state(
         exchange=exchange_payload,
         worker=worker,
     )
+    blockers = sorted(set([*blockers, *runtime_blockers]))
     start_enabled = not blockers
     stop_enabled = worker["phase"] in ACTIVE_WORKER_PHASES and worker["running"]
     resume_blockers = _resume_blockers(
@@ -308,6 +311,7 @@ def build_protocol_v3_operator_state(
         resume_worker_available=resume_worker_available,
         worker=worker,
     )
+    resume_blockers = sorted(set([*resume_blockers, *runtime_blockers]))
     resume_enabled = not resume_blockers
     operator_mode = _operator_mode(
         worker=worker,

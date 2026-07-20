@@ -66,6 +66,7 @@ def resolve_protocol_v3_operator_state(
     worker_status: Mapping[str, Any] | None = None,
     controller_state: ResearchChallengerState | None = None,
     controller_checkpoint: ResearchChallengerCheckpointReceipt | None = None,
+    ui_runtime_blockers: tuple[str, ...] = (),
 ) -> ProtocolV3OperatorState:
     """Resolve one display state without copying or altering backend evidence."""
 
@@ -84,6 +85,7 @@ def resolve_protocol_v3_operator_state(
         research_progress=evidence.research_progress,
         exchange_info_snapshot=evidence.exchange_info_snapshot,
         resume_worker_available=evidence.resume_worker is not None,
+        ui_runtime_blockers=ui_runtime_blockers,
         worker_status=worker_status,
     )
 

@@ -29,6 +29,9 @@ from ethusdc_bot.ui import backtest_controller as _backtest_controller
 from ethusdc_bot.ui import backtest_display as _backtest_display
 from ethusdc_bot.ui import dashboard as _base_dashboard
 from ethusdc_bot.ui import final_evaluation_controller as _final_evaluation_controller
+from ethusdc_bot.ui import protocol_v3_dashboard_bridge as _protocol_v3_bridge
+from ethusdc_bot.ui.protocol_v3_dashboard_mixin import ProtocolV3DashboardMixin
+from ethusdc_bot.ui.protocol_v3_operator_state import ProtocolV3OperatorState
 
 
 _ACTIVE_DATA_PHASES = {
@@ -451,7 +454,7 @@ def format_backtest_result_view(status: Mapping[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-class OperatorDashboardApp(_base_dashboard.DashboardApp):
+class OperatorDashboardApp(ProtocolV3DashboardMixin, _base_dashboard.DashboardApp):
     """Single existing dashboard with contextual operator presentation."""
 
     def __init__(
@@ -459,8 +462,10 @@ class OperatorDashboardApp(_base_dashboard.DashboardApp):
         root: tk.Tk,
         repository_root: Path | None = None,
         local_root: Path | None = None,
+        protocol_v3_evidence_provider: _protocol_v3_bridge.ProtocolV3EvidenceProvider | None = None,
     ) -> None:
         _install_runtime_guards()
+        self._initialize_protocol_v3_ui(protocol_v3_evidence_provider)
         self._refresh_gate = RefreshGate()
         self._refresh_requested = False
         self._requested_view: str | None = None
@@ -468,10 +473,14 @@ class OperatorDashboardApp(_base_dashboard.DashboardApp):
 
     def _build_widgets(self) -> None:
         super()._build_widgets()
+        self._build_protocol_v3_widgets()
         self._data_toolbar = self.load_button.master
         self._backtest_action_bar = self.training_button.master
         self._shadow_action_bar = self.shadow_start_button.master
         self._overview_frame = self.progress_bar.master
+        if self._protocol_v3_action_bar is not None:
+            self._protocol_v3_action_bar.pack_forget()
+            self._show_before_overview(self._protocol_v3_action_bar)
         self.status_text.configure(height=25)
         self.log_text.configure(height=9)
         self.root.minsize(940, 680)
@@ -500,6 +509,25 @@ class OperatorDashboardApp(_base_dashboard.DashboardApp):
             "shadow_controller_status": dict(self.shadow_controller_status),
         }
         runtime_status = dict(self.current_runtime_status or {})
+        protocol_evidence = self._protocol_v3_evidence_snapshot()
+        protocol_worker_status = (
+            self.protocol_v3_challenger_controller.status_snapshot()
+        )
+        protocol_controller_state = (
+            self.protocol_v3_challenger_controller.state_snapshot()
+        )
+        protocol_controller_checkpoint = (
+            self.protocol_v3_challenger_controller.checkpoint_snapshot()
+        )
+        protocol_runtime_blockers: list[str] = []
+        if data_running:
+            protocol_runtime_blockers.append("data_preparation_is_running")
+        if self.training_research_controller.is_running:
+            protocol_runtime_blockers.append("training_research_is_running")
+        if self.final_evaluation_controller.is_running:
+            protocol_runtime_blockers.append("sealed_final_evaluation_is_running")
+        if self.shadow_controller.is_running:
+            protocol_runtime_blockers.append("canonical_shadow_runtime_is_running")
 
         def worker() -> None:
             try:
@@ -521,6 +549,14 @@ class OperatorDashboardApp(_base_dashboard.DashboardApp):
                 effective_runtime = runtime_status or dict(
                     snapshot["data_prep_runtime_status"]
                 )
+                protocol_state = _protocol_v3_bridge.resolve_protocol_v3_operator_state(
+                    protocol_evidence,
+                    now_utc=datetime.now(UTC),
+                    worker_status=protocol_worker_status,
+                    controller_state=protocol_controller_state,
+                    controller_checkpoint=protocol_controller_checkpoint,
+                    ui_runtime_blockers=tuple(protocol_runtime_blockers),
+                )
                 view_mode = select_operator_view(
                     data_running=data_running,
                     backtest_mode=str(display.get("mode", "idle")),
@@ -531,7 +567,16 @@ class OperatorDashboardApp(_base_dashboard.DashboardApp):
                     requested_view=self._requested_view,
                     backtest_mode=str(display.get("mode", "idle")),
                 )
-                if view_mode == "backtest_running":
+                if (
+                    self._requested_view == "protocol_v3"
+                    or protocol_worker_status.get("running") is True
+                ):
+                    view_mode = "protocol_v3"
+                if view_mode == "protocol_v3":
+                    text = _protocol_v3_bridge.format_protocol_v3_operator_view(
+                        protocol_state
+                    )
+                elif view_mode == "backtest_running":
                     text = format_running_backtest_view(display)
                 elif view_mode == "backtest_result":
                     text = format_backtest_result_view(display)
@@ -546,6 +591,7 @@ class OperatorDashboardApp(_base_dashboard.DashboardApp):
                     "snapshot": snapshot,
                     "display": display,
                     "runtime_status": effective_runtime,
+                    "protocol_v3_state": protocol_state,
                     "view_mode": view_mode,
                     "text": text,
                     "log_refresh": log_refresh,
@@ -588,7 +634,12 @@ class OperatorDashboardApp(_base_dashboard.DashboardApp):
             snapshot = payload.get("snapshot")
             display = payload.get("display")
             runtime_status = payload.get("runtime_status")
-            if not isinstance(snapshot, dict) or not isinstance(display, dict):
+            protocol_state = payload.get("protocol_v3_state")
+            if (
+                not isinstance(snapshot, dict)
+                or not isinstance(display, dict)
+                or not isinstance(protocol_state, ProtocolV3OperatorState)
+            ):
                 self._log("Dashboard refresh returned an invalid payload.")
                 return
             self.current_snapshot = snapshot
@@ -603,7 +654,13 @@ class OperatorDashboardApp(_base_dashboard.DashboardApp):
                 # run must switch to its result view instead of remaining on
                 # the old running view indefinitely.
                 self._requested_view = None
-            if view_mode in {"backtest_running", "backtest_result"}:
+            if view_mode == "protocol_v3":
+                self._apply_protocol_v3_operator_state(protocol_state)
+                self.progress_var.set(
+                    float(protocol_state.to_dict()["task_progress"]["progress_pct"])
+                )
+                self._set_progress_visible(True)
+            elif view_mode in {"backtest_running", "backtest_result"}:
                 self._apply_backtest_display_status(display)
                 log_text = payload.get("log_text")
                 if isinstance(log_text, str):
@@ -640,6 +697,12 @@ class OperatorDashboardApp(_base_dashboard.DashboardApp):
         self._show_before_overview(self._data_toolbar)
         self._show_before_overview(self._backtest_action_bar)
         self._show_before_overview(self._shadow_action_bar)
+        if self._protocol_v3_action_bar is not None:
+            self._show_before_overview(self._protocol_v3_action_bar)
+
+    def _heartbeat_active_run(self) -> None:
+        self._refresh_protocol_v3_worker_status()
+        super()._heartbeat_active_run()
 
     def start_data_check_and_load(self) -> None:
         self._requested_view = "download"
