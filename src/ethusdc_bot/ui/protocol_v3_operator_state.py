@@ -305,6 +305,8 @@ def build_protocol_v3_operator_state(
     start_enabled = not blockers
     stop_enabled = worker["phase"] in ACTIVE_WORKER_PHASES and worker["running"]
     resume_blockers = _resume_blockers(
+        now=now,
+        data=data,
         challenger=challenger,
         checkpoint=checkpoint,
         generation=generation_payload,
@@ -444,6 +446,20 @@ def _challenger_summary(
     }
 
 
+def _data_runtime_blockers(
+    now: datetime, data: dict[str, Any]
+) -> list[str]:
+    if data["state"] != "READY":
+        return [f"data:{value}" for value in data["blockers"]]
+    watermark = data["common_watermark_open_time_ms"]
+    expected = (int(now.timestamp() * 1000) // 60_000 - 1) * 60_000
+    if watermark < expected:
+        return ["three_market_watermark_is_stale"]
+    if watermark > expected:
+        return ["three_market_watermark_is_future_or_unclosed"]
+    return []
+
+
 def _challenger_start_blockers(
     *,
     now: datetime,
@@ -459,8 +475,7 @@ def _challenger_start_blockers(
         blockers.append("validated_task28_provenance_missing")
     if generation is None:
         blockers.append("current_pipeline_generation_missing")
-    if data["state"] != "READY":
-        blockers.extend(f"data:{value}" for value in data["blockers"])
+    blockers.extend(_data_runtime_blockers(now, data))
     if challenger is not None:
         blockers.append("research_challenger_already_initialized")
     if worker["running"]:
@@ -490,6 +505,8 @@ def _challenger_start_blockers(
 
 def _resume_blockers(
     *,
+    now: datetime,
+    data: dict[str, Any],
     challenger: dict[str, Any] | None,
     checkpoint: dict[str, Any] | None,
     generation: dict[str, Any] | None,
@@ -497,6 +514,7 @@ def _resume_blockers(
     worker: dict[str, Any],
 ) -> list[str]:
     blockers: list[str] = []
+    blockers.extend(_data_runtime_blockers(now, data))
     if challenger is None:
         blockers.append("validated_task29_state_missing")
     if checkpoint is None:
