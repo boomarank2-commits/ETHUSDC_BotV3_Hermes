@@ -1,118 +1,129 @@
-# Next Action – Protocol v3 Aufgabe 29
+# Next Action – Protocol v3 Aufgabe 30
 
 Stand: 2026-07-20
 
 ## Startbedingung
 
-Aufgabe 29 darf erst begonnen werden, wenn der Task-28-Dokumentations-Head mit Abschluss-Handoff, `CURRENT_STATUS.md`, dieser Datei und `docs/41_PROTOCOL_V3_IMPLEMENTATION_SEQUENCE.md` vollständig gepusht und in GitHub CI grün ist.
+Aufgabe 30 darf erst begonnen werden, wenn der Task-29-Dokumentations-Head mit Abschluss-Handoff, `CURRENT_STATUS.md`, dieser Datei und `docs/41_PROTOCOL_V3_IMPLEMENTATION_SEQUENCE.md` vollständig gepusht und in GitHub CI grün ist.
 
 Vor der ersten Codeänderung erneut vollständig lesen:
 
 1. `AGENTS.md`
 2. `handoff/CURRENT_STATUS.md`
 3. `handoff/NEXT_ACTION.md`
-4. `handoff/PROTOCOL_V3_TASK_28_2026-07-20.md`
+4. `handoff/PROTOCOL_V3_TASK_29_2026-07-20.md`
 5. `docs/41_PROTOCOL_V3_IMPLEMENTATION_SEQUENCE.md`
 6. `docs/42_PROTOCOL_V3_EXECUTABLE_CONTRACT.md`
 7. `configs/protocol_v3_contract.json`
 
 ## Exakter nächster Auftrag
 
-Ausschließlich Aufgabe 29 umsetzen:
+Ausschließlich Aufgabe 30 umsetzen:
 
-`Orderfreien Research-Challenger-Shadow bauen`.
+`UI und Bedienzustände vollständig anschließen`.
 
 ## Bestehende Architektur zuerst prüfen
 
-Vor neuen Dateien oder Komponenten vollständig prüfen und bevorzugt erweitern:
+Vor neuen UI-Dateien oder Controllern vollständig prüfen und bevorzugt erweitern:
 
-- `src/ethusdc_bot/protocol_v3/reporting.py` und `reporting_api.py`;
-- `src/ethusdc_bot/protocol_v3/artifact_store.py` und `artifact_store_api.py`;
-- `src/ethusdc_bot/protocol_v3/transactional_cache*.py`;
-- vorhandene Forward-Ledger-/Trial-Ledger- und Checkpoint-Pfade;
-- `src/ethusdc_bot/shadow/` einschließlich bestehender Adoption-/Shadow-Sperren;
-- bestehende Drei-Markt-Kontext-, Simulator-, Execution- und Runtime-State-Schnittstellen;
-- vorhandene Controller-/Runner-Strukturen;
-- vorhandene Reporttypen und erlaubte Storage-Roots.
+- `src/ethusdc_bot/ui/dashboard.py`;
+- `src/ethusdc_bot/ui/operator_dashboard.py`;
+- `src/ethusdc_bot/ui/dashboard_state.py`;
+- `src/ethusdc_bot/ui/backtest_controller.py` und `backtest_display.py`;
+- vorhandene Final-, Shadow-, Datenupdate- und Readiness-Controller;
+- Task-11-Reportleser und Task-12-Artefaktleser;
+- Task-13-Checkpoint-/Resume-Status;
+- Task-29-Controller, Evidenz- und Checkpoint-APIs;
+- bestehende Startdialog- und Bedienregeln.
 
-Keine zweite Reporting-, Storage-, Resume-, Simulator-, Router- oder Shadow-Architektur bauen, wenn eine vorhandene Stelle sicher erweitert werden kann.
+Keine zweite Dashboard-, Status-, Controller-, Report-, Checkpoint- oder Runtime-Wahrheit bauen.
 
-## Pflichtumfang Aufgabe 29
+## Pflichtumfang Aufgabe 30
 
-Der Research-Challenger-Shadow muss:
+Die UI muss:
 
-- ausschließlich die vollständig validierte Task-28-Ausgabe als Startprovenienz akzeptieren;
-- einen eigenen, versionierten Reporttyp besitzen;
-- einen eigenen erlaubten Storage-Root und content-addressed Artefaktpfad verwenden;
-- einen eigenen orderfreien Controller besitzen;
-- ein eigenes Forward-Ledger führen, das an Pipelinegeneration, Task-28-Bundle, Snapshot, Kontext, Execution, Kosten, Exchange Info und Checkpoints gebunden ist;
-- virtuelle Signale, Fills, Gebühren, Slippage, Positionen, MTM und Tageswerte mit derselben bestehenden Engine-/Simulatorlogik erzeugen;
-- ETHUSDC als einziges Handelssymbol und BTCUSDC/ETHBTC ausschließlich als exakt ausgerichteten Kontext verwenden;
-- Zeitpunkt `t` erst nach geschlossenen, exakt ausgerichteten ETHUSDC-, BTCUSDC- und ETHBTC-Bars verarbeiten;
-- bei fehlenden, stale, zukünftigen oder versetzten Daten fail-closed pausieren beziehungsweise `NO_TRADE` liefern;
-- Bundle-Gültigkeit, `valid_from`, `valid_until`, Task-24-Rotation, Exit-only-Handoff und höchstens ein offenes Lot einhalten;
-- Resume ausschließlich aus dem letzten vollständig validierten, atomar publizierten Checkpoint erlauben;
-- bei Familien-/Feature-/Pipelinewechsel eine neue Pipelinegeneration und ein leeres Forward-Ledger verlangen;
-- klar von historischem Prozess-OOS, verbrauchtem Holdout, kanonischem Adoption-Shadow und späterem frischen Finalfenster getrennt bleiben.
+- genau einen klaren Operatorzustand zur Zeit anzeigen;
+- Datenprüfung, Research, historisches Prozess-OOS, aktuellen Refit, Research-Challenger, späteren Finaltest und kanonischen Shadow semantisch getrennt darstellen;
+- Aufgabenfortschritt ausschließlich aus `DONE_100/33` anzeigen;
+- bei Research Origins, innere Folds, Cycle-/Kandidatenfortschritt und aktuellen Rechenschritt aus kanonischen Checkpoints/Reports anzeigen;
+- keine Outer-PnL anzeigen, bevor das jeweilige Outer-Ergebnis vollständig abgeschlossen und publiziert ist;
+- Task-27-/28-Historie sichtbar als `NOT_FRESH` und `diagnostic_only` kennzeichnen;
+- den Task-29-Research-Challenger klar als orderfreien, nicht adoptionfähigen Diagnosepfad kennzeichnen;
+- den manuellen Challenger-Start nur bei vollständig validierter Task-28-Provenienz, passender Pipelinegeneration, öffentlichem Daten-Watermark und gültigem Zeitfenster anbieten;
+- bei verspätetem Task-28-Abschluss keinen rückwirkenden Start anbieten, sondern den nächsten Monatsanker anzeigen;
+- Start-, Fortsetzen-, Stop-, Refresh- und Öffnen-Aktionen an die vorhandenen Controller weiterreichen;
+- nach Neustart den letzten validierten Report-/Checkpointzustand anzeigen, ohne ihn zu verändern;
+- jeden deaktivierten Button mit einem konkreten kanonischen Blocker begründen;
+- Refresh und wiederholte Darstellung vollständig zustandsneutral halten.
 
-## Harte Sperren
+## Bedienzustände
 
-Der neue Pfad darf niemals:
+Mindestens getrennt und getestet anzeigen:
 
-- Orders erstellen oder senden;
+- `NOT_STARTED` / keine geeignete Evidenz;
+- Daten fehlen, sind stale, zukünftig, versetzt oder noch nicht vollständig geschlossen;
+- Research läuft, pausiert, unterbrochen, fehlgeschlagen oder abgeschlossen;
+- aktueller Monatsrefit fehlt, läuft, ist verspätet, ergibt `CHAMPION`, `CHALLENGER` oder `CASH`;
+- Research-Challenger nicht startbar, startbereit, läuft, pausiert, resume-fähig oder blockiert;
+- Finalfenster nicht registriert, noch versiegelt, verbraucht oder final ausgewertet;
+- kanonische Adoption nicht erlaubt beziehungsweise später nur aus gültigem Finalreport möglich.
+
+## Harte UI-Sperren
+
+Die UI darf niemals:
+
+- aus Darstellung oder Buttonzustand Orders erzeugen;
 - Binance-Private-/Account-Endpunkte oder API-Keys verwenden;
-- Paper-, Testtrade- oder Live-Pfade starten;
-- den bestehenden `adopt_for_shadow`- oder kanonischen Adoptionpfad verwenden;
-- `active_config.json` oder eine handelbare Config schreiben;
-- retrospektiv einen Challenger auswählen oder annehmen;
-- Task-27-/Task-28-Historie als frische oder statistisch unterstützte Evidenz umetikettieren;
-- sichtbare Forward-Daten in ein späteres versiegeltes Finalfenster aufnehmen;
-- Quality-Gates, Kosten, Slippage, Exchange-Regeln oder Sicherheitslocks lockern;
-- Fake-Trades, Fake-Fills oder Fake-Reports erzeugen.
+- Paper-, Testtrade- oder Live-Pfade freischalten;
+- Task-29-Evidenz an `adopt_for_shadow` übergeben;
+- `active_config.json` oder eine handelbare Konfiguration schreiben;
+- historische oder sichtbare Forward-Evidenz als frisch beziehungsweise statistisch unterstützt darstellen;
+- einen Protocol-v3-Finalstatus ohne neuen versiegelten Finalreport anzeigen;
+- Ergebnisse, Trades, PnL, Fortschritt oder Readiness erfinden;
+- einen Button allein aufgrund eines nackten Bool-Claims aktivieren.
 
-Pflichtflags bleiben mindestens:
+Pflichtanzeigen bleiben mindestens:
 
-- `orders_allowed=false`
-- `paper_allowed=false`
-- `testtrade_allowed=false`
-- `live_allowed=false`
-- `trading_api_allowed=false`
-- `canonical_adoption_eligible=false`
-- `protocol_v3_final_status=false`
+- `Orders: gesperrt`;
+- `Paper: gesperrt`;
+- `Testtrade: gesperrt`;
+- `Live: gesperrt`;
+- `Trading-API/private Endpunkte: nicht verwendet`;
+- `Canonical adoption: nicht zulässig`, solange kein späterer gültiger Finalpfad vorliegt;
+- `Botstart: nicht erlaubt`.
 
 ## Pflicht-Negativtests
 
 Mindestens testen:
 
-- falsche oder fehlende Task-28-Provenienz;
-- Versuch, einen historischen oder abgelaufenen Challenger zu starten;
-- Versuch, `adopt_for_shadow`, Paper, Testtrade, Live, Orders oder private API zu erreichen;
-- fehlender oder falscher Drei-Markt-Watermark;
-- stale, zukünftiger, versetzter oder lückenhafter Kontext;
-- Bundle-, Pipeline-, Code-, Snapshot-, Exchange-, Kosten- oder Execution-Hash-Manipulation;
-- Entry vor `valid_from`, nach `valid_until` oder während Exit-only;
-- mehr als ein offenes Lot;
-- Checkpoint-/Forward-Ledger-Manipulation, Teilwrite, falscher Head oder Cross-Generation-Resume;
-- Familien-/Featurewechsel ohne neues leeres Forward-Ledger;
-- UI-/Refresh- oder mehrfacher Controller-Aufruf verändert Signal-, Fill- oder Ledgerergebnis;
-- Versuch, Research-Challenger-Evidenz als fresh, statistically supported, adoptionfähig oder Protocol-v3-final zu markieren.
+- fehlende, manipulierte oder falsche Task-28-/Task-29-Provenienz aktiviert keinen Button;
+- stale, zukünftiger, versetzter oder lückenhafter Drei-Markt-Watermark blockiert Challenger-Start;
+- abgelaufenes Bundle oder verspäteter Refit zeigt den nächsten Anker statt rückwirkender Aktivierung;
+- unvollständiger Report, Teilwrite, falscher Root, Symlink oder falscher Checkpoint-Head blockiert vor dem Lesen beziehungsweise Anzeigen;
+- Task-29-Refresh oder mehrfaches Öffnen verändert weder State-, Signal-, Fill- noch Ledgerhash;
+- UI-Neustart rekonstruiert ausschließlich den letzten validierten Zustand;
+- laufende Worker verhindern Doppelstart und Race zwischen Workerende und UI-Apply;
+- vorzeitig angezeigte Outer-PnL, Fake-Fortschritt oder Fake-Ergebnis wird verhindert;
+- manipulierte Freshness-, Support-, Adoption-, Final-, Paper-, Live- oder Orderclaims bleiben gesperrt;
+- alte Protocol-v2-/Legacy-Reports können keine Protocol-v3-Freigabe erzeugen.
 
 ## Abnahme
 
-Aufgabe 29 ist erst `DONE_100`, wenn:
+Aufgabe 30 ist erst `DONE_100`, wenn:
 
-1. Reporttyp, Schema, Storage, Controller und Forward-Ledger vollständig implementiert sind;
-2. vorhandene Simulator-/Execution-/Kontextfunktionen wiederverwendet werden;
-3. Golden-Trade-/Paritätsfixtures und Negativtests vollständig grün sind;
-4. vollständige Pytest-Suite, Python-Compile, PowerShell-Syntax und Whitespace grün sind;
-5. Handoff, `CURRENT_STATUS.md`, `NEXT_ACTION.md` und `docs/41` aktualisiert und gepusht sind;
-6. der abschließende GitHub-CI-Lauf des Dokumentations-Heads grün ist.
+1. alle verbindlichen Zustände und Blocker im bestehenden Dashboard angeschlossen sind;
+2. Task-29 manuell und orderfrei über vorhandene Controller bedienbar ist;
+3. Anzeige und Refresh keine Research-/Runtime-Wahrheit verändern;
+4. vollständige UI-, Controller-, Restart-, Race- und Safety-Negativtests grün sind;
+5. vollständige Pytest-Suite, Python-Compile, PowerShell-Syntax und Whitespace grün sind;
+6. Handoff, `CURRENT_STATUS.md`, `NEXT_ACTION.md` und `docs/41` aktualisiert und gepusht sind;
+7. der abschließende GitHub-CI-Lauf des Dokumentations-Heads grün ist.
 
-Aufgabe 30 darf vorher nicht begonnen werden.
+Aufgabe 31 darf vorher nicht begonnen werden.
 
 ## Sicherheitsstatus beim Einstieg
 
 - kein Backtest-, Paper-, Testtrade-, Live- oder Order-Start;
-- keine Secrets;
+- keine API-Keys, privaten Endpunkte oder Secrets;
 - kein neuer Finalstatus;
 - der Bot darf nicht gestartet werden.
