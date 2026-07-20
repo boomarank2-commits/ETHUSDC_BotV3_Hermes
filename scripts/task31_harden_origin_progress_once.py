@@ -116,3 +116,31 @@ replacement = '''def _validate_origin_selection(
 '''
 progress = progress[:start] + replacement + progress[end + 1 :]
 progress_path.write_text(progress, encoding="utf-8")
+
+
+test_path = Path("tests/unit/test_protocol_v3_pipeline_final_progress.py")
+test = test_path.read_text(encoding="utf-8")
+old = '''    first = _append(progress, selections[0], 1, state=state)
+    earlier_than_first = f"{plan.origins[0].test_end_exclusive.isoformat()}T00:00:00Z"
+    with pytest.raises(PipelineFinalProgressError, match="monotonic"):
+        _append(first, selections[1], 2, state=state, completed=earlier_than_first)
+'''
+new = '''    delayed_first_dt = datetime.combine(
+        plan.origins[1].test_end_exclusive,
+        datetime.min.time(),
+        tzinfo=UTC,
+    ) + timedelta(days=1)
+    first = _append(
+        progress,
+        selections[0],
+        1,
+        state=state,
+        completed=_fmt(delayed_first_dt),
+    )
+    earlier_than_first = f"{plan.origins[1].test_end_exclusive.isoformat()}T00:00:00Z"
+    with pytest.raises(PipelineFinalProgressError, match="monotonic"):
+        _append(first, selections[1], 2, state=state, completed=earlier_than_first)
+'''
+if test.count(old) != 1:
+    raise SystemExit("progress monotonicity test replacement mismatch")
+test_path.write_text(test.replace(old, new), encoding="utf-8")
