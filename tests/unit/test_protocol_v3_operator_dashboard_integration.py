@@ -85,6 +85,12 @@ def _fake_app() -> OperatorDashboardApp:
     app.protocol_v3_start_button = _Button()
     app.protocol_v3_resume_button = _Button()
     app.protocol_v3_stop_button = _Button()
+    app.load_button = _Button()
+    app.check_button = _Button()
+    app.training_button = _Button()
+    app.final_evaluation_button = _Button()
+    app.adopt_shadow_button = _Button()
+    app.shadow_start_button = _Button()
     app.bot_state_var = _Var()
     app.phase_var = _Var()
     app.shadow_var = _Var()
@@ -112,8 +118,29 @@ def test_apply_state_sets_only_snapshot_derived_button_states() -> None:
     assert app.protocol_v3_start_button.state == "disabled"
     assert app.protocol_v3_resume_button.state == "disabled"
     assert app.protocol_v3_stop_button.state == "disabled"
+    for control in (
+        app.load_button,
+        app.check_button,
+        app.training_button,
+        app.final_evaluation_button,
+        app.adopt_shadow_button,
+        app.shadow_start_button,
+    ):
+        assert control.state == "disabled"
     assert "Bot-Start bleibt gesperrt" in app.bot_state_var.value
     assert "Orders 0" in app.shadow_var.value
+
+
+def test_protocol_v3_overview_navigation_is_read_only() -> None:
+    app = _fake_app()
+    app._requested_view = "protocol_v3"
+    calls: list[dict] = []
+    app.refresh_status = lambda **kwargs: calls.append(dict(kwargs))
+
+    app.show_protocol_v3_overview()
+
+    assert app._requested_view == "download"
+    assert calls == [{"log_refresh": False}]
 
 
 def test_parallel_runtime_blocker_disables_start_with_exact_reason(
