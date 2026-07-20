@@ -1,0 +1,87 @@
+name: Task 30 checkpointed start one-shot
+
+on:
+  push:
+    branches:
+      - codex/research-resume-and-ui-state-v1
+    paths:
+      - .github/workflows/task30-start-worker-one-shot.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/research-resume-and-ui-state-v1
+          fetch-depth: 0
+      - name: Require checkpoint-capable backend on UI start
+        shell: python
+        run: |
+          from pathlib import Path
+
+          controller_path = Path("src/ethusdc_bot/ui/research_challenger_controller.py")
+          controller = controller_path.read_text(encoding="utf-8")
+          replacements = [
+              (
+                  "        exchange_info_snapshot: FrozenExchangeInfoSnapshot | Mapping[str, Any] | None = None,\n        status_callback: StatusCallback | None = None,\n        initializer: ChallengerInitializer = start_research_challenger,\n",
+                  "        exchange_info_snapshot: FrozenExchangeInfoSnapshot | Mapping[str, Any] | None = None,\n        worker: ChallengerResumeWorker | None = None,\n        status_callback: StatusCallback | None = None,\n        initializer: ChallengerInitializer = start_research_challenger,\n",
+              ),
+              (
+                  '        """Manually initialize one empty Task-29 state asynchronously."""\n',
+                  '        """Initialize Task 29 and optionally run a checkpointing backend."""\n',
+              ),
+              (
+                  "        if not callable(initializer):\n            raise TypeError(\"initializer must be callable\")\n        return self._launch(\n            phase=\"starting\",\n            started_at_utc=started_at_utc,\n            status_callback=status_callback,\n            checkpoint_required=False,\n            operation=lambda _stop, _callback: ResearchChallengerUiRunResult(\n                state=initializer(\n                    task28_decision,\n                    started_at_utc=started_at_utc,\n                    current_pipeline_generation=current_pipeline_generation,\n                    exchange_info_snapshot=exchange_info_snapshot,\n                ),\n                checkpoint_receipt=None,\n            ),\n        )\n",
+                  "        if not callable(initializer):\n            raise TypeError(\"initializer must be callable\")\n        if worker is not None and not callable(worker):\n            raise TypeError(\"worker must be callable or None\")\n\n        def operation(\n            stop_event: threading.Event,\n            callback: StatusCallback | None,\n        ) -> ResearchChallengerUiRunResult:\n            initial = validate_research_challenger_state(\n                initializer(\n                    task28_decision,\n                    started_at_utc=started_at_utc,\n                    current_pipeline_generation=current_pipeline_generation,\n                    exchange_info_snapshot=exchange_info_snapshot,\n                )\n            )\n            if worker is None:\n                return ResearchChallengerUiRunResult(initial, None)\n            result = worker(initial, stop_event, callback)\n            if not isinstance(result, ResearchChallengerUiRunResult):\n                raise TypeError(\n                    \"challenger backend worker must return ResearchChallengerUiRunResult\"\n                )\n            current = validate_research_challenger_state(result.state)\n            if not isinstance(\n                result.checkpoint_receipt, ResearchChallengerCheckpointReceipt\n            ):\n                raise TypeError(\"challenger backend must return a checkpoint receipt\")\n            receipt = validate_research_challenger_checkpoint_receipt(\n                result.checkpoint_receipt\n            )\n            verify_replayed_research_challenger_checkpoint(receipt, current)\n            return ResearchChallengerUiRunResult(current, receipt)\n\n        return self._launch(\n            phase=\"starting\",\n            started_at_utc=started_at_utc,\n            status_callback=status_callback,\n            checkpoint_required=worker is not None,\n            operation=operation,\n        )\n",
+              ),
+          ]
+          for old, new in replacements:
+              if controller.count(old) != 1:
+                  raise SystemExit(f"controller replacement mismatch: {old[:140]!r}")
+              controller = controller.replace(old, new)
+          controller_path.write_text(controller, encoding="utf-8")
+
+          state_path = Path("src/ethusdc_bot/ui/protocol_v3_operator_state.py")
+          state = state_path.read_text(encoding="utf-8")
+          state_replacements = [
+              (
+                  "        challenger=challenger,\n        exchange=exchange_payload,\n        worker=worker,\n    )\n",
+                  "        challenger=challenger,\n        exchange=exchange_payload,\n        backend_worker_available=resume_worker_available,\n        worker=worker,\n    )\n",
+              ),
+              (
+                  "    challenger: dict[str, Any] | None,\n    exchange: dict[str, Any] | None,\n    worker: dict[str, Any],\n",
+                  "    challenger: dict[str, Any] | None,\n    exchange: dict[str, Any] | None,\n    backend_worker_available: bool,\n    worker: dict[str, Any],\n",
+              ),
+              (
+                  "    blockers.extend(_data_runtime_blockers(now, data))\n    if challenger is not None:\n",
+                  "    blockers.extend(_data_runtime_blockers(now, data))\n    if not backend_worker_available:\n        blockers.append(\"public_data_start_worker_missing\")\n    if challenger is not None:\n",
+              ),
+          ]
+          for old, new in state_replacements:
+              if state.count(old) != 1:
+                  raise SystemExit(f"state replacement mismatch: {old[:140]!r}")
+              state = state.replace(old, new)
+          state_path.write_text(state, encoding="utf-8")
+
+          mixin_path = Path("src/ethusdc_bot/ui/protocol_v3_dashboard_mixin.py")
+          mixin = mixin_path.read_text(encoding="utf-8")
+          old = "                current_pipeline_generation=evidence.pipeline_generation,\n                exchange_info_snapshot=evidence.exchange_info_snapshot,\n            )\n"
+          new = "                current_pipeline_generation=evidence.pipeline_generation,\n                exchange_info_snapshot=evidence.exchange_info_snapshot,\n                worker=evidence.resume_worker,\n            )\n"
+          if mixin.count(old) != 1:
+              raise SystemExit("mixin start call mismatch")
+          mixin_path.write_text(mixin.replace(old, new), encoding="utf-8")
+      - name: Commit checkpointed UI start
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/ethusdc_bot/ui/research_challenger_controller.py \
+            src/ethusdc_bot/ui/protocol_v3_operator_state.py \
+            src/ethusdc_bot/ui/protocol_v3_dashboard_mixin.py
+          git diff --cached --check
+          git commit -m "Require checkpointed backend for Protocol v3 UI start"
+          git push origin HEAD:codex/research-resume-and-ui-state-v1
