@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Mapping
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 from decimal import Decimal
 from typing import Any
@@ -25,7 +26,6 @@ from ethusdc_bot.protocol_v3.execution_parity import (
 from ethusdc_bot.protocol_v3.intrabar_execution import (
     BASELINE_COST_PROFILE,
     ExecutionCostProfile,
-    IntrabarExecutionError,
     ProtocolV3IntrabarPortfolioTrade,
     _OpenPosition,
     _advance_completed_bar_state,
@@ -143,7 +143,10 @@ def advance_intrabar_runtime(
 
     candles = (*current.candles, candle)
     index = len(candles) - 1
-    position = current.position
+    # Task 8 deliberately mutates trailing/high-watermark fields on its private
+    # position object.  Copy it so a failed/repeated forward reduction can never
+    # modify the previously validated immutable checkpoint by aliasing.
+    position = deepcopy(current.position)
     pending_time = current.pending_signal_time
     pending_index = current.pending_signal_index
     cooldown = current.cooldown_until_index
