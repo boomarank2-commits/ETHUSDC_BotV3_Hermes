@@ -173,6 +173,6 @@ def test_transaction_contract_declares_completed_candidate_support() -> None:
     assert contract["identity_policy"][
         "production_candidate_selection_supported_after_tasks_16_18"
     ] is True
-    assert "candidate_matrix_task" not in contract["deferred_scope"]
+    assert "candidate_daily_matrix_task" not in contract["deferred_scope"]
     assert "pbo_task" not in contract["deferred_scope"]
     assert "dsr_task" not in contract["deferred_scope"]
