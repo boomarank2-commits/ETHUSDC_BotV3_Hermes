@@ -26,6 +26,7 @@ from ethusdc_bot.protocol_v3.historical_diagnostics import (
 from ethusdc_bot.protocol_v3.inner_selection import (
     CANDIDATE,
     _candidate_payload,
+    validate_frozen_selection_config,
     validate_selection_decision,
 )
 from ethusdc_bot.protocol_v3.monthly_quality_gate import (
@@ -177,6 +178,14 @@ def build_current_refit_decision(
         raise CurrentRefitError(
             "current refit missed T+24h and may not activate retroactively"
         )
+    if not isinstance(current_request, OuterOriginRequest):
+        raise CurrentRefitError("verified current OuterOriginRequest required")
+    current_config = validate_frozen_selection_config(
+        current_request.frozen_selection_config
+    ).to_dict()
+    current_run_identity = _current_run_identity(
+        current_config["run_fingerprint"], target=target, requested=requested
+    )
     if ledger["origin_ledgers"][-1]["ending_open_position_bundle_sha256"] is not None:
         raise CurrentRefitError(
             "historical process must be flat before the current refit"
@@ -251,6 +260,7 @@ def build_current_refit_decision(
         "current_regime_fit_state": bundle["regime_fit_state"],
         "current_assessment_sha256": bundle["assessment_sha256"],
         "current_cost_model": bundle["cost_model"],
+        **current_run_identity,
     }
     prior_status = {
         "monthly_quality_status": gate["status"],
@@ -259,6 +269,10 @@ def build_current_refit_decision(
         "historical_bootstrap_lower_bound": diagnostics[
             "historical_bootstrap_lower_bound"
         ],
+        "baseline_ledger_sha256": gate["baseline_ledger_sha256"],
+        "joint_stress_ledger_sha256": gate["joint_stress_ledger_sha256"],
+        "slippage_stress_ledger_sha256": gate["slippage_stress_ledger_sha256"],
+        "failed_check_codes": gate["failed_check_codes"],
         "freshness": "NOT_FRESH",
         "feedback_into_current_selection": False,
     }
@@ -378,12 +392,15 @@ def validate_current_refit_decision(
     manifest = dict(_mapping(root["identity_manifest"], "identity_manifest"))
     if root["identity_manifest_sha256"] != _digest(manifest):
         raise CurrentRefitError("current-refit identity manifest digest mismatch")
-    target_text = manifest.get("target_anchor_utc")
-    target_utc = _parse_utc_text(target_text, "target_anchor_utc")
+    target_utc = _parse_utc_text(
+        manifest.get("target_anchor_utc"), "target_anchor_utc"
+    )
     if target_utc.time() != datetime.min.time():
         raise CurrentRefitError("target_anchor_utc must be UTC midnight")
     target = target_utc.date()
-    valid_until = _parse_utc_text(manifest.get("valid_until_utc"), "valid_until_utc")
+    valid_until = _parse_utc_text(
+        manifest.get("valid_until_utc"), "valid_until_utc"
+    )
     from .boundaries import build_monthly_process_boundary_plan
 
     replay_plan = build_monthly_process_boundary_plan(valid_until.date())
@@ -422,12 +439,35 @@ def validate_current_refit_decision(
     if root["champion_challenger_cash_decision"] != expected_choice:
         raise CurrentRefitError("Champion/Challenger/Cash decision was manipulated")
     prior = root["prior_process_diagnostic_status"]
+    prior_required = {
+        "monthly_quality_status",
+        "robustness_passed",
+        "historically_hit",
+        "historical_bootstrap_lower_bound",
+        "baseline_ledger_sha256",
+        "joint_stress_ledger_sha256",
+        "slippage_stress_ledger_sha256",
+        "failed_check_codes",
+        "freshness",
+        "feedback_into_current_selection",
+    }
     if (
         not isinstance(prior, Mapping)
+        or set(prior) != prior_required
         or prior.get("freshness") != "NOT_FRESH"
         or prior.get("feedback_into_current_selection") is not False
+        or prior.get("baseline_ledger_sha256")
+        != manifest["historical_outer_ledger_sha256"]
     ):
         raise CurrentRefitError("prior process evidence may not feed selection")
+    for field in (
+        "baseline_ledger_sha256",
+        "joint_stress_ledger_sha256",
+        "slippage_stress_ledger_sha256",
+    ):
+        _sha(prior[field], f"prior_process_diagnostic_status.{field}")
+    if not isinstance(prior["failed_check_codes"], list):
+        raise CurrentRefitError("prior process gate evidence is incomplete")
     if root["selection_input_forbidden_fields"] != [
         "outer_pnl",
         "outer_ranking",
@@ -456,6 +496,49 @@ def validate_current_refit_decision(
     if observed != _digest(basis):
         raise CurrentRefitError("current-refit report digest mismatch")
     return CurrentRefitDecision(_canonical(basis), observed)
+
+
+def _current_run_identity(
+    run_fingerprint: Mapping[str, Any],
+    *,
+    target: date,
+    requested: datetime,
+) -> dict[str, Any]:
+    fingerprint = dict(_mapping(run_fingerprint, "current_run_fingerprint"))
+    raw = dict(_mapping(fingerprint.get("raw_data"), "current_raw_data"))
+    exchange = dict(
+        _mapping(fingerprint.get("exchange_info"), "current_exchange_info")
+    )
+    code = dict(_mapping(fingerprint.get("code"), "current_code"))
+    expected_day = (target - timedelta(days=1)).isoformat()
+    expected_end = _utc_text(_midnight(target))
+    if (
+        fingerprint.get("as_of_day") != expected_day
+        or raw.get("snapshot_as_of_day") != expected_day
+        or raw.get("latest_common_complete_day") != expected_day
+        or raw.get("raw_interval_end_exclusive") != expected_end
+    ):
+        raise CurrentRefitError(
+            "current data snapshot must end exactly at T with T-1 as the last complete day"
+        )
+    exchange_as_of = _parse_utc_text(
+        exchange.get("snapshot_as_of_utc"), "exchange_info.snapshot_as_of_utc"
+    )
+    if exchange_as_of > requested:
+        raise CurrentRefitError("exchange-info snapshot may not be from the future")
+    return {
+        "current_data_snapshot_sha256": _sha(
+            raw.get("snapshot_sha256"), "raw_data.snapshot_sha256"
+        ),
+        "current_snapshot_as_of_day": expected_day,
+        "current_latest_common_complete_day": expected_day,
+        "current_raw_interval_end_exclusive": expected_end,
+        "current_code_commit": code.get("git_commit"),
+        "current_exchange_info_snapshot_sha256": _sha(
+            exchange.get("snapshot_sha256"), "exchange_info.snapshot_sha256"
+        ),
+        "current_exchange_info_snapshot_as_of_utc": _utc_text(exchange_as_of),
+    }
 
 
 def _rotation_payload(rotation: OuterRotationState) -> dict[str, Any]:
@@ -582,6 +665,12 @@ def _identity_manifest_from_root(root: Mapping[str, Any]) -> dict[str, Any]:
     bundle = root["frozen_candidate_bundle"]
     rotation = root["outer_rotation_state"]
     old = root["identity_manifest"]
+    fingerprint = selection["frozen_pipeline_config"]["run_fingerprint"]
+    target = date.fromisoformat(current["training_end_exclusive"])
+    requested = _parse_utc_text(old["requested_at_utc"], "requested_at_utc")
+    current_run_identity = _current_run_identity(
+        fingerprint, target=target, requested=requested
+    )
     return {
         "schema_version": "protocol_v3_current_refit_identity_manifest_v1",
         "target_anchor_utc": old["target_anchor_utc"],
@@ -634,6 +723,7 @@ def _identity_manifest_from_root(root: Mapping[str, Any]) -> dict[str, Any]:
         "current_regime_fit_state": bundle["regime_fit_state"],
         "current_assessment_sha256": bundle["assessment_sha256"],
         "current_cost_model": bundle["cost_model"],
+        **current_run_identity,
     }
 
 
