@@ -30,6 +30,7 @@ from ethusdc_bot.protocol_v3.inner_folds import (
     validate_inner_fold_identity_payload,
 )
 from ethusdc_bot.protocol_v3.inner_selection import (
+    CANDIDATE,
     CANDIDATE_SELECTION_IDENTITY_SCHEMA,
     NO_TRADE,
     validate_candidate_selection_identity_payload,
@@ -61,16 +62,16 @@ from ethusdc_bot.protocol_v3.runtime_state import (
 TRANSACTION_CONTRACT_PATH: Final = Path(
     "configs/protocol_v3_transaction_contract.json"
 )
-TRANSACTION_CONTRACT_SCHEMA: Final = "protocol_v3_transaction_contract_v3"
+TRANSACTION_CONTRACT_SCHEMA: Final = "protocol_v3_transaction_contract_v4"
 TRANSACTION_CONTRACT_VERSION: Final = (
     "protocol_v3_content_addressed_cache_and_transactional_resume_"
-    "with_inner_selection_v3"
+    "with_inner_selection_and_production_candidates_v4"
 )
 IDENTITY_SLOT_SCHEMA_VERSION: Final = (
     "protocol_v3_transaction_identity_slot_v1"
 )
 TRANSACTION_IDENTITY_SCHEMA_VERSION: Final = (
-    "protocol_v3_transaction_identity_v3"
+    "protocol_v3_transaction_identity_v4"
 )
 CHECKPOINT_SCHEMA_VERSION: Final = "protocol_v3_transaction_checkpoint_v1"
 CHECKPOINT_HEAD_SCHEMA_VERSION: Final = "protocol_v3_checkpoint_head_v1"
@@ -186,6 +187,7 @@ CANONICAL_CONTRACT: dict[str, Any] = {
         "concrete_context_parity_binding_required": True,
         "bound_inner_fold_plan_required": True,
         "bound_candidate_selection_required": True,
+        "production_candidate_selection_supported_after_tasks_16_18": True,
         "bound_outer_rotation_state_supported": True,
         "outer_rotation_state_must_match_origin_selection_and_bundle": True,
         "trial_ledger_head_is_decision_time_head": True,
@@ -229,9 +231,6 @@ CANONICAL_CONTRACT: dict[str, Any] = {
         "after_head_replace",
     ],
     "deferred_scope": {
-        "candidate_daily_matrix_task": 16,
-        "pbo_task": 17,
-        "dsr_task": 18,
         "router_task": 22,
         "outer_orchestration_task": 23,
         "rotation_persistence_task": 24,
@@ -896,9 +895,17 @@ def _validate_candidate_slot(slots: Mapping[str, IdentitySlot]) -> None:
         raise ProtocolV3TransactionError(
             "synthetic Task-15 candidate decisions cannot enter transaction state"
         )
-    if decision["outcome"] != NO_TRADE or decision["selected_candidate"] is not None:
+    if decision["outcome"] not in {NO_TRADE, CANDIDATE}:
         raise ProtocolV3TransactionError(
-            "Task-15 production transaction state must remain NO_TRADE until Tasks 16-18"
+            "production candidate selection outcome is invalid"
+        )
+    if decision["outcome"] == NO_TRADE and decision["selected_candidate"] is not None:
+        raise ProtocolV3TransactionError(
+            "NO_TRADE selection may not bind a candidate"
+        )
+    if decision["outcome"] == CANDIDATE and decision["selected_candidate"] is None:
+        raise ProtocolV3TransactionError(
+            "CANDIDATE selection requires a bound candidate"
         )
 
     config = decision["frozen_pipeline_config"]
