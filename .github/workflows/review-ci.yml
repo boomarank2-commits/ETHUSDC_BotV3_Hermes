@@ -114,7 +114,7 @@ jobs:
         run: test "${{ steps.pytest.outputs.status }}" -eq 0
 
       - name: Complete Protocol v3 Task 30 after green suite
-        if: success() && hashFiles('.github/task30-closeout-trigger-v2.txt') != ''
+        if: success()
         shell: bash
         run: |
           set -euo pipefail
