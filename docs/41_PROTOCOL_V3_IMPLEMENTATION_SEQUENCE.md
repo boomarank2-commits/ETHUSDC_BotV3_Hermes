@@ -1,8 +1,8 @@
 # Protocol v3 – verbindliche Implementierungsreihenfolge
 
-Stand: 2026-07-19
+Stand: 2026-07-20
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 27/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 28/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -403,9 +403,21 @@ Hindsight bleibt reine Diagnostik; Capture-Ratios, Overfit-Sperren und reproduzi
 
 ### Aufgabe 28 – Aktuellen 730-Tage-Refit und Champion/Challenger/Cash-Entscheidung
 
-**Status:** `NOT_STARTED`
+**Status:** `DONE_100`
 
-Für den nächsten Anker wird deterministisch ein Bundle oder `NO_TRADE` mit Gültigkeit, Hashes, Vorgänger, Wechselgrund und Stress eingefroren; bis frische Evidenz bleibt alles `diagnostic_only`.
+Für den nächsten Anker wird dieselbe unveränderte Task-15-/Task-22-Einzel-Origin-Pipeline exakt auf `[T-730 Tage,T)` ausgeführt und ein vollständig gebundenes Bundle oder fail-closed `NO_TRADE` eingefroren.
+
+**Abnahme:**
+
+- Zielanker, Drei-Markt-Snapshot, `snapshot_as_of_day=T-1`, gemeinsamer letzter vollständiger Tag `T-1` und exaktes Rohdatenende `T` werden vor der Auswahl semantisch geprüft; stale, zukünftige oder falsch abgeschnittene Daten blockieren.
+- Code-Commit, Pipelinegeneration, Run-Fingerprint, Exchange Info, Kosten-/Execution-/Gate-Quellen, Trial-Ledger, Task-14-Fold, Seed, Feature-/Regime-Fit-State und Kontextidentität sind transitiv gebunden.
+- Das aktuelle `FrozenCandidateBundle` bindet den unmittelbaren Task-23-Vorgänger, `valid_from=T+24h`, den nächsten Monatsanker als `valid_until`, Task-24-Rotation und `entry_enabled_at_utc`.
+- `CHAMPION`, `CHALLENGER` oder `CASH` werden ausschließlich aus der aktuellen unveränderten Auswahl, erneutem Champion-Test, aktueller Ranking-/Gate-/DSR-/PBO-/Cash-Evidenz und aktuellem Routerausgang deterministisch abgeleitet.
+- Historische Baseline-, Joint-, Slippage-, Monthly-Gate- und Task-27-Hindsight-Evidenz bleibt reine `NOT_FRESH`-Provenienz und besitzt keinen Rückwirkungskanal in Auswahl oder Router.
+- Persistierte Ausgaben verlangen vollständiges Quellen-Replay. Frühe/späte Anfrage, falsches Fenster, falscher Vorgänger, abgelaufene Gültigkeit, Rotations-, Stress-, Entscheidungs-, Freshness-, Adoption- oder Start-Manipulationen blockieren fail-closed.
+- Jede Ausgabe bleibt `NOT_FRESH`, `diagnostic_only`, `canonical_adoption_eligible=false`, `sealed_final_holdout_used=false` und `bot_start_allowed=false`.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_28_2026-07-20.md`
 
 ### Aufgabe 29 – Orderfreien Research-Challenger-Shadow bauen
 
@@ -440,10 +452,10 @@ Erst nach Aufgaben 1–32 werden zwölf Origins und 365 OOS-Tage einmalig ausgef
 ## Fortschrittsführung
 
 ```text
-Protocol v3: Aufgabe 25/33 – Tägliches MTM-Ledger und zwei Zeitaggregationen – DONE_100
 Protocol v3: Aufgabe 26/33 – Monthly Quality Gate, Stress und Pflichtmetriken – DONE_100
 Protocol v3: Aufgabe 27/33 – Hindsight-Benchmarks, Capture-Ratios und Bootstrap – DONE_100
-Gesamt: 27/33 DONE_100 = 81,82 %
+Protocol v3: Aufgabe 28/33 – Aktueller 730-Tage-Refit und Champion/Challenger/Cash – DONE_100
+Gesamt: 28/33 DONE_100 = 84,85 %
 ```
 
 Fortschritt wird ausschließlich als `DONE_100 / 33` ausgewiesen, nicht nach Zeit oder Token geschätzt.
