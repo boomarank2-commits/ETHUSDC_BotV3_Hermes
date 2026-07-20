@@ -181,6 +181,17 @@ def test_contract_api_and_pipeline_binding_are_exact() -> None:
         current_refit.CHALLENGER,
         current_refit.CASH,
     ]
+    assert contract["data_snapshot_policy"] == {
+        "markets": ["ETHUSDC", "BTCUSDC", "ETHBTC"],
+        "snapshot_as_of_day": "T-1",
+        "latest_common_complete_day": "T-1",
+        "raw_interval_end_exclusive": "T",
+        "stale_or_future_snapshot_forbidden": True,
+        "exchange_info_may_not_postdate_request": True,
+    }
+    assert contract["prior_evidence_policy"][
+        "baseline_joint_and_slippage_ledger_hashes_required"
+    ] is True
     assert current_refit_api.__all__ == current_refit.__all__
 
 
@@ -464,3 +475,76 @@ def test_rehashed_choice_feedback_freshness_or_activation_tampering_fails(state)
     )
     with pytest.raises(current_refit.CurrentRefitError, match="manipulated"):
         current_refit.validate_current_refit_decision(forged_choice)
+
+
+def test_wrong_predecessor_expired_bundle_and_wrong_window_fail_closed(state) -> None:
+    (
+        plan,
+        current_plan,
+        process,
+        baseline,
+        gate,
+        diagnostics,
+        request,
+        requested,
+        report,
+    ) = state
+
+    wrong_predecessor = deepcopy(report.to_dict())
+    wrong_predecessor["identity_manifest"]["predecessor_bundle_sha256"] = "f" * 64
+    wrong_predecessor["identity_manifest_sha256"] = current_refit._digest(
+        wrong_predecessor["identity_manifest"]
+    )
+    wrong_predecessor_basis = dict(wrong_predecessor)
+    wrong_predecessor_basis.pop("report_sha256")
+    wrong_predecessor["report_sha256"] = current_refit._digest(
+        wrong_predecessor_basis
+    )
+    with pytest.raises(current_refit.CurrentRefitError, match="exact source replay"):
+        current_refit.validate_current_refit_decision(
+            wrong_predecessor,
+            historical_boundary_plan=plan,
+            current_boundary_plan=current_plan,
+            historical_outer_process=process,
+            baseline_ledger=baseline,
+            monthly_quality_report=gate,
+            historical_diagnostics=diagnostics,
+            current_request=request,
+            requested_at_utc=requested,
+        )
+
+    expired = deepcopy(report.to_dict())
+    expired["identity_manifest"]["valid_until_utc"] = "2026-07-08T00:00:00Z"
+    expired["identity_manifest_sha256"] = current_refit._digest(
+        expired["identity_manifest"]
+    )
+    expired_basis = dict(expired)
+    expired_basis.pop("report_sha256")
+    forged_expired = current_refit.CurrentRefitDecision(
+        current_refit._canonical(expired_basis), current_refit._digest(expired_basis)
+    )
+    with pytest.raises(current_refit.CurrentRefitError, match="target and validity"):
+        current_refit.validate_current_refit_decision(forged_expired)
+
+    wrong_window = deepcopy(report.to_dict())
+    wrong_window["current_origin"]["training_start_inclusive"] = "2024-07-09"
+    origin_basis = dict(wrong_window["current_origin"])
+    origin_basis.pop("origin_sha256")
+    wrong_window["current_origin"]["origin_sha256"] = current_refit._digest(
+        origin_basis
+    )
+    wrong_window["identity_manifest"]["training_start_inclusive"] = "2024-07-09"
+    wrong_window["identity_manifest"]["current_origin_sha256"] = wrong_window[
+        "current_origin"
+    ]["origin_sha256"]
+    wrong_window["identity_manifest_sha256"] = current_refit._digest(
+        wrong_window["identity_manifest"]
+    )
+    wrong_window_basis = dict(wrong_window)
+    wrong_window_basis.pop("report_sha256")
+    forged_window = current_refit.CurrentRefitDecision(
+        current_refit._canonical(wrong_window_basis),
+        current_refit._digest(wrong_window_basis),
+    )
+    with pytest.raises(current_refit.CurrentRefitError, match="boundary"):
+        current_refit.validate_current_refit_decision(forged_window)
