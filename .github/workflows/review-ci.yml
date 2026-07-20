@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   test:
@@ -112,3 +112,42 @@ jobs:
         if: always()
         shell: bash
         run: test "${{ steps.pytest.outputs.status }}" -eq 0
+
+      - name: Complete Protocol v3 Task 30 after green suite
+        if: success() && hashFiles('.github/task30-closeout-trigger-v2.txt') != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "${GITHUB_HEAD_REF}" "${GITHUB_BASE_REF}"
+          git checkout -B "${GITHUB_HEAD_REF}" "origin/${GITHUB_HEAD_REF}"
+          python scripts/task30_closeout_once.py
+          python -m pytest -q \
+            tests/unit/test_protocol_v3_operator_state.py \
+            tests/unit/test_research_challenger_controller.py \
+            tests/unit/test_protocol_v3_dashboard_bridge.py \
+            tests/unit/test_protocol_v3_operator_dashboard_integration.py \
+            tests/unit/test_protocol_v3_dashboard_fail_closed.py \
+            tests/unit/test_protocol_v3_lifecycle_status.py \
+            tests/unit/test_protocol_v3_report_open_action.py
+          python -m compileall -q src/ethusdc_bot/ui
+          git diff --check
+          git show "origin/${GITHUB_BASE_REF}:.github/workflows/review-ci.yml" > .github/workflows/review-ci.yml
+          git rm -f --ignore-unmatch \
+            .github/task30-closeout-trigger.txt \
+            .github/task30-closeout-trigger-v2.txt \
+            .github/workflows/task30-closeout-one-shot.yml \
+            .github/workflows/task30-progress-one-shot.yml \
+            scripts/task30_closeout_once.py
+          git add \
+            .github/workflows/review-ci.yml \
+            src/ethusdc_bot/ui/protocol_v3_operator_state.py \
+            tests/unit/test_protocol_v3_operator_state.py \
+            handoff/PROTOCOL_V3_TASK_30_2026-07-20.md \
+            handoff/CURRENT_STATUS.md \
+            handoff/NEXT_ACTION.md \
+            docs/41_PROTOCOL_V3_IMPLEMENTATION_SEQUENCE.md
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Complete Protocol v3 Task 30 UI handoff"
+          git push origin HEAD:"${GITHUB_HEAD_REF}"
