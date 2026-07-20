@@ -1,3 +1,0 @@
-ready_at_utc=2026-07-20T20:03:00Z
-technical_ci_run=29770299870
-full_tests=1266
