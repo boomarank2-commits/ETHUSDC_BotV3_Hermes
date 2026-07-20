@@ -71,10 +71,11 @@ def _report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     return task28.state.__wrapped__(tmp_path, monkeypatch)[-1]
 
 
-def _ready_data():
+def _ready_data(now: datetime):
+    watermark = (int(now.timestamp() * 1000) // 60_000 - 1) * 60_000
     return build_protocol_v3_data_status(
         state="READY",
-        common_watermark_open_time_ms=1_752_105_600_000,
+        common_watermark_open_time_ms=watermark,
         context_identity_sha256="c" * 64,
     )
 
@@ -118,9 +119,10 @@ def test_apply_state_sets_only_snapshot_derived_button_states() -> None:
 def test_parallel_runtime_blocker_disables_start_with_exact_reason(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    now = datetime(2026, 7, 20, tzinfo=UTC)
     state = build_protocol_v3_operator_state(
-        now_utc=datetime(2026, 7, 20, tzinfo=UTC),
-        data_status=_ready_data(),
+        now_utc=now,
+        data_status=_ready_data(now),
         pipeline_generation=pipeline.build_pipeline_generation(REPO_ROOT),
         current_refit=_report(tmp_path, monkeypatch),
         ui_runtime_blockers=("training_research_is_running",),
@@ -139,8 +141,9 @@ def test_dashboard_manual_start_calls_only_task29_controller(
     monkeypatch.setattr(mixin_module, "datetime", _FixedDateTime)
     monkeypatch.setattr(mixin_module.messagebox, "askyesno", lambda *a, **k: True)
     monkeypatch.setattr(mixin_module.messagebox, "showerror", lambda *a, **k: None)
+    now = _FixedDateTime.now(UTC)
     evidence = ProtocolV3UiEvidence(
-        data_status=_ready_data(),
+        data_status=_ready_data(now),
         pipeline_generation=pipeline.build_pipeline_generation(REPO_ROOT),
         current_refit=_report(tmp_path, monkeypatch),
     )
@@ -174,6 +177,8 @@ def test_dashboard_resume_uses_validated_checkpoint_and_backend_worker(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(mixin_module, "datetime", _FixedDateTime)
+    now = _FixedDateTime.now(UTC)
     state = task29._cash_state(tmp_path, monkeypatch)
     receipt = build_research_challenger_checkpoint_receipt(state)
 
@@ -181,7 +186,7 @@ def test_dashboard_resume_uses_validated_checkpoint_and_backend_worker(
         return ResearchChallengerUiRunResult(current, receipt)
 
     evidence = ProtocolV3UiEvidence(
-        data_status=_ready_data(),
+        data_status=_ready_data(now),
         pipeline_generation=pipeline.build_pipeline_generation(REPO_ROOT),
         challenger_state=state,
         challenger_checkpoint=receipt,
