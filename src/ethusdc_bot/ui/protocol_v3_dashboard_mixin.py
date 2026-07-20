@@ -57,6 +57,12 @@ class ProtocolV3DashboardMixin:
             command=self.show_protocol_v3_view,
         )
         self.protocol_v3_show_button.pack(side=tk.LEFT, padx=4)
+        self.protocol_v3_overview_button = ttk.Button(
+            bar,
+            text="Zur Übersicht",
+            command=self.show_protocol_v3_overview,
+        )
+        self.protocol_v3_overview_button.pack(side=tk.LEFT, padx=4)
         self.protocol_v3_start_button = ttk.Button(
             bar,
             text="Diagnose manuell starten",
@@ -174,6 +180,20 @@ class ProtocolV3DashboardMixin:
                 else tk.DISABLED
             )
         )
+        # Protocol-v3 diagnosis is a separate order-free path. While this view
+        # is active, older research/final/adoption/shadow starts remain visible
+        # for orientation but cannot be triggered accidentally.
+        for attribute in (
+            "load_button",
+            "check_button",
+            "training_button",
+            "final_evaluation_button",
+            "adopt_shadow_button",
+            "shadow_start_button",
+        ):
+            control = getattr(self, attribute, None)
+            if control is not None:
+                control.configure(state=tk.DISABLED)
         tasks = root["task_progress"]
         challenger = root["research_challenger"]
         self.bot_state_var.set(
@@ -193,6 +213,12 @@ class ProtocolV3DashboardMixin:
 
     def show_protocol_v3_view(self) -> None:
         self._requested_view = "protocol_v3"
+        self.refresh_status(log_refresh=False)
+
+    def show_protocol_v3_overview(self) -> None:
+        """Return to the ordinary read-only dashboard overview."""
+
+        self._requested_view = "download"
         self.refresh_status(log_refresh=False)
 
     def start_protocol_v3_challenger(self) -> None:
