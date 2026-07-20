@@ -546,5 +546,5 @@ def test_wrong_predecessor_expired_bundle_and_wrong_window_fail_closed(state) ->
         current_refit._canonical(wrong_window_basis),
         current_refit._digest(wrong_window_basis),
     )
-    with pytest.raises(current_refit.CurrentRefitError, match="boundary"):
+    with pytest.raises(outer_origins.OuterOriginError, match="boundary"):
         current_refit.validate_current_refit_decision(forged_window)
