@@ -85,6 +85,7 @@ def _fake_app() -> OperatorDashboardApp:
     app.protocol_v3_start_button = _Button()
     app.protocol_v3_resume_button = _Button()
     app.protocol_v3_stop_button = _Button()
+    app.protocol_v3_report_button = _Button()
     app.load_button = _Button()
     app.check_button = _Button()
     app.training_button = _Button()
@@ -118,6 +119,7 @@ def test_apply_state_sets_only_snapshot_derived_button_states() -> None:
     assert app.protocol_v3_start_button.state == "disabled"
     assert app.protocol_v3_resume_button.state == "disabled"
     assert app.protocol_v3_stop_button.state == "disabled"
+    assert app.protocol_v3_report_button.state == "disabled"
     for control in (
         app.load_button,
         app.check_button,
