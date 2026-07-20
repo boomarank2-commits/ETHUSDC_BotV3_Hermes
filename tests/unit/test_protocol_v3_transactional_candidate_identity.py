@@ -119,7 +119,7 @@ def _production_decision(state, monkeypatch: pytest.MonkeyPatch):
         development_support=development,
     )
     decision = inner_selection.select_candidate(state["training_window"], config)
-    assert decision.outcome == inner_selection.CANDIDATE
+    assert decision.outcome == inner_selection.CANDIDATE, decision.to_dict()
     assert decision.fixture_only is False
     return decision
 
