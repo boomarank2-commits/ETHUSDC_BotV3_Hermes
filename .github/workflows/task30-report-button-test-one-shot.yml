@@ -1,0 +1,53 @@
+name: Task 30 report button test one-shot
+
+on:
+  push:
+    branches:
+      - codex/research-resume-and-ui-state-v1
+    paths:
+      - .github/workflows/task30-report-button-test-one-shot.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/research-resume-and-ui-state-v1
+          fetch-depth: 0
+      - name: Align existing integration fixture
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path(
+              "tests/unit/test_protocol_v3_operator_dashboard_integration.py"
+          )
+          text = path.read_text(encoding="utf-8")
+          replacements = [
+              (
+                  "    app.protocol_v3_stop_button = _Button()\n    app.load_button = _Button()\n",
+                  "    app.protocol_v3_stop_button = _Button()\n    app.protocol_v3_report_button = _Button()\n    app.load_button = _Button()\n",
+              ),
+              (
+                  '    assert app.protocol_v3_stop_button.state == "disabled"\n    for control in (\n',
+                  '    assert app.protocol_v3_stop_button.state == "disabled"\n    assert app.protocol_v3_report_button.state == "disabled"\n    for control in (\n',
+              ),
+          ]
+          for old, new in replacements:
+              if text.count(old) != 1:
+                  raise SystemExit(f"report button test replacement mismatch: {old!r}")
+              text = text.replace(old, new)
+          path.write_text(text, encoding="utf-8")
+      - name: Commit and remove one-shot workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/unit/test_protocol_v3_operator_dashboard_integration.py
+          git rm .github/workflows/task30-report-button-test-one-shot.yml
+          git diff --cached --check
+          git commit -m "Align Task 30 integration test with report-open control"
+          git push origin HEAD:codex/research-resume-and-ui-state-v1
