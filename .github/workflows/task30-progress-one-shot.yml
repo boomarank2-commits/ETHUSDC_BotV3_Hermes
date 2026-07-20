@@ -1,4 +1,5 @@
 name: Task 30 final progress one-shot
+# Triggered only after the complete lifecycle/report-open CI passed.
 
 on:
   push:
