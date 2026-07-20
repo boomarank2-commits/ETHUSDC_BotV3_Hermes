@@ -26,7 +26,7 @@
       "protocol_v3_causally_bound_hindsight_solvers_v1",
       "protocol_v3_transitively_bound_hindsight_benchmarks_v1",
       "protocol_v3_bound_hindsight_capture_and_stationary_bootstrap_v2",
-      "protocol_v3_order_free_research_challenger_shadow_v1"
+      "protocol_v3_order_free_research_challenger_shadow_v2"
     ],
     "ranking": [
       "protocol_v3_lexicographic_inner_ranking_v1",
