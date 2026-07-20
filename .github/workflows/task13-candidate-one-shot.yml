@@ -1,0 +1,114 @@
+name: Task 13 candidate one-shot patch
+
+on:
+  push:
+    branches:
+      - codex/research-resume-and-ui-state-v1
+    paths:
+      - .github/workflows/task13-candidate-one-shot.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/research-resume-and-ui-state-v1
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply exact Task-13 contract migration
+        shell: python
+        run: |
+          from pathlib import Path
+          import json
+
+          model_path = Path("src/ethusdc_bot/protocol_v3/transactional_cache_model.py")
+          text = model_path.read_text(encoding="utf-8")
+
+          replacements = [
+              (
+                  "from ethusdc_bot.protocol_v3.inner_selection import (\n    CANDIDATE_SELECTION_IDENTITY_SCHEMA,\n    NO_TRADE,",
+                  "from ethusdc_bot.protocol_v3.inner_selection import (\n    CANDIDATE,\n    CANDIDATE_SELECTION_IDENTITY_SCHEMA,\n    NO_TRADE,",
+              ),
+              (
+                  'TRANSACTION_CONTRACT_SCHEMA: Final = "protocol_v3_transaction_contract_v3"',
+                  'TRANSACTION_CONTRACT_SCHEMA: Final = "protocol_v3_transaction_contract_v4"',
+              ),
+              (
+                  '    "with_inner_selection_v3"\n',
+                  '    "with_inner_selection_and_production_candidates_v4"\n',
+              ),
+              (
+                  '    "protocol_v3_transaction_identity_v3"\n',
+                  '    "protocol_v3_transaction_identity_v4"\n',
+              ),
+              (
+                  '        "bound_candidate_selection_required": True,\n',
+                  '        "bound_candidate_selection_required": True,\n        "production_candidate_selection_supported_after_tasks_16_18": True,\n',
+              ),
+              (
+                  '        "candidate_matrix_task": 16,\n        "pbo_task": 17,\n        "dsr_task": 18,\n',
+                  '',
+              ),
+              (
+                  '    if decision["fixture_only"] is not False:\n        raise ProtocolV3TransactionError("synthetic Task-15 selection cannot enter production transaction state")\n    if decision["outcome"] != NO_TRADE or decision["selected_candidate"] is not None:\n        raise ProtocolV3TransactionError("production transaction state must remain NO_TRADE until Tasks 16-18 provide real evidence")\n',
+                  '    if decision["fixture_only"] is not False:\n        raise ProtocolV3TransactionError("synthetic Task-15 selection cannot enter production transaction state")\n    if decision["outcome"] not in {NO_TRADE, CANDIDATE}:\n        raise ProtocolV3TransactionError("production candidate selection outcome is invalid")\n    if decision["outcome"] == NO_TRADE and decision["selected_candidate"] is not None:\n        raise ProtocolV3TransactionError("NO_TRADE selection may not bind a candidate")\n    if decision["outcome"] == CANDIDATE and decision["selected_candidate"] is None:\n        raise ProtocolV3TransactionError("CANDIDATE selection requires a bound candidate")\n',
+              ),
+          ]
+          for old, new in replacements:
+              if text.count(old) != 1:
+                  raise SystemExit(f"expected exactly one model replacement: {old[:80]!r}")
+              text = text.replace(old, new)
+          model_path.write_text(text, encoding="utf-8")
+
+          contract_path = Path("configs/protocol_v3_transaction_contract.json")
+          contract = json.loads(contract_path.read_text(encoding="utf-8"))
+          contract["schema_version"] = "protocol_v3_transaction_contract_v4"
+          contract["contract_version"] = (
+              "protocol_v3_content_addressed_cache_and_transactional_resume_"
+              "with_inner_selection_and_production_candidates_v4"
+          )
+          contract["transaction_identity_schema_version"] = (
+              "protocol_v3_transaction_identity_v4"
+          )
+          contract["identity_policy"][
+              "production_candidate_selection_supported_after_tasks_16_18"
+          ] = True
+          for key in ("candidate_matrix_task", "pbo_task", "dsr_task"):
+              contract["deferred_scope"].pop(key, None)
+          contract_path.write_text(
+              json.dumps(contract, indent=2, ensure_ascii=True) + "\n",
+              encoding="utf-8",
+          )
+
+          pipeline_path = Path("configs/protocol_v3_pipeline_contract.json")
+          pipeline = json.loads(pipeline_path.read_text(encoding="utf-8"))
+          gates = pipeline["component_contracts"]["quality_gates"]
+          old_version = (
+              "protocol_v3_content_addressed_cache_and_transactional_resume_"
+              "with_inner_selection_v3"
+          )
+          new_version = (
+              "protocol_v3_content_addressed_cache_and_transactional_resume_"
+              "with_inner_selection_and_production_candidates_v4"
+          )
+          if gates.count(old_version) != 1:
+              raise SystemExit("old Task-13 pipeline contract version missing")
+          gates[gates.index(old_version)] = new_version
+          pipeline_path.write_text(
+              json.dumps(pipeline, indent=2, ensure_ascii=True) + "\n",
+              encoding="utf-8",
+          )
+      - name: Commit exact migration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/ethusdc_bot/protocol_v3/transactional_cache_model.py configs/protocol_v3_transaction_contract.json configs/protocol_v3_pipeline_contract.json
+          git diff --cached --check
+          git commit -m "Allow validated production candidates in Task 13"
+          git push origin HEAD:codex/research-resume-and-ui-state-v1
