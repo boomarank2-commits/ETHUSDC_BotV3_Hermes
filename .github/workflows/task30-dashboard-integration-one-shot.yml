@@ -1,0 +1,141 @@
+name: Task 30 existing dashboard integration one-shot
+
+on:
+  push:
+    branches:
+      - codex/research-resume-and-ui-state-v1
+    paths:
+      - .github/workflows/task30-dashboard-integration-one-shot.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/research-resume-and-ui-state-v1
+          fetch-depth: 0
+      - name: Apply exact Task-30 integration
+        shell: python
+        run: |
+          from pathlib import Path
+
+          state_path = Path("src/ethusdc_bot/ui/protocol_v3_operator_state.py")
+          state = state_path.read_text(encoding="utf-8")
+          state_replacements = [
+              (
+                  "    exchange_info_snapshot: FrozenExchangeInfoSnapshot | None = None,\n    resume_worker_available: bool = False,\n    worker_status: Mapping[str, Any] | None = None,\n",
+                  "    exchange_info_snapshot: FrozenExchangeInfoSnapshot | None = None,\n    resume_worker_available: bool = False,\n    ui_runtime_blockers: Sequence[str] = (),\n    worker_status: Mapping[str, Any] | None = None,\n",
+              ),
+              (
+                  "    data = data_status.to_dict()\n\n    generation_payload: dict[str, Any] | None = None\n",
+                  "    data = data_status.to_dict()\n    runtime_blockers = _strings(ui_runtime_blockers, \"UI runtime blockers\")\n\n    generation_payload: dict[str, Any] | None = None\n",
+              ),
+              (
+                  "    )\n    start_enabled = not blockers\n    stop_enabled = worker[\"phase\"] in ACTIVE_WORKER_PHASES and worker[\"running\"]\n",
+                  "    )\n    blockers = sorted(set([*blockers, *runtime_blockers]))\n    start_enabled = not blockers\n    stop_enabled = worker[\"phase\"] in ACTIVE_WORKER_PHASES and worker[\"running\"]\n",
+              ),
+              (
+                  "    )\n    resume_enabled = not resume_blockers\n    operator_mode = _operator_mode(\n",
+                  "    )\n    resume_blockers = sorted(set([*resume_blockers, *runtime_blockers]))\n    resume_enabled = not resume_blockers\n    operator_mode = _operator_mode(\n",
+              ),
+          ]
+          for old, new in state_replacements:
+              if state.count(old) != 1:
+                  raise SystemExit(f"operator-state replacement mismatch: {old[:120]!r}")
+              state = state.replace(old, new)
+          state_path.write_text(state, encoding="utf-8")
+
+          bridge_path = Path("src/ethusdc_bot/ui/protocol_v3_dashboard_bridge.py")
+          bridge = bridge_path.read_text(encoding="utf-8")
+          bridge_replacements = [
+              (
+                  "    controller_checkpoint: ResearchChallengerCheckpointReceipt | None = None,\n) -> ProtocolV3OperatorState:\n",
+                  "    controller_checkpoint: ResearchChallengerCheckpointReceipt | None = None,\n    ui_runtime_blockers: tuple[str, ...] = (),\n) -> ProtocolV3OperatorState:\n",
+              ),
+              (
+                  "        resume_worker_available=evidence.resume_worker is not None,\n        worker_status=worker_status,\n",
+                  "        resume_worker_available=evidence.resume_worker is not None,\n        ui_runtime_blockers=ui_runtime_blockers,\n        worker_status=worker_status,\n",
+              ),
+          ]
+          for old, new in bridge_replacements:
+              if bridge.count(old) != 1:
+                  raise SystemExit(f"bridge replacement mismatch: {old[:120]!r}")
+              bridge = bridge.replace(old, new)
+          bridge_path.write_text(bridge, encoding="utf-8")
+
+          dashboard_path = Path("src/ethusdc_bot/ui/operator_dashboard.py")
+          dashboard = dashboard_path.read_text(encoding="utf-8")
+          dashboard_replacements = [
+              (
+                  "from ethusdc_bot.ui import final_evaluation_controller as _final_evaluation_controller\n",
+                  "from ethusdc_bot.ui import final_evaluation_controller as _final_evaluation_controller\nfrom ethusdc_bot.ui import protocol_v3_dashboard_bridge as _protocol_v3_bridge\nfrom ethusdc_bot.ui.protocol_v3_dashboard_mixin import ProtocolV3DashboardMixin\nfrom ethusdc_bot.ui.protocol_v3_operator_state import ProtocolV3OperatorState\n",
+              ),
+              (
+                  "class OperatorDashboardApp(_base_dashboard.DashboardApp):\n",
+                  "class OperatorDashboardApp(ProtocolV3DashboardMixin, _base_dashboard.DashboardApp):\n",
+              ),
+              (
+                  "        local_root: Path | None = None,\n    ) -> None:\n        _install_runtime_guards()\n        self._refresh_gate = RefreshGate()\n",
+                  "        local_root: Path | None = None,\n        protocol_v3_evidence_provider: _protocol_v3_bridge.ProtocolV3EvidenceProvider | None = None,\n    ) -> None:\n        _install_runtime_guards()\n        self._initialize_protocol_v3_ui(protocol_v3_evidence_provider)\n        self._refresh_gate = RefreshGate()\n",
+              ),
+              (
+                  "    def _build_widgets(self) -> None:\n        super()._build_widgets()\n        self._data_toolbar = self.load_button.master\n",
+                  "    def _build_widgets(self) -> None:\n        super()._build_widgets()\n        self._build_protocol_v3_widgets()\n        self._data_toolbar = self.load_button.master\n",
+              ),
+              (
+                  "        self._overview_frame = self.progress_bar.master\n        self.status_text.configure(height=25)\n",
+                  "        self._overview_frame = self.progress_bar.master\n        if self._protocol_v3_action_bar is not None:\n            self._protocol_v3_action_bar.pack_forget()\n            self._show_before_overview(self._protocol_v3_action_bar)\n        self.status_text.configure(height=25)\n",
+              ),
+              (
+                  "        runtime_status = dict(self.current_runtime_status or {})\n\n        def worker() -> None:\n",
+                  "        runtime_status = dict(self.current_runtime_status or {})\n        protocol_evidence = self._protocol_v3_evidence_snapshot()\n        protocol_worker_status = (\n            self.protocol_v3_challenger_controller.status_snapshot()\n        )\n        protocol_controller_state = (\n            self.protocol_v3_challenger_controller.state_snapshot()\n        )\n        protocol_controller_checkpoint = (\n            self.protocol_v3_challenger_controller.checkpoint_snapshot()\n        )\n        protocol_runtime_blockers: list[str] = []\n        if data_running:\n            protocol_runtime_blockers.append(\"data_preparation_is_running\")\n        if self.training_research_controller.is_running:\n            protocol_runtime_blockers.append(\"training_research_is_running\")\n        if self.final_evaluation_controller.is_running:\n            protocol_runtime_blockers.append(\"sealed_final_evaluation_is_running\")\n        if self.shadow_controller.is_running:\n            protocol_runtime_blockers.append(\"canonical_shadow_runtime_is_running\")\n\n        def worker() -> None:\n",
+              ),
+              (
+                  "                effective_runtime = runtime_status or dict(\n                    snapshot[\"data_prep_runtime_status\"]\n                )\n                view_mode = select_operator_view(\n",
+                  "                effective_runtime = runtime_status or dict(\n                    snapshot[\"data_prep_runtime_status\"]\n                )\n                protocol_state = _protocol_v3_bridge.resolve_protocol_v3_operator_state(\n                    protocol_evidence,\n                    now_utc=datetime.now(UTC),\n                    worker_status=protocol_worker_status,\n                    controller_state=protocol_controller_state,\n                    controller_checkpoint=protocol_controller_checkpoint,\n                    ui_runtime_blockers=tuple(protocol_runtime_blockers),\n                )\n                view_mode = select_operator_view(\n",
+              ),
+              (
+                  "                view_mode = apply_requested_operator_view(\n                    view_mode,\n                    requested_view=self._requested_view,\n                    backtest_mode=str(display.get(\"mode\", \"idle\")),\n                )\n                if view_mode == \"backtest_running\":\n",
+                  "                view_mode = apply_requested_operator_view(\n                    view_mode,\n                    requested_view=self._requested_view,\n                    backtest_mode=str(display.get(\"mode\", \"idle\")),\n                )\n                if (\n                    self._requested_view == \"protocol_v3\"\n                    or protocol_worker_status.get(\"running\") is True\n                ):\n                    view_mode = \"protocol_v3\"\n                if view_mode == \"protocol_v3\":\n                    text = _protocol_v3_bridge.format_protocol_v3_operator_view(\n                        protocol_state\n                    )\n                elif view_mode == \"backtest_running\":\n",
+              ),
+              (
+                  '                    "runtime_status": effective_runtime,\n                    "view_mode": view_mode,\n',
+                  '                    "runtime_status": effective_runtime,\n                    "protocol_v3_state": protocol_state,\n                    "view_mode": view_mode,\n',
+              ),
+              (
+                  "            runtime_status = payload.get(\"runtime_status\")\n            if not isinstance(snapshot, dict) or not isinstance(display, dict):\n",
+                  "            runtime_status = payload.get(\"runtime_status\")\n            protocol_state = payload.get(\"protocol_v3_state\")\n            if (\n                not isinstance(snapshot, dict)\n                or not isinstance(display, dict)\n                or not isinstance(protocol_state, ProtocolV3OperatorState)\n            ):\n",
+              ),
+              (
+                  "            self._apply_product_status(snapshot)\n            view_mode = str(payload.get(\"view_mode\", \"download\"))\n",
+                  "            self._apply_product_status(snapshot)\n            view_mode = str(payload.get(\"view_mode\", \"download\"))\n",
+              ),
+              (
+                  "            if view_mode in {\"backtest_running\", \"backtest_result\"}:\n                self._apply_backtest_display_status(display)\n",
+                  "            if view_mode == \"protocol_v3\":\n                self._apply_protocol_v3_operator_state(protocol_state)\n                self.progress_var.set(\n                    float(protocol_state.to_dict()[\"task_progress\"][\"progress_pct\"])\n                )\n                self._set_progress_visible(True)\n            elif view_mode in {\"backtest_running\", \"backtest_result\"}:\n                self._apply_backtest_display_status(display)\n",
+              ),
+              (
+                  "        self._show_before_overview(self._shadow_action_bar)\n\n    def start_data_check_and_load(self) -> None:\n",
+                  "        self._show_before_overview(self._shadow_action_bar)\n        if self._protocol_v3_action_bar is not None:\n            self._show_before_overview(self._protocol_v3_action_bar)\n\n    def _heartbeat_active_run(self) -> None:\n        self._refresh_protocol_v3_worker_status()\n        super()._heartbeat_active_run()\n\n    def start_data_check_and_load(self) -> None:\n",
+              ),
+          ]
+          for old, new in dashboard_replacements:
+              if dashboard.count(old) != 1:
+                  raise SystemExit(f"dashboard replacement mismatch: {old[:140]!r}")
+              dashboard = dashboard.replace(old, new)
+          dashboard_path.write_text(dashboard, encoding="utf-8")
+      - name: Commit existing-dashboard integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/ethusdc_bot/ui/protocol_v3_operator_state.py \
+            src/ethusdc_bot/ui/protocol_v3_dashboard_bridge.py \
+            src/ethusdc_bot/ui/operator_dashboard.py
+          git diff --cached --check
+          git commit -m "Integrate Protocol v3 controls into existing dashboard"
+          git push origin HEAD:codex/research-resume-and-ui-state-v1
