@@ -7,7 +7,6 @@ another checkpoint store, or any trading path.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox, ttk
 from typing import Any
@@ -19,7 +18,10 @@ from ethusdc_bot.ui.protocol_v3_dashboard_bridge import (
     protocol_v3_button_blocker_text,
     resolve_protocol_v3_operator_state,
 )
-from ethusdc_bot.ui.protocol_v3_operator_state import ProtocolV3OperatorState
+from ethusdc_bot.ui.protocol_v3_operator_state import (
+    ProtocolV3OperatorState,
+    build_protocol_v3_data_status,
+)
 from ethusdc_bot.ui.research_challenger_controller import ResearchChallengerController
 
 
@@ -85,10 +87,28 @@ class ProtocolV3DashboardMixin:
         provider = self.protocol_v3_evidence_provider
         if provider is None:
             return build_empty_protocol_v3_ui_evidence()
-        evidence = provider()
-        if not isinstance(evidence, ProtocolV3UiEvidence):
-            raise TypeError("Protocol-v3 provider returned an invalid evidence object")
-        return evidence
+        try:
+            evidence = provider()
+            if not isinstance(evidence, ProtocolV3UiEvidence):
+                raise TypeError(
+                    "Protocol-v3 provider returned an invalid evidence object"
+                )
+            return evidence
+        except Exception as exc:
+            logger = getattr(self, "_log", None)
+            if callable(logger):
+                logger(
+                    "Protocol-v3-Evidence-Provider wurde fail-closed blockiert: "
+                    f"{type(exc).__name__}"
+                )
+            return ProtocolV3UiEvidence(
+                data_status=build_protocol_v3_data_status(
+                    state="ERROR",
+                    blockers=(
+                        f"protocol_v3_evidence_provider_failed:{type(exc).__name__}",
+                    ),
+                )
+            )
 
     def _resolve_protocol_v3_operator_state(
         self,
@@ -105,9 +125,25 @@ class ProtocolV3DashboardMixin:
             controller_checkpoint=(
                 self.protocol_v3_challenger_controller.checkpoint_snapshot()
             ),
+            ui_runtime_blockers=self._protocol_v3_runtime_blockers(),
         )
         self.protocol_v3_operator_state = state
         return state
+
+    def _protocol_v3_runtime_blockers(self) -> tuple[str, ...]:
+        blockers: list[str] = []
+        data_thread = getattr(self, "active_data_thread", None)
+        if data_thread is not None and data_thread.is_alive():
+            blockers.append("data_preparation_is_running")
+        for attribute, blocker in (
+            ("training_research_controller", "training_research_is_running"),
+            ("final_evaluation_controller", "sealed_final_evaluation_is_running"),
+            ("shadow_controller", "canonical_shadow_runtime_is_running"),
+        ):
+            controller = getattr(self, attribute, None)
+            if controller is not None and controller.is_running:
+                blockers.append(blocker)
+        return tuple(sorted(set(blockers)))
 
     def _apply_protocol_v3_operator_state(
         self, state: ProtocolV3OperatorState
