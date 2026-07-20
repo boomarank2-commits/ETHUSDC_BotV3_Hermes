@@ -89,12 +89,14 @@ def test_valid_task28_generation_and_watermark_enable_manual_start(
         data_status=_ready_data(now),
         pipeline_generation=generation,
         current_refit=report,
+        resume_worker_available=True,
     )
     second = ui_state.build_protocol_v3_operator_state(
         now_utc=now,
         data_status=_ready_data(now),
         pipeline_generation=generation,
         current_refit=report,
+        resume_worker_available=True,
     )
     payload = first.to_dict()
 

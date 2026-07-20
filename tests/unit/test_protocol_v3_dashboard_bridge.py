@@ -79,6 +79,12 @@ def test_valid_refit_view_is_idempotent_and_never_displays_outer_pnl(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     now = datetime(2026, 7, 9, 12, tzinfo=UTC)
+
+    def worker(current, _stop, _callback):
+        return ResearchChallengerUiRunResult(
+            current, build_research_challenger_checkpoint_receipt(current)
+        )
+
     evidence = ProtocolV3UiEvidence(
         data_status=_ready_data(now),
         pipeline_generation=pipeline.build_pipeline_generation(REPO_ROOT),
@@ -94,6 +100,7 @@ def test_valid_refit_view_is_idempotent_and_never_displays_outer_pnl(
             tested_candidates=108,
             current_step="Task-18 DSR",
         ),
+        resume_worker=worker,
     )
     first = resolve_protocol_v3_operator_state(evidence, now_utc=now)
     second = resolve_protocol_v3_operator_state(evidence, now_utc=now)

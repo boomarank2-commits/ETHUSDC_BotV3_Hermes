@@ -142,10 +142,17 @@ def test_dashboard_manual_start_calls_only_task29_controller(
     monkeypatch.setattr(mixin_module.messagebox, "askyesno", lambda *a, **k: True)
     monkeypatch.setattr(mixin_module.messagebox, "showerror", lambda *a, **k: None)
     now = _FixedDateTime.now(UTC)
+
+    def worker(current, _stop, _callback):
+        return ResearchChallengerUiRunResult(
+            current, build_research_challenger_checkpoint_receipt(current)
+        )
+
     evidence = ProtocolV3UiEvidence(
         data_status=_ready_data(now),
         pipeline_generation=pipeline.build_pipeline_generation(REPO_ROOT),
         current_refit=_report(tmp_path, monkeypatch),
+        resume_worker=worker,
     )
     app = _fake_app()
     app.protocol_v3_evidence_provider = lambda: evidence
@@ -167,7 +174,9 @@ def test_dashboard_manual_start_calls_only_task29_controller(
     assert state is not None
     assert state.to_dict()["forward_ledger"]["record_count"] == 0
     status = app.protocol_v3_challenger_controller.status_snapshot()
-    assert status["phase"] == "initialized"
+    assert status["phase"] == "resume_ready"
+    assert status["resume_ready"] is True
+    assert status["checkpoint_receipt_sha256"] is not None
     assert status["orders_created"] == 0
     assert status["private_api_calls"] == 0
     assert app._requested_view == "protocol_v3"
