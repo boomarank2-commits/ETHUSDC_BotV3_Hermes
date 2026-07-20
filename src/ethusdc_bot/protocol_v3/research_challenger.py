@@ -275,7 +275,8 @@ def assert_research_challenger_pipeline(
     """Block resume across a changed family/feature/controller generation."""
 
     root = validate_research_challenger_state(state).to_dict()
-    generation = validate_pipeline_generation(current_pipeline_generation)
+    validate_pipeline_generation(current_pipeline_generation)
+    generation = current_pipeline_generation
     if (
         root["pipeline_generation_id"] != generation.generation_id
         or root["forward_ledger_namespace"] != generation.forward_ledger_namespace
@@ -579,7 +580,8 @@ def validate_research_challenger_state(
 def _validate_current_generation(
     task28: Mapping[str, Any], generation: PipelineGeneration
 ) -> PipelineGeneration:
-    current = validate_pipeline_generation(generation)
+    validate_pipeline_generation(generation)
+    current = generation
     expected = task28["identity_manifest"]["current_pipeline_generation_id"]
     run = _run_fingerprint(task28)
     if (
