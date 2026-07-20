@@ -23,6 +23,7 @@ _SPEC29 = importlib.util.spec_from_file_location(
 assert _SPEC29 is not None and _SPEC29.loader is not None
 task29 = importlib.util.module_from_spec(_SPEC29)
 _SPEC29.loader.exec_module(task29)
+_REPORT_CLOCK = datetime(2026, 7, 16, tzinfo=UTC)
 
 
 def _state_with_minutes(
@@ -58,11 +59,10 @@ def test_complete_cash_day_builds_and_persists_existing_report_and_artifacts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     state = _state_with_minutes(tmp_path, monkeypatch, 1440)
-    created = datetime.now(UTC).replace(microsecond=0)
     evidence = research_challenger_evidence.build_research_challenger_evidence(
         state,
         report_id="task29_cash_day",
-        created_at_utc=created,
+        created_at_utc=_REPORT_CLOCK,
     )
 
     report = evidence.report.to_dict()
@@ -114,7 +114,7 @@ def test_incomplete_utc_day_cannot_be_reported(
         research_challenger_evidence.build_research_challenger_evidence(
             state,
             report_id="task29_incomplete",
-            created_at_utc=datetime.now(UTC).replace(microsecond=0),
+            created_at_utc=_REPORT_CLOCK,
         )
 
 
