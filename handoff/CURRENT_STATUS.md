@@ -4,50 +4,44 @@ Stand: 2026-07-20
 
 ## Verbindlicher Gesamtstand
 
-`29/33 = 87,88 % DONE_100`.
+`30/33 = 90,91 % DONE_100`.
 
-Abgeschlossene Aufgaben: `1 bis 29`.
+Abgeschlossene Aufgaben: `1 bis 30`.
 
-Aktive Aufgabe: `30 – UI und Bedienzustände vollständig anschließen` – `IN_PROGRESS`.
+Aktive Aufgabe: keine.
 
-Aufgaben 31 bis 33 bleiben strikt `NOT_STARTED`.
+Nächste Aufgabe: `31 – Pipeline-Final-Evaluator für ein frisches versiegeltes Jahr` – `NOT_STARTED`.
+
+Aufgaben 32 und 33 bleiben strikt `NOT_STARTED`.
 
 ## Repository-Wahrheit
 
 - Repository: `boomarank2-commits/ETHUSDC_BotV3_Hermes`;
 - Branch: `codex/research-resume-and-ui-state-v1`;
 - Draft-PR: `#17`;
-- Task-29-technischer Head: `96d069054a452f55ebccb29f964fe27ca5c5fe0b`;
-- grüner technischer GitHub-CI-Lauf: `29736897831`;
-- vollständige Suite: `1.233 Tests erfolgreich`;
-- Python-Compile, PowerShell-Syntax und Whitespace: erfolgreich;
-- grüner Task-29-Dokumentations-CI-Lauf: `29737703423` auf Head `3c276345f39068e29b35b9f90669fe7aa50483c0`;
-- endgültiger grüner Task-29-Status-CI-Lauf: `29738230474` auf Head `5844af4844ec4922a8858a18441cad0588f48ced`.
+- technischer Task-30-Head vor Dokumentationsabschluss: `228902ec071d6d094ea902a7efd827b3e34db8f5`;
+- grüner vollständiger Task-30-CI-Lauf: `29770299870`;
+- vollständige Suite: `1.266 Tests erfolgreich`;
+- Python-Compile, PowerShell-Syntax und Whitespace: erfolgreich.
 
-## Aufgabe 29 – DONE_100
+## Aufgabe 30 – DONE_100
 
 Abschlussbericht:
-`handoff/PROTOCOL_V3_TASK_29_2026-07-20.md`
+`handoff/PROTOCOL_V3_TASK_30_2026-07-20.md`
 
-Der separate Research-Challenger ist manuell, strikt orderfrei, `NOT_FRESH`, `diagnostic_only`, nicht adoptionfähig und nicht final. Task-13-Resume, Task-11-/12-Evidenz und Pipelinegeneration sind vollständig gebunden.
+Das bestehende Dashboard zeigt nun einen einzigen fail-closed Protocol-v3-Operatorzustand, getrennte Lebenszykluszustände, kanonische Blocker und den orderfreien Task-29-Bedienpfad. Refresh und Neustart bleiben zustandsneutral. Paper, Testtrade, Live, Orders, private Endpunkte, Adoption und Botstart bleiben gesperrt.
 
-## Aufgabe 30 – IN_PROGRESS
+## Aufgabe 31 – NOT_STARTED
 
-Verbindlicher Umfang:
+Verbindlicher nächster Umfang:
 
-- bestehendes Dashboard und vorhandene Controller als einzige UI-/Runtime-Wahrheit erweitern;
-- Origins, Folds, Aufgabenfortschritt, Safety, Ergebnisbedeutung und manuellen Research-Challenger-Start korrekt anzeigen;
-- Buttons ausschließlich aus kanonischen Readiness-/Report-/Checkpointzuständen aktivieren;
-- keine vorzeitige Outer-PnL oder erfundene Fortschritts-/Ergebnisanzeige;
-- Refresh, Neustart und wiederholte Anzeige dürfen keine Research-, Signal-, Fill- oder Ledgerzustände verändern;
-- Paper, Testtrade, Live, Orders, private Endpunkte, API-Keys und kanonische Adoption bleiben gesperrt.
+- einen getrennt versionierten Pipeline-Final-Evaluator für genau ein wirklich neues, vorab registriertes und bis zum Ende versiegeltes 365-Tage-Fenster bauen;
+- dieselbe unveränderte monatlich refittende Pipeline mit zwölf Origins und vollständiger Drei-Markt-/Execution-/Kosten-/Boundary-Parität verwenden;
+- sichtbare Forward-Monate, verbrauchte Historie und Legacy-/Single-Candidate-Finalpfade strikt ausschließen;
+- genau eine Auswertung zulassen und erst danach einen Protocol-v3-Pipeline-Finalreport mit Task-31-Attestation erzeugen;
+- keine Orders, keine Adoption, kein Paper, kein Testtrade und kein Live vorziehen.
 
-Aktueller Arbeitsschritt:
-
-- vorhandene Dashboard-, Operator-View-, State-, Report-, Checkpoint- und Task-29-Controllerpfade vollständig inventarisieren;
-- danach einen reinen fail-closed Protocol-v3-UI-Statusadapter und einen dünnen asynchronen Task-29-Bediencontroller in die bestehende UI integrieren.
-
-Aufgabe 31 darf erst nach vollständigem Task-30-Handoff und grünem Task-30-Dokumentations-CI begonnen werden.
+Aufgabe 31 darf erst nach grünem CI dieses Task-30-Dokumentations-Heads begonnen werden.
 
 ## Sicherheitsstatus
 
@@ -62,4 +56,4 @@ Aufgabe 31 darf erst nach vollständigem Task-30-Handoff und grünem Task-30-Dok
 
 ## Nächster Einstieg
 
-Ausschließlich Aufgabe 30 fortsetzen; keine Aufgabe 31 vorziehen.
+Nach grünem Dokumentations-CI ausschließlich `handoff/NEXT_ACTION.md` für Aufgabe 31 ausführen.

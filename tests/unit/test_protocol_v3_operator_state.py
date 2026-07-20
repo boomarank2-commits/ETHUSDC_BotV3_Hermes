@@ -42,11 +42,11 @@ def test_task_progress_is_only_done_100_over_33() -> None:
     ).to_dict()
 
     assert state["task_progress"] == {
-        "done_tasks": 29,
+        "done_tasks": 30,
         "total_tasks": 33,
-        "progress_pct": 87.88,
-        "active_task": 30,
-        "active_task_status": "IN_PROGRESS",
+        "progress_pct": 90.91,
+        "active_task": 31,
+        "active_task_status": "NOT_STARTED",
     }
     assert state["outer_pnl_visible"] is False
     assert state["research_progress"] is None

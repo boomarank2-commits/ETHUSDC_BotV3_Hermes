@@ -44,7 +44,7 @@ from ethusdc_bot.ui.protocol_v3_lifecycle_status import (
 )
 
 PROTOCOL_V3_TOTAL_TASKS: Final = 33
-PROTOCOL_V3_DONE_TASKS: Final = 29
+PROTOCOL_V3_DONE_TASKS: Final = 30
 PROTOCOL_V3_PROGRESS_PCT: Final = round(
     PROTOCOL_V3_DONE_TASKS / PROTOCOL_V3_TOTAL_TASKS * 100, 2
 )
@@ -353,8 +353,8 @@ def build_protocol_v3_operator_state(
             "done_tasks": PROTOCOL_V3_DONE_TASKS,
             "total_tasks": PROTOCOL_V3_TOTAL_TASKS,
             "progress_pct": PROTOCOL_V3_PROGRESS_PCT,
-            "active_task": 30,
-            "active_task_status": "IN_PROGRESS",
+            "active_task": 31,
+            "active_task_status": "NOT_STARTED",
         },
         "data_status": data,
         "lifecycle_status": lifecycle,

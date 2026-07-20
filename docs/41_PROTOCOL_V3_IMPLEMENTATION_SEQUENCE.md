@@ -2,7 +2,7 @@
 
 Stand: 2026-07-20
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 29/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 30/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -442,9 +442,22 @@ Retrospektive Challenger besitzen einen eigenen Reporttyp, erlaubten Storage-Roo
 
 ### Aufgabe 30 – UI und Bedienzustände vollständig anschließen
 
-**Status:** `NOT_STARTED`
+**Status:** `DONE_100`
 
-Origins, Folds, Fortschritt, Safety, Ergebnisbedeutung und manuelle Challenger-Aktion werden korrekt angezeigt; keine vorzeitige Outer-PnL, Paper/Testtrade/Live/Orders bleiben gesperrt.
+Das bestehende Operator-Dashboard zeigt genau einen fail-closed Protocol-v3-Zustand. Origins, Folds, Cycles, Kandidatenfortschritt, aktueller Rechenschritt, Drei-Markt-Watermark, Monatsrefit, Research-Challenger, Finalfenster und kanonischer Shadow sind semantisch getrennt.
+
+**Abnahme:**
+
+- Task-28-/29-/13-Evidenz wird nur typisiert und transitiv validiert in die read-only UI-Bridge übernommen; rohe JSON-, Bool- oder Dateifund-Claims können keinen Button aktivieren.
+- Manueller Start verlangt aktuelle geschlossene Drei-Markt-Daten, passende Pipelinegeneration, gültiges Task-28-Fenster, Exchange-Info-Parität und einen öffentlichen checkpointfähigen Backend-Worker.
+- Resume verlangt bitgleichen State, Checkpoint-Receipt, Ledger-Head und dieselbe Generation. Uncheckpointed In-Memory-State ist nicht resume-fähig.
+- Der Task-29-Controller bleibt asynchron, kooperativ stoppbar, orderfrei und strikt von kanonischer Adoption getrennt.
+- Restart, Refresh und wiederholtes Öffnen verändern keine Research-, Signal-, Fill-, Ledger-, Report- oder Checkpointidentität.
+- Historisches Prozess-OOS, aktueller Refit, späteres Finalfenster und kanonischer Shadow besitzen getrennte sichtbare Lebenszykluszustände.
+- Outer-PnL bleibt bis zu einem vollständig publizierten Ergebnis verborgen. Task 27 bis 29 bleiben `NOT_FRESH`, `diagnostic_only`, nicht statistisch unterstützt, nicht adoptionfähig und nicht final.
+- Paper, Testtrade, Live, Orders, private Endpunkte, API-Keys, `active_config.json`, kanonische Adoption und Botstart bleiben sichtbar und technisch gesperrt.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_30_2026-07-20.md`
 
 ### Aufgabe 31 – Pipeline-Final-Evaluator für ein frisches versiegeltes Jahr
 
@@ -470,7 +483,8 @@ Erst nach Aufgaben 1–32 werden zwölf Origins und 365 OOS-Tage einmalig ausgef
 Protocol v3: Aufgabe 27/33 – Hindsight-Benchmarks, Capture-Ratios und Bootstrap – DONE_100
 Protocol v3: Aufgabe 28/33 – Aktueller 730-Tage-Refit und Champion/Challenger/Cash – DONE_100
 Protocol v3: Aufgabe 29/33 – Orderfreier Research-Challenger-Shadow – DONE_100
-Gesamt: 29/33 DONE_100 = 87,88 %
+Protocol v3: Aufgabe 30/33 – UI und Bedienzustände vollständig anschließen – DONE_100
+Gesamt: 30/33 DONE_100 = 90,91 %
 ```
 
 Fortschritt wird ausschließlich als `DONE_100 / 33` ausgewiesen, nicht nach Zeit oder Token geschätzt.
