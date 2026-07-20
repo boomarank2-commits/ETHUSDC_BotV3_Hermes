@@ -33,9 +33,11 @@ def _state_with_minutes(
 ):
     report = task29.task28.state.__wrapped__(tmp_path / "task28", monkeypatch)[-1]
     valid_from = datetime(2026, 7, 9, tzinfo=UTC)
+    generation = task29._generation()
     state = research_challenger.start_research_challenger(
         report,
         started_at_utc=valid_from,
+        current_pipeline_generation=generation,
     )
     binding = task29._binding(int(valid_from.timestamp() * 1000), count=count)
     monkeypatch.setattr(
@@ -52,6 +54,7 @@ def _state_with_minutes(
         state,
         binding,
         observed_at_utc=observed,
+        current_pipeline_generation=generation,
     ).state
 
 
