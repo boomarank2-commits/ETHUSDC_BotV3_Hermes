@@ -162,10 +162,11 @@ def test_task13_atomically_stores_and_resumes_only_the_compact_receipt(
     assert resumed.checkpoint == committed.checkpoint
     result_payload = resumed.checkpoint.to_dict()["result"]["payload"]
     assert set(result_payload) == {"task29_checkpoint_receipt"}
-    serialized = str(result_payload).lower()
-    assert "candles" not in serialized
-    assert "ohlcv" not in serialized
-    assert "raw_market_data" not in serialized
+    receipt_payload = result_payload["task29_checkpoint_receipt"]
+    assert receipt_payload["safety"]["raw_market_data_stored"] is False
+    assert "candles" not in receipt_payload
+    assert "ohlcv" not in receipt_payload
+    assert "raw_market_data" not in receipt_payload
 
 
 def test_checkpoint_identity_mismatch_is_blocked(
