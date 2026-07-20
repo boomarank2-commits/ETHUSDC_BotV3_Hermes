@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+import ethusdc_bot.protocol_v3.reporting as reporting_module
+
 from ethusdc_bot.protocol_v3 import research_challenger
 from ethusdc_bot.protocol_v3 import research_challenger_checkpoint as checkpointing
 from ethusdc_bot.protocol_v3 import research_challenger_checkpoint_api
@@ -130,6 +132,11 @@ def test_state_receipt_roundtrip_and_replay_verification(
 def test_task13_atomically_stores_and_resumes_only_the_compact_receipt(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setattr(
+        reporting_module,
+        "_utc_now",
+        lambda: datetime(2026, 7, 16, tzinfo=UTC),
+    )
     built = task13.build_state(tmp_path, monkeypatch)
     receipt = _receipt_for_task13_identity(built["identity"])
 
@@ -164,6 +171,11 @@ def test_task13_atomically_stores_and_resumes_only_the_compact_receipt(
 def test_checkpoint_identity_mismatch_is_blocked(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setattr(
+        reporting_module,
+        "_utc_now",
+        lambda: datetime(2026, 7, 16, tzinfo=UTC),
+    )
     built = task13.build_state(tmp_path, monkeypatch)
     receipt = _receipt_for_task13_identity(built["identity"])
     changed = deepcopy(receipt.to_dict())

@@ -353,7 +353,8 @@ def advance_research_challenger(
         )
         is_forward = candle.open_time >= activation_ms
         entry_window = (
-            is_forward
+            strategy is not None
+            and is_forward
             and candle.open_time >= valid_from_ms
             and candle.open_time < valid_until_ms
         )
