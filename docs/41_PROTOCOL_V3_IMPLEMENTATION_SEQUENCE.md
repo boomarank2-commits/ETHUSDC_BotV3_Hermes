@@ -2,7 +2,7 @@
 
 Stand: 2026-07-20
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 28/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 29/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -130,7 +130,7 @@ Content-addressed Objekte sind von kleinen kanonischen Referenzindizes getrennt.
 - Cache-Records entstehen nur aus dem aktuellen committed HEAD und revalidieren Task-12-Indizes, Objekte, Reports und Trial-Ledger transitiv.
 - Cache-Reuse ist deterministisch, idempotent und zählt nicht als unabhängiger Trial. Checkpoint-, Cache- und Replace-Temp-Pfade blockieren als Symlinks oder Nicht-Dateien vor jedem Lesen.
 - Der Task-4-/Task-13-Adapter bindet das echte Ledgerfeld `event_sha256`; ein fremder späterer Ledgerfortschritt blockiert.
-- Durch Aufgabe 15 wurde der Vertrag ohne Lockerung fortgeschrieben zu `protocol_v3_content_addressed_cache_and_transactional_resume_with_inner_selection_v3`; Fold- und Kandidatenslot sind nun beide gebunden.
+- Durch Aufgabe 29 wurde der Vertrag versioniert zu `protocol_v3_content_addressed_cache_and_transactional_resume_with_inner_selection_and_production_candidates_v4`; Fold- und Kandidatenslot bleiben vollständig gebunden, echte Task-16→17→18-Produktionskandidaten sind zulässig und synthetische Fixtures bleiben blockiert.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_13_2026-07-16.md`
 
@@ -176,10 +176,10 @@ Content-addressed Objekte sind von kleinen kanonischen Referenzindizes getrennt.
 - Das 3-USDC-Ziel ist kein Ranking-, Loss-, Distanz- oder Stopwert.
 - Gates werden aus Evidenz neu berechnet; behauptete Freigaben werden nicht vertraut.
 - Fehlende oder widersprüchliche Evidenz erzeugt typisiertes `NO_TRADE` mit maschinenlesbaren Blockern statt Ausnahme oder stiller Auswahl.
-- Bis Aufgaben 16 bis 18 bleibt der einzige produktiv transaktionsfähige Zustand `NO_TRADE`.
+- Aufgaben 16 bis 18 sind abgeschlossen. Seit Aufgabe 29 darf Task 13 neben `NO_TRADE` ausschließlich eine echte, vollständig validierte produktive `CANDIDATE`-Entscheidung binden; synthetische Evidenz bleibt unzulässig.
 - Synthetische vollständige Evidenz ist ausschließlich Testfixture und wird am Transaktionsrand abgelehnt.
 - Candidate-`NOT_APPLICABLE/task15_not_implemented` ist nicht mehr zulässig; der Kandidatenslot muss `BOUND` sein.
-- Transaktionsvertrag und Identität wurden zu v3 fortgeschrieben; alte Cache-/Resume-Stände ohne gebundene Auswahlentscheidung können nicht treffen. Das Kernmodell besitzt diese v3-Wahrheit selbst und lädt den JSON-Vertrag unabhängig von der Importreihenfolge.
+- Transaktionsvertrag und Identität stehen nach Aufgabe 29 auf v4; alte Cache-/Resume-Stände ohne gebundene beziehungsweise produktionsgültige Auswahlentscheidung können nicht treffen. Das Kernmodell besitzt diese Wahrheit selbst und lädt den JSON-Vertrag unabhängig von der Importreihenfolge.
 - Aufgabe 16 oder später wurde nicht vorgezogen.
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_15_2026-07-18.md`
@@ -421,9 +421,24 @@ Für den nächsten Anker wird dieselbe unveränderte Task-15-/Task-22-Einzel-Ori
 
 ### Aufgabe 29 – Orderfreien Research-Challenger-Shadow bauen
 
-**Status:** `NOT_STARTED`
+**Status:** `DONE_100`
 
-Retrospektive Challenger erhalten eigenen Reporttyp, Storage, Controller und Forward-Ledger, bleiben strikt orderfrei und können nicht als kanonischer Adoption-Shadow angenommen werden.
+Retrospektive Challenger besitzen einen eigenen Reporttyp, erlaubten Storage-Root, orderfreien Controller und ein pipelinegebundenes Forward-Ledger, können aber niemals als kanonischer Adoption-Shadow angenommen werden.
+
+**Abnahme:**
+
+- Startprovenienz ist ausschließlich eine vollständig validierte Task-28-Entscheidung; Start ist manuell und erzeugt keinen rückwirkenden Forward-Backfill.
+- ETHUSDC ist einziges virtuelles Handelssymbol. BTCUSDC und ETHBTC bleiben exakt geschlossener, ausgerichteter Kontext ohne Orderrecht.
+- Die bestehende inkrementelle Task-8-Intrabar-/Execution-/Kostenlogik wird wiederverwendet; Ende eines Datenpräfixes liquidiert nicht künstlich und höchstens ein Lot bleibt erlaubt.
+- Warmup erzeugt keine Signale, Fills, PnL oder Ledgerzeilen. Forward-Einträge beginnen exakt an der manuellen Aktivierungsminute.
+- Das append-only SHA-256-Ledger bindet Pipelinegeneration, Task-28-Bundle, Snapshot, Kontext, Exchange Info, Execution, Kosten, Kerzeninhalt, virtuelle Events, Position, MTM und Closing Equity.
+- Eigene Task-11-Reports und Task-12-Artefakte speichern Trades, Daily MTM, Equity/Underwater und Diagnostik content-addressed; Rohkerzen werden nicht in Reports oder Checkpoints kopiert.
+- Task-13 speichert nur kompakte Receipts. Resume verlangt atomaren HEAD, vollständigen öffentlichen Präfix-Replay und bitgleichen State-/Ledger-/Cursor-/Safety-Nachweis.
+- Familien-, Feature-, Controller-, Execution- oder Pipelinewechsel erzeugt eine neue Generation, einen neuen Namespace und ein leeres Forward-Ledger.
+- Der Task-13-Vertrag v4 erlaubt echte vollständig validierte Task-16→17→18-Produktionskandidaten; Fixture-, Cross-Generation-, Hash-, Side-Effect-, Freshness-, Adoption- und Finalmanipulationen blockieren.
+- Sämtliche Ausgaben bleiben `NOT_FRESH`, `diagnostic_only`, nicht statistisch unterstützt, nicht adoptionfähig und nicht final. Orders, Paper, Testtrade, Live, private Endpunkte und API-Keys bleiben gesperrt.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_29_2026-07-20.md`
 
 ### Aufgabe 30 – UI und Bedienzustände vollständig anschließen
 
@@ -452,10 +467,10 @@ Erst nach Aufgaben 1–32 werden zwölf Origins und 365 OOS-Tage einmalig ausgef
 ## Fortschrittsführung
 
 ```text
-Protocol v3: Aufgabe 26/33 – Monthly Quality Gate, Stress und Pflichtmetriken – DONE_100
 Protocol v3: Aufgabe 27/33 – Hindsight-Benchmarks, Capture-Ratios und Bootstrap – DONE_100
 Protocol v3: Aufgabe 28/33 – Aktueller 730-Tage-Refit und Champion/Challenger/Cash – DONE_100
-Gesamt: 28/33 DONE_100 = 84,85 %
+Protocol v3: Aufgabe 29/33 – Orderfreier Research-Challenger-Shadow – DONE_100
+Gesamt: 29/33 DONE_100 = 87,88 %
 ```
 
 Fortschritt wird ausschließlich als `DONE_100 / 33` ausgewiesen, nicht nach Zeit oder Token geschätzt.
