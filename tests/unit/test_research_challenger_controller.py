@@ -9,8 +9,12 @@ import threading
 import pytest
 
 from ethusdc_bot.protocol_v3 import pipeline, research_challenger
+from ethusdc_bot.protocol_v3.research_challenger_checkpoint import (
+    build_research_challenger_checkpoint_receipt,
+)
 from ethusdc_bot.ui.research_challenger_controller import (
     ResearchChallengerController,
+    ResearchChallengerUiRunResult,
     build_initial_research_challenger_ui_status,
 )
 
@@ -41,6 +45,7 @@ def test_initial_status_is_inert_and_fully_locked() -> None:
 
     assert status["phase"] == "initial"
     assert status["running"] is False
+    assert status["resume_ready"] is False
     assert status["orders_allowed"] is False
     assert status["orders_created"] == 0
     assert status["private_api_calls"] == 0
@@ -66,14 +71,17 @@ def test_manual_start_initializes_only_validated_empty_state(
     payload = state.to_dict()
     status = result["status"]
     assert payload["forward_ledger"]["record_count"] == 0
-    assert status["phase"] == "resume_ready"
-    assert status["resume_ready"] is True
+    assert status["phase"] == "initialized"
+    assert status["resume_ready"] is False
+    assert status["checkpoint_receipt_sha256"] is None
     assert status["state_sha256"] == state.state_sha256
     assert status["ledger_head_sha256"] == research_challenger.ZERO_HASH
     assert status["orders_created"] == 0
     assert status["private_api_calls"] == 0
+    assert controller.state_snapshot() == state
+    assert controller.checkpoint_snapshot() is None
     assert updates[0]["phase"] == "starting"
-    assert updates[-1]["phase"] == "resume_ready"
+    assert updates[-1]["phase"] == "initialized"
 
 
 def test_double_start_is_blocked_while_initializer_is_active(
@@ -113,19 +121,23 @@ def test_double_start_is_blocked_while_initializer_is_active(
     assert thread.is_alive() is False
 
 
-def test_resume_stop_is_cooperative_and_never_changes_safety(
+def test_resume_stop_requires_and_returns_bit_identical_checkpoint(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     state = _start_state(tmp_path, monkeypatch)
+    receipt = build_research_challenger_checkpoint_receipt(state)
     controller = ResearchChallengerController()
     entered = threading.Event()
 
     def worker(current, stop_event, _callback):
         entered.set()
         assert stop_event.wait(timeout=10)
-        return current
+        return ResearchChallengerUiRunResult(
+            current,
+            build_research_challenger_checkpoint_receipt(current),
+        )
 
-    thread, result = controller.resume(state, worker=worker)
+    thread, result = controller.resume(state, receipt, worker=worker)
     assert entered.wait(timeout=10)
     stopping = controller.stop()
     thread.join(timeout=10)
@@ -133,11 +145,36 @@ def test_resume_stop_is_cooperative_and_never_changes_safety(
     assert stopping["phase"] == "stopping"
     assert stopping["stop_requested"] is True
     assert result["status"]["phase"] == "paused"
+    assert result["status"]["resume_ready"] is True
     assert result["status"]["state_sha256"] == state.state_sha256
+    assert result["status"]["checkpoint_receipt_sha256"] == receipt.receipt_sha256
     assert result["status"]["orders_allowed"] is False
     assert result["status"]["paper_allowed"] is False
     assert result["status"]["live_allowed"] is False
     assert result["status"]["active_config_written"] is False
+    assert controller.state_snapshot() == state
+    assert controller.checkpoint_snapshot() == receipt
+
+
+def test_resume_rejects_worker_result_without_checkpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state = _start_state(tmp_path, monkeypatch)
+    receipt = build_research_challenger_checkpoint_receipt(state)
+    controller = ResearchChallengerController()
+
+    thread, result = controller.resume(
+        state,
+        receipt,
+        worker=lambda current, _stop, _callback: ResearchChallengerUiRunResult(
+            current, None
+        ),
+    )
+    thread.join(timeout=10)
+
+    assert result["status"]["phase"] == "failed"
+    assert result["status"]["resume_ready"] is False
+    assert "checkpoint receipt" in result["status"]["error"]
 
 
 def test_untyped_start_and_resume_are_rejected(
@@ -146,6 +183,8 @@ def test_untyped_start_and_resume_are_rejected(
     controller = ResearchChallengerController()
     report = _report(tmp_path, monkeypatch)
     generation = pipeline.build_pipeline_generation(REPO_ROOT)
+    state = _start_state(tmp_path / "state", monkeypatch)
+    receipt = build_research_challenger_checkpoint_receipt(state)
 
     with pytest.raises(TypeError, match="CurrentRefitDecision"):
         controller.start(
@@ -154,4 +193,18 @@ def test_untyped_start_and_resume_are_rejected(
             current_pipeline_generation=generation,
         )
     with pytest.raises(TypeError, match="ResearchChallengerState"):
-        controller.resume({}, worker=lambda state, stop, callback: state)  # type: ignore[arg-type]
+        controller.resume(  # type: ignore[arg-type]
+            {},
+            receipt,
+            worker=lambda current, stop, callback: ResearchChallengerUiRunResult(
+                current, receipt
+            ),
+        )
+    with pytest.raises(TypeError, match="ResearchChallengerCheckpointReceipt"):
+        controller.resume(  # type: ignore[arg-type]
+            state,
+            {},
+            worker=lambda current, stop, callback: ResearchChallengerUiRunResult(
+                current, receipt
+            ),
+        )
