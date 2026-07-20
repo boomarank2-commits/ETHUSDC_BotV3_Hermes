@@ -48,10 +48,11 @@ def _report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     return task28.state.__wrapped__(tmp_path, monkeypatch)[-1]
 
 
-def _ready_data():
+def _ready_data(now: datetime):
+    watermark = (int(now.timestamp() * 1000) // 60_000 - 1) * 60_000
     return build_protocol_v3_data_status(
         state="READY",
-        common_watermark_open_time_ms=1_752_105_600_000,
+        common_watermark_open_time_ms=watermark,
         context_identity_sha256="c" * 64,
     )
 
@@ -77,8 +78,9 @@ def test_empty_bridge_is_fail_closed_and_explains_every_button() -> None:
 def test_valid_refit_view_is_idempotent_and_never_displays_outer_pnl(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    now = datetime(2026, 7, 9, 12, tzinfo=UTC)
     evidence = ProtocolV3UiEvidence(
-        data_status=_ready_data(),
+        data_status=_ready_data(now),
         pipeline_generation=pipeline.build_pipeline_generation(REPO_ROOT),
         current_refit=_report(tmp_path, monkeypatch),
         research_progress=build_protocol_v3_research_progress(
@@ -93,12 +95,8 @@ def test_valid_refit_view_is_idempotent_and_never_displays_outer_pnl(
             current_step="Task-18 DSR",
         ),
     )
-    first = resolve_protocol_v3_operator_state(
-        evidence, now_utc=datetime(2026, 7, 9, 12, tzinfo=UTC)
-    )
-    second = resolve_protocol_v3_operator_state(
-        evidence, now_utc=datetime(2026, 7, 9, 12, tzinfo=UTC)
-    )
+    first = resolve_protocol_v3_operator_state(evidence, now_utc=now)
+    second = resolve_protocol_v3_operator_state(evidence, now_utc=now)
     text = format_protocol_v3_operator_view(first)
 
     assert first == second
@@ -113,6 +111,7 @@ def test_valid_refit_view_is_idempotent_and_never_displays_outer_pnl(
 def test_restart_uses_exact_state_and_checkpoint_without_mutation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    now = datetime(2026, 7, 20, tzinfo=UTC)
     state = task29._cash_state(tmp_path, monkeypatch)
     receipt = build_research_challenger_checkpoint_receipt(state)
 
@@ -120,7 +119,7 @@ def test_restart_uses_exact_state_and_checkpoint_without_mutation(
         return ResearchChallengerUiRunResult(current, receipt)
 
     evidence = ProtocolV3UiEvidence(
-        data_status=_ready_data(),
+        data_status=_ready_data(now),
         pipeline_generation=pipeline.build_pipeline_generation(REPO_ROOT),
         current_refit=_report(tmp_path / "refit", monkeypatch),
         challenger_state=state,
@@ -128,12 +127,8 @@ def test_restart_uses_exact_state_and_checkpoint_without_mutation(
         resume_worker=worker,
     )
     before = state.to_dict()
-    first = resolve_protocol_v3_operator_state(
-        evidence, now_utc=datetime(2026, 7, 20, tzinfo=UTC)
-    )
-    second = resolve_protocol_v3_operator_state(
-        evidence, now_utc=datetime(2026, 7, 20, tzinfo=UTC)
-    )
+    first = resolve_protocol_v3_operator_state(evidence, now_utc=now)
+    second = resolve_protocol_v3_operator_state(evidence, now_utc=now)
 
     assert first == second
     assert state.to_dict() == before
@@ -149,17 +144,16 @@ def test_restart_uses_exact_state_and_checkpoint_without_mutation(
 def test_checkpoint_without_backend_worker_stays_disabled(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    now = datetime(2026, 7, 20, tzinfo=UTC)
     state = task29._cash_state(tmp_path, monkeypatch)
     receipt = build_research_challenger_checkpoint_receipt(state)
     evidence = ProtocolV3UiEvidence(
-        data_status=_ready_data(),
+        data_status=_ready_data(now),
         pipeline_generation=pipeline.build_pipeline_generation(REPO_ROOT),
         challenger_state=state,
         challenger_checkpoint=receipt,
     )
-    operator = resolve_protocol_v3_operator_state(
-        evidence, now_utc=datetime(2026, 7, 20, tzinfo=UTC)
-    )
+    operator = resolve_protocol_v3_operator_state(evidence, now_utc=now)
 
     assert operator.to_dict()["buttons"]["challenger_resume"]["enabled"] is False
     assert "public_data_resume_worker_missing" in protocol_v3_button_blocker_text(
