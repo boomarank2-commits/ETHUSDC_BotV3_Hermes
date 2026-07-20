@@ -8,7 +8,7 @@ Stand: 2026-07-20
 
 Abgeschlossene Aufgaben: `1 bis 29`.
 
-Nächste Aufgabe: `30 – UI und Bedienzustände vollständig anschließen` – `NOT_STARTED`.
+Aktive Aufgabe: `30 – UI und Bedienzustände vollständig anschließen` – `IN_PROGRESS`.
 
 Aufgaben 31 bis 33 bleiben strikt `NOT_STARTED`.
 
@@ -21,29 +21,17 @@ Aufgaben 31 bis 33 bleiben strikt `NOT_STARTED`.
 - grüner technischer GitHub-CI-Lauf: `29736897831`;
 - vollständige Suite: `1.233 Tests erfolgreich`;
 - Python-Compile, PowerShell-Syntax und Whitespace: erfolgreich;
-- grüner Task-29-Dokumentations-CI-Lauf: `29737703423` auf Head `3c276345f39068e29b35b9f90669fe7aa50483c0`.
+- grüner Task-29-Dokumentations-CI-Lauf: `29737703423` auf Head `3c276345f39068e29b35b9f90669fe7aa50483c0`;
+- endgültiger grüner Task-29-Status-CI-Lauf: `29738230474` auf Head `5844af4844ec4922a8858a18441cad0588f48ced`.
 
 ## Aufgabe 29 – DONE_100
 
 Abschlussbericht:
 `handoff/PROTOCOL_V3_TASK_29_2026-07-20.md`
 
-Umgesetzt:
+Der separate Research-Challenger ist manuell, strikt orderfrei, `NOT_FRESH`, `diagnostic_only`, nicht adoptionfähig und nicht final. Task-13-Resume, Task-11-/12-Evidenz und Pipelinegeneration sind vollständig gebunden.
 
-- separater, manuell gestarteter und strikt orderfreier `research_challenger_shadow`;
-- ausschließlich vollständig validierte Task-28-Ausgabe als Startprovenienz;
-- eigener versionierter Vertrag, Reporttyp, erlaubter Storage-Root, Controller und hashverkettetes Forward-Ledger;
-- Wiederverwendung der bestehenden Drei-Markt-Kontext-, Task-8-Intrabar-, Execution-, Kosten-, Report-, Artefakt- und Task-13-Resume-Pfade;
-- ETHUSDC als einziges virtuelles Handelssymbol, BTCUSDC/ETHBTC ausschließlich als exakt geschlossener Kontext;
-- Warmup ohne Signale/Fills/PnL/Ledger, manuelle Aktivierungsminute ohne rückwirkenden Forward-Backfill;
-- virtuelle Signale, Fills, Gebühren, Slippage, Positionen, Pending Entries, MTM, Tageswerte und Closing Equity bei dauerhaft `orders_created=0`;
-- content-addressed Trades-, Daily-MTM-, Equity-/Underwater- und Diagnoseartefakte;
-- kompakte Task-13-Checkpoint-Receipts und bitgleicher öffentlicher Präfix-Replay statt gespeicherter Rohkerzen;
-- neue Pipelinegeneration und leeres Ledger bei Familien-, Feature-, Controller-, Execution- oder Pipelinewechsel;
-- Task-13-Vertrag v4 erlaubt ausschließlich echte validierte Produktionskandidaten aus Task 16→17→18; synthetische Fixtures bleiben blockiert;
-- vollständige Paritäts-, Idempotenz-, Provenienz-, Watermark-, Gültigkeits-, Hash-, Ledger-, Checkpoint-, Resume- und Safety-Negativtests.
-
-## Aufgabe 30 – NOT_STARTED
+## Aufgabe 30 – IN_PROGRESS
 
 Verbindlicher Umfang:
 
@@ -54,7 +42,12 @@ Verbindlicher Umfang:
 - Refresh, Neustart und wiederholte Anzeige dürfen keine Research-, Signal-, Fill- oder Ledgerzustände verändern;
 - Paper, Testtrade, Live, Orders, private Endpunkte, API-Keys und kanonische Adoption bleiben gesperrt.
 
-Aufgabe 30 darf erst nach vollständig grünem Task-29-Dokumentations-CI begonnen werden.
+Aktueller Arbeitsschritt:
+
+- vorhandene Dashboard-, Operator-View-, State-, Report-, Checkpoint- und Task-29-Controllerpfade vollständig inventarisieren;
+- danach einen reinen fail-closed Protocol-v3-UI-Statusadapter und einen dünnen asynchronen Task-29-Bediencontroller in die bestehende UI integrieren.
+
+Aufgabe 31 darf erst nach vollständigem Task-30-Handoff und grünem Task-30-Dokumentations-CI begonnen werden.
 
 ## Sicherheitsstatus
 
@@ -69,4 +62,4 @@ Aufgabe 30 darf erst nach vollständig grünem Task-29-Dokumentations-CI begonne
 
 ## Nächster Einstieg
 
-Die sieben Pflichtdateien erneut vollständig lesen und ausschließlich Aufgabe 30 beginnen.
+Ausschließlich Aufgabe 30 fortsetzen; keine Aufgabe 31 vorziehen.
