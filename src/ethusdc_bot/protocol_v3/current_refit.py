@@ -44,6 +44,8 @@ from ethusdc_bot.protocol_v3.outer_origins import (
     validate_outer_origin_process,
 )
 from ethusdc_bot.protocol_v3.runtime_state import (
+    OuterRotationState,
+    RuntimeStateError,
     build_outer_rotation_state,
     restore_outer_rotation_state,
 )
@@ -166,6 +168,11 @@ def build_current_refit_decision(
     ):
         raise CurrentRefitError("current refit window must be exactly [T-730,T)")
     requested = _utc(requested_at_utc, "requested_at_utc")
+    target_utc = _midnight(target)
+    if requested < target_utc:
+        raise CurrentRefitError(
+            "current refit may not be requested before target anchor T"
+        )
     if requested > origin.valid_from:
         raise CurrentRefitError(
             "current refit missed T+24h and may not activate retroactively"
@@ -193,7 +200,7 @@ def build_current_refit_decision(
         new_candidate_bundle_sha256=bundle["bundle_sha256"],
         previous_runtime=None,
     )
-    rotation_payload = rotation.to_dict()
+    rotation_payload = _rotation_payload(rotation)
     choice = _pairwise_decision(predecessor, current_payload)
     selection = current_payload["selection_decision"]
     manifest = {
@@ -222,9 +229,7 @@ def build_current_refit_decision(
         "current_training_window_sha256": selection["fingerprints"][
             "training_window_sha256"
         ],
-        "current_fold_plan_sha256": selection["fingerprints"][
-            "fold_plan_sha256"
-        ],
+        "current_fold_plan_sha256": selection["fingerprints"]["fold_plan_sha256"],
         "current_context_identity_sha256": selection["fingerprints"][
             "context_identity_sha256"
         ],
@@ -373,22 +378,37 @@ def validate_current_refit_decision(
     manifest = dict(_mapping(root["identity_manifest"], "identity_manifest"))
     if root["identity_manifest_sha256"] != _digest(manifest):
         raise CurrentRefitError("current-refit identity manifest digest mismatch")
-    target = date.fromisoformat(manifest["target_anchor_utc"][:10])
+    target_text = manifest.get("target_anchor_utc")
+    target_utc = _parse_utc_text(target_text, "target_anchor_utc")
+    if target_utc.time() != datetime.min.time():
+        raise CurrentRefitError("target_anchor_utc must be UTC midnight")
+    target = target_utc.date()
+    valid_until = _parse_utc_text(manifest.get("valid_until_utc"), "valid_until_utc")
     from .boundaries import build_monthly_process_boundary_plan
 
-    replay_plan = build_monthly_process_boundary_plan(
-        date.fromisoformat(manifest["valid_until_utc"][:10])
-    )
+    replay_plan = build_monthly_process_boundary_plan(valid_until.date())
     origin = replay_plan.origins[-1]
     if origin.test_start_inclusive != target:
         raise CurrentRefitError("current-refit target and validity are inconsistent")
+    requested = _parse_utc_text(manifest.get("requested_at_utc"), "requested_at_utc")
+    if requested < _midnight(target) or requested > origin.valid_from:
+        raise CurrentRefitError("current-refit request must lie within [T,T+24h]")
     current_origin = _validate_origin_envelope(root["current_origin"], origin)
     bundle = current_origin["frozen_candidate_bundle"]
     if root["frozen_candidate_bundle"] != bundle:
         raise CurrentRefitError("current-refit bundle differs from current origin")
-    rotation = restore_outer_rotation_state(
-        root["outer_rotation_state"], origin=origin
-    ).to_dict()
+    rotation_raw = dict(_mapping(root["outer_rotation_state"], "outer_rotation_state"))
+    rotation_sha = _sha(
+        rotation_raw.pop("state_sha256", None), "outer_rotation_state.state_sha256"
+    )
+    try:
+        rotation = _rotation_payload(
+            restore_outer_rotation_state(rotation_raw, origin=origin)
+        )
+    except (RuntimeStateError, TypeError, ValueError) as exc:
+        raise CurrentRefitError("outer rotation state is invalid") from exc
+    if rotation["state_sha256"] != rotation_sha:
+        raise CurrentRefitError("outer rotation state digest mismatch")
     if (
         rotation["new_candidate_bundle_sha256"] != bundle["bundle_sha256"]
         or rotation["entry_enabled_at_utc"] != bundle["validity"]["valid_from_utc"]
@@ -436,6 +456,12 @@ def validate_current_refit_decision(
     if observed != _digest(basis):
         raise CurrentRefitError("current-refit report digest mismatch")
     return CurrentRefitDecision(_canonical(basis), observed)
+
+
+def _rotation_payload(rotation: OuterRotationState) -> dict[str, Any]:
+    if not isinstance(rotation, OuterRotationState):
+        raise CurrentRefitError("verified outer rotation state required")
+    return {**rotation.basis(), "state_sha256": rotation.state_sha256}
 
 
 def _bind_prior_evidence(
@@ -567,15 +593,11 @@ def _identity_manifest_from_root(root: Mapping[str, Any]) -> dict[str, Any]:
         "historical_outer_process_sha256": old[
             "historical_outer_process_sha256"
         ],
-        "historical_outer_ledger_sha256": old[
-            "historical_outer_ledger_sha256"
-        ],
+        "historical_outer_ledger_sha256": old["historical_outer_ledger_sha256"],
         "historical_monthly_gate_sha256": old[
             "historical_monthly_gate_sha256"
         ],
-        "historical_diagnostics_sha256": old[
-            "historical_diagnostics_sha256"
-        ],
+        "historical_diagnostics_sha256": old["historical_diagnostics_sha256"],
         "predecessor_bundle_sha256": bundle["predecessor_bundle_sha256"],
         "current_origin_sha256": current["origin_sha256"],
         "current_selection_decision_sha256": selection["decision_sha256"],
@@ -590,9 +612,7 @@ def _identity_manifest_from_root(root: Mapping[str, Any]) -> dict[str, Any]:
         "current_training_window_sha256": selection["fingerprints"][
             "training_window_sha256"
         ],
-        "current_fold_plan_sha256": selection["fingerprints"][
-            "fold_plan_sha256"
-        ],
+        "current_fold_plan_sha256": selection["fingerprints"]["fold_plan_sha256"],
         "current_context_identity_sha256": selection["fingerprints"][
             "context_identity_sha256"
         ],
@@ -622,8 +642,6 @@ def _predecessor_from_manifest(root: Mapping[str, Any]) -> dict[str, Any]:
     champion_id = choice["champion_candidate_id"]
     base_candidate = None
     if champion_id is not None:
-        # The exact candidate body is not separately accepted. Reconstruct it from
-        # the current tested inventory only when it is present there.
         evidence = root["current_origin"]["selection_decision"][
             "frozen_pipeline_config"
         ]["candidate_evidence"]
@@ -636,12 +654,10 @@ def _predecessor_from_manifest(root: Mapping[str, Any]) -> dict[str, Any]:
             raise CurrentRefitError("Champion candidate cannot be reconstructed")
         base_candidate = {
             "family": matches[0]["family"],
-            "params": matches[0]["parameters"],
+            "params": matches[0]["params"],
         }
     return {
-        "bundle_sha256": root["identity_manifest"][
-            "predecessor_bundle_sha256"
-        ],
+        "bundle_sha256": root["identity_manifest"]["predecessor_bundle_sha256"],
         "specialist_bundle": {"base_candidate": base_candidate},
     }
 
@@ -664,6 +680,19 @@ def _utc(value: datetime, name: str) -> datetime:
     ):
         raise CurrentRefitError(f"{name} must be UTC")
     return value.astimezone(UTC)
+
+
+def _parse_utc_text(value: Any, name: str) -> datetime:
+    if not isinstance(value, str) or not value.endswith("Z"):
+        raise CurrentRefitError(f"{name} must be canonical UTC text")
+    try:
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00")
+    except ValueError as exc:
+        raise CurrentRefitError(f"{name} must be canonical UTC text") from exc
+    canonical = _utc_text(parsed)
+    if canonical != value:
+        raise CurrentRefitError(f"{name} must be canonical UTC text")
+    return parsed
 
 
 def _utc_text(value: datetime) -> str:
