@@ -1,0 +1,57 @@
+name: Task 29 one-shot source fix
+
+on:
+  push:
+    branches:
+      - codex/research-resume-and-ui-state-v1
+    paths:
+      - .github/workflows/task29-one-shot-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/research-resume-and-ui-state-v1
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply exact reviewed replacements
+        shell: python
+        run: |
+          from pathlib import Path
+
+          controller = Path("src/ethusdc_bot/protocol_v3/research_challenger.py")
+          text = controller.read_text(encoding="utf-8")
+          old = """        entry_window = (\n            is_forward\n            and candle.open_time >= valid_from_ms\n            and candle.open_time < valid_until_ms\n        )\n"""
+          new = """        entry_window = (\n            strategy is not None\n            and is_forward\n            and candle.open_time >= valid_from_ms\n            and candle.open_time < valid_until_ms\n        )\n"""
+          if text.count(old) != 1:
+              raise SystemExit("expected exactly one Task-29 entry-window block")
+          controller.write_text(text.replace(old, new), encoding="utf-8")
+
+          test_path = Path("tests/unit/test_protocol_v3_research_challenger_checkpoint.py")
+          test_text = test_path.read_text(encoding="utf-8")
+          import_anchor = "import pytest\n\n"
+          import_line = "import pytest\n\nimport ethusdc_bot.protocol_v3.reporting as reporting_module\n\n"
+          if test_text.count(import_anchor) != 1:
+              raise SystemExit("checkpoint test import anchor changed")
+          test_text = test_text.replace(import_anchor, import_line)
+          build_line = "    built = task13.build_state(tmp_path, monkeypatch)\n"
+          frozen = """    monkeypatch.setattr(\n        reporting_module,\n        \"_utc_now\",\n        lambda: datetime(2026, 7, 16, tzinfo=UTC),\n    )\n    built = task13.build_state(tmp_path, monkeypatch)\n"""
+          if test_text.count(build_line) != 2:
+              raise SystemExit("expected exactly two Task-13 build_state calls")
+          test_text = test_text.replace(build_line, frozen)
+          test_path.write_text(test_text, encoding="utf-8")
+      - name: Commit exact patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/ethusdc_bot/protocol_v3/research_challenger.py tests/unit/test_protocol_v3_research_challenger_checkpoint.py
+          git diff --cached --check
+          git commit -m "Fix Task 29 cash window and checkpoint clocks"
+          git push origin HEAD:codex/research-resume-and-ui-state-v1
