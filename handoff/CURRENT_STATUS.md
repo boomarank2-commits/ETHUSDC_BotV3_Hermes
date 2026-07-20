@@ -4,53 +4,57 @@ Stand: 2026-07-20
 
 ## Verbindlicher Gesamtstand
 
-`28/33 = 84,85 % DONE_100`.
+`29/33 = 87,88 % DONE_100`.
 
-Abgeschlossene Aufgaben: `1 bis 28`.
+Abgeschlossene Aufgaben: `1 bis 29`.
 
-Aktive Aufgabe: `29 – Orderfreier Research-Challenger-Shadow` – `IN_PROGRESS`.
+Nächste Aufgabe: `30 – UI und Bedienzustände vollständig anschließen` – `NOT_STARTED`.
 
-Aufgaben 30 bis 33 bleiben strikt `NOT_STARTED`.
+Aufgaben 31 bis 33 bleiben strikt `NOT_STARTED`.
 
 ## Repository-Wahrheit
 
 - Repository: `boomarank2-commits/ETHUSDC_BotV3_Hermes`;
 - Branch: `codex/research-resume-and-ui-state-v1`;
 - Draft-PR: `#17`;
-- Task-28-technischer Head: `8b7134af30d98992ec53da9b140f1b7b9912c771`;
-- grüner technischer GitHub-CI-Lauf: `29722432007`;
-- grüner Task-28-Dokumentations-CI-Lauf: `29723295515` auf Head `69c60a44bb4fb6bdb18256757aa1a262f8c542d7`;
-- vollständige Tests, Python-Compile, PowerShell-Syntax und Whitespace: erfolgreich.
+- Task-29-technischer Head: `96d069054a452f55ebccb29f964fe27ca5c5fe0b`;
+- grüner technischer GitHub-CI-Lauf: `29736897831`;
+- vollständige Suite: `1.233 Tests erfolgreich`;
+- Python-Compile, PowerShell-Syntax und Whitespace: erfolgreich;
+- Task-29-Dokumentations-CI: noch ausstehend.
 
-## Aufgabe 28 – DONE_100
+## Aufgabe 29 – DONE_100
 
 Abschlussbericht:
-`handoff/PROTOCOL_V3_TASK_28_2026-07-20.md`
+`handoff/PROTOCOL_V3_TASK_29_2026-07-20.md`
 
 Umgesetzt:
 
-- unveränderte Task-15-/Task-22-Einzel-Origin-Pipeline auf exakt `[T-730 Tage,T)`;
-- exakte Bindung an Zielanker, Drei-Markt-Snapshot bis `T`, Code, Pipelinegeneration, Exchange Info, Kosten, Trial-Ledger, Fold, Seed, Feature-/Regime-Fit-State und Gate-Evidenz;
-- vollständiges aktuelles `FrozenCandidateBundle` mit Vorgänger, `valid_from=T+24h`, `valid_until`, Rotation und `entry_enabled_at_utc`;
-- deterministische `CHAMPION`-/`CHALLENGER`-/`CASH`-Entscheidung mit erneutem Champion-Test und aktuellen Gate-/DSR-/PBO-/Cash-Nachweisen;
-- historische Baseline-/Joint-/Slippage- und Hindsight-Evidenz ausschließlich als `NOT_FRESH`-Provenienz ohne Rückwirkung;
-- vollständiges Quellen-Replay für persistierte Ausgaben und fail-closed Negativtests für Zeit, Daten, Fenster, Vorgänger, Ablauf, Rotation, Stress, Entscheidung, Freshness und Aktivierung;
-- jede Ausgabe bleibt `diagnostic_only`, nicht adoption-/finalfähig und nicht startfähig.
+- separater, manuell gestarteter und strikt orderfreier `research_challenger_shadow`;
+- ausschließlich vollständig validierte Task-28-Ausgabe als Startprovenienz;
+- eigener versionierter Vertrag, Reporttyp, erlaubter Storage-Root, Controller und hashverkettetes Forward-Ledger;
+- Wiederverwendung der bestehenden Drei-Markt-Kontext-, Task-8-Intrabar-, Execution-, Kosten-, Report-, Artefakt- und Task-13-Resume-Pfade;
+- ETHUSDC als einziges virtuelles Handelssymbol, BTCUSDC/ETHBTC ausschließlich als exakt geschlossener Kontext;
+- Warmup ohne Signale/Fills/PnL/Ledger, manuelle Aktivierungsminute ohne rückwirkenden Forward-Backfill;
+- virtuelle Signale, Fills, Gebühren, Slippage, Positionen, Pending Entries, MTM, Tageswerte und Closing Equity bei dauerhaft `orders_created=0`;
+- content-addressed Trades-, Daily-MTM-, Equity-/Underwater- und Diagnoseartefakte;
+- kompakte Task-13-Checkpoint-Receipts und bitgleicher öffentlicher Präfix-Replay statt gespeicherter Rohkerzen;
+- neue Pipelinegeneration und leeres Ledger bei Familien-, Feature-, Controller-, Execution- oder Pipelinewechsel;
+- Task-13-Vertrag v4 erlaubt ausschließlich echte validierte Produktionskandidaten aus Task 16→17→18; synthetische Fixtures bleiben blockiert;
+- vollständige Paritäts-, Idempotenz-, Provenienz-, Watermark-, Gültigkeits-, Hash-, Ledger-, Checkpoint-, Resume- und Safety-Negativtests.
 
-## Aufgabe 29 – IN_PROGRESS
+## Aufgabe 30 – NOT_STARTED
 
 Verbindlicher Umfang:
 
-- strikt orderfreier `research_challenger_shadow`;
-- ausschließlich vollständig validierte Task-28-Ausgabe als Startprovenienz;
-- eigener Reporttyp, erlaubter Storage-Root, Controller und Forward-Ledger in der vorhandenen Architektur;
-- Wiederverwendung bestehender Drei-Markt-Kontext-, Simulator-, Execution-, Kosten-, Checkpoint- und Artefaktpfade;
-- virtuelle Signale, Fills, Gebühren, Slippage, Positionen, MTM und Tageswerte, aber niemals Orders;
-- kein kanonischer Adoption-Shadow und keine Verbindung zu `adopt_for_shadow`;
-- kein Paper, Testtrade, Live, Trading-API, private Endpunkte oder API-Keys;
-- vollständige Negativtests für Provenienz, Watermark, Gültigkeit, Hashes, Rotation, Ledger, Checkpoints, Resume und Safety.
+- bestehendes Dashboard und vorhandene Controller als einzige UI-/Runtime-Wahrheit erweitern;
+- Origins, Folds, Aufgabenfortschritt, Safety, Ergebnisbedeutung und manuellen Research-Challenger-Start korrekt anzeigen;
+- Buttons ausschließlich aus kanonischen Readiness-/Report-/Checkpointzuständen aktivieren;
+- keine vorzeitige Outer-PnL oder erfundene Fortschritts-/Ergebnisanzeige;
+- Refresh, Neustart und wiederholte Anzeige dürfen keine Research-, Signal-, Fill- oder Ledgerzustände verändern;
+- Paper, Testtrade, Live, Orders, private Endpunkte, API-Keys und kanonische Adoption bleiben gesperrt.
 
-Aufgabe 30 darf erst nach vollständigem Task-29-Handoff und grünem Task-29-Dokumentations-CI begonnen werden.
+Aufgabe 30 darf erst nach vollständig grünem Task-29-Dokumentations-CI begonnen werden.
 
 ## Sicherheitsstatus
 
@@ -58,11 +62,11 @@ Aufgabe 30 darf erst nach vollständigem Task-29-Handoff und grünem Task-29-Dok
 - keine API-Keys oder privaten Endpunkte;
 - keine Secrets committed;
 - keine Quality-Gates gelockert;
-- keine Fake-Trades oder Fake-Reports;
+- keine Fake-Trades, Fake-Fills oder Fake-Reports;
 - kein kanonischer Adoption- oder Finalpfad geöffnet;
 - kein Protocol-v3-Finalstatus ohne wirklich neuen `sealed_final_holdout`;
 - der Bot darf nicht gestartet werden.
 
 ## Nächster Einstieg
 
-Bestehende Report-, Artifact-, Transaction-/Resume-, Shadow-, Context-, Simulator- und Runtime-State-Pfade vollständig prüfen und Aufgabe 29 minimal in diese Architektur integrieren.
+Nach grünem Task-29-Dokumentations-CI die sieben Pflichtdateien erneut vollständig lesen und ausschließlich Aufgabe 30 beginnen.
