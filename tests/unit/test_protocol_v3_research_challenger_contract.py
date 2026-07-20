@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ethusdc_bot.protocol_v3 import pipeline
 from ethusdc_bot.protocol_v3 import research_challenger
 from ethusdc_bot.protocol_v3 import research_challenger_api
 
@@ -30,6 +31,23 @@ def test_task29_contract_and_public_api_are_exact() -> None:
         "protocol_v3_final_status": False,
     }
     assert research_challenger_api.__all__ == research_challenger.__all__
+
+
+def test_task29_is_content_bound_to_the_pipeline_generation() -> None:
+    basis = pipeline.build_pipeline_generation(REPO_ROOT).basis()
+    contracts = basis["component_contracts"]["quality_gates"]
+    bound_files = basis["source_file_sha256"]
+
+    assert research_challenger.CONTRACT_VERSION in contracts
+    for path in (
+        "configs/protocol_v3_research_challenger_contract.json",
+        "src/ethusdc_bot/protocol_v3/research_challenger.py",
+        "src/ethusdc_bot/protocol_v3/research_challenger_api.py",
+        "src/ethusdc_bot/protocol_v3/research_challenger_evidence.py",
+        "src/ethusdc_bot/protocol_v3/research_challenger_evidence_api.py",
+    ):
+        assert path in bound_files
+        assert len(bound_files[path]) == 64
 
 
 def test_task29_surface_has_no_order_or_private_runtime_dependency() -> None:
