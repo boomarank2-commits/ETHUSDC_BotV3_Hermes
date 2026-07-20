@@ -100,6 +100,44 @@ def test_incremental_runtime_roundtrips_open_position_without_liquidation() -> N
     assert restored.position.entry.executed_entry_notional <= 100
 
 
+def test_advancing_open_position_does_not_mutate_prior_checkpoint() -> None:
+    candles = [
+        task8._candle(0, open_=100, high=100.1, low=99.9, close=100),
+        task8._candle(1, open_=100, high=100.2, low=99.5, close=100),
+        task8._candle(2, open_=101, high=102, low=100.5, close=101.5),
+    ]
+    strategy = task8._strategy(
+        stop_loss_bps=2_000,
+        take_profit_bps=2_000,
+        trailing_stop_bps=100,
+    )
+    snapshot = task8._snapshot()
+    state = intrabar_runtime.new_intrabar_runtime_state()
+    for index, candle in enumerate(candles[:2]):
+        state, _ = intrabar_runtime.advance_intrabar_runtime(
+            state,
+            candle,
+            strategy,
+            exchange_info_snapshot=snapshot,
+            horizon_policy=task8.HORIZON_POLICY,
+            context_decision=_allowed(index, candle),
+            entry_allowed=True,
+        )
+    before = intrabar_runtime.intrabar_runtime_state_payload(state)
+
+    intrabar_runtime.advance_intrabar_runtime(
+        state,
+        candles[2],
+        strategy,
+        exchange_info_snapshot=snapshot,
+        horizon_policy=task8.HORIZON_POLICY,
+        context_decision=_allowed(2, candles[2]),
+        entry_allowed=True,
+    )
+
+    assert intrabar_runtime.intrabar_runtime_state_payload(state) == before
+
+
 def test_context_veto_and_entry_window_cannot_create_a_pending_fill() -> None:
     candle = task8._candle(0, open_=100, high=100.1, low=99.9, close=100)
     strategy = task8._strategy()
