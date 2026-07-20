@@ -2,13 +2,12 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from ethusdc_bot.protocol_v3 import boundaries, current_refit, current_refit_api
 from ethusdc_bot.protocol_v3 import inner_folds, inner_selection, outer_origins
 from ethusdc_bot.protocol_v3 import pipeline, router_bundle
@@ -34,7 +33,21 @@ task23 = importlib.util.module_from_spec(_SPEC23)
 _SPEC23.loader.exec_module(task23)
 
 
-def _current_request(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, current_plan):
+def _current_request(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    current_plan,
+    *,
+    snapshot_day=None,
+):
+    origin = current_plan.origins[-1]
+    frozen_day = snapshot_day or (origin.test_start_inclusive - timedelta(days=1))
+    monkeypatch.setattr(task23.support._FakeInspector, "latest_day", frozen_day)
+    monkeypatch.setattr(
+        task23.support._FakeInspector,
+        "first_day",
+        frozen_day - timedelta(days=1200),
+    )
     base = task23.support.build_state(tmp_path / "current", monkeypatch)
     generation = pipeline.build_pipeline_generation(REPO_ROOT)
     manifest = build_pre_run_manifest(
@@ -42,7 +55,6 @@ def _current_request(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, current_pl
         current_plan,
         code_commit=task23.support.COMMIT,
     )
-    origin = current_plan.origins[-1]
     fold_plan = inner_folds.build_inner_fold_plan_for_origin(
         origin,
         task23.support.HORIZON,
@@ -73,22 +85,16 @@ def _current_request(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, current_pl
         * 1000
     )
     store = SimpleNamespace(
-        to_dict=lambda value=context_ms: {
-            "common_context_timestamp_ms": value
-        }
+        to_dict=lambda value=context_ms: {"common_context_timestamp_ms": value}
     )
     assessment = SimpleNamespace(
         to_dict=lambda value=context_ms: {"context_timestamp_ms": value}
     )
     feature_state = SimpleNamespace(
-        to_dict=lambda value=fold_plan.identity_payload: {
-            "fold_identity": value
-        }
+        to_dict=lambda value=fold_plan.identity_payload: {"fold_identity": value}
     )
     regime_state = SimpleNamespace(
-        to_dict=lambda value=fold_plan.identity_payload: {
-            "fold_identity": value
-        }
+        to_dict=lambda value=fold_plan.identity_payload: {"fold_identity": value}
     )
     return outer_origins.OuterOriginRequest(
         config,
@@ -172,6 +178,11 @@ def test_current_refit_uses_exact_window_predecessor_t_plus_24_and_cash(state) -
     assert manifest["training_end_exclusive"] == "2026-07-08"
     assert manifest["valid_from_utc"] == "2026-07-09T00:00:00Z"
     assert manifest["valid_until_utc"] == "2026-08-08T00:00:00Z"
+    assert manifest["current_snapshot_as_of_day"] == "2026-07-07"
+    assert manifest["current_latest_common_complete_day"] == "2026-07-07"
+    assert manifest["current_raw_interval_end_exclusive"] == (
+        "2026-07-08T00:00:00Z"
+    )
     assert payload["frozen_candidate_bundle"][
         "predecessor_bundle_sha256"
     ] == manifest["predecessor_bundle_sha256"]
@@ -220,7 +231,7 @@ def test_persisted_report_requires_complete_exact_source_replay(state) -> None:
         current_refit.validate_current_refit_decision(report.to_dict())
 
 
-def test_late_or_wrong_anchor_refit_fails_closed(state) -> None:
+def test_late_early_or_wrong_anchor_refit_fails_closed(state) -> None:
     (
         plan,
         current_plan,
@@ -232,29 +243,111 @@ def test_late_or_wrong_anchor_refit_fails_closed(state) -> None:
         _,
         _,
     ) = state
+    common = dict(
+        historical_boundary_plan=plan,
+        current_boundary_plan=current_plan,
+        historical_outer_process=process,
+        baseline_ledger=baseline,
+        monthly_quality_report=gate,
+        historical_diagnostics=diagnostics,
+        current_request=request,
+    )
     with pytest.raises(current_refit.CurrentRefitError, match=r"missed T\+24h"):
         current_refit.build_current_refit_decision(
-            historical_boundary_plan=plan,
-            current_boundary_plan=current_plan,
-            historical_outer_process=process,
-            baseline_ledger=baseline,
-            monthly_quality_report=gate,
-            historical_diagnostics=diagnostics,
-            current_request=request,
+            **common,
             requested_at_utc=datetime(2026, 7, 9, 0, 0, 1, tzinfo=UTC),
+        )
+    with pytest.raises(current_refit.CurrentRefitError, match="before target anchor"):
+        current_refit.build_current_refit_decision(
+            **common,
+            requested_at_utc=datetime(2026, 7, 7, 23, 59, 59, tzinfo=UTC),
         )
     wrong = boundaries.build_monthly_process_boundary_plan("2026-09-08")
     with pytest.raises(current_refit.CurrentRefitError, match="historical process end"):
         current_refit.build_current_refit_decision(
-            historical_boundary_plan=plan,
-            current_boundary_plan=wrong,
-            historical_outer_process=process,
-            baseline_ledger=baseline,
-            monthly_quality_report=gate,
-            historical_diagnostics=diagnostics,
-            current_request=request,
+            **{**common, "current_boundary_plan": wrong},
             requested_at_utc=datetime(2026, 7, 8, tzinfo=UTC),
         )
+
+
+def test_stale_or_future_snapshot_fails_before_selection(
+    state, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (
+        plan,
+        current_plan,
+        process,
+        baseline,
+        gate,
+        diagnostics,
+        _,
+        requested,
+        _,
+    ) = state
+    target = current_plan.origins[-1].test_start_inclusive
+    common = dict(
+        historical_boundary_plan=plan,
+        current_boundary_plan=current_plan,
+        historical_outer_process=process,
+        baseline_ledger=baseline,
+        monthly_quality_report=gate,
+        historical_diagnostics=diagnostics,
+        requested_at_utc=requested,
+    )
+    for label, snapshot_day in (
+        ("stale", target - timedelta(days=2)),
+        ("future", target + timedelta(days=31)),
+    ):
+        request = _current_request(
+            tmp_path / label,
+            monkeypatch,
+            current_plan,
+            snapshot_day=snapshot_day,
+        )
+        with pytest.raises(current_refit.CurrentRefitError, match="snapshot must end"):
+            current_refit.build_current_refit_decision(
+                **common,
+                current_request=request,
+            )
+
+
+def test_rehashed_rotation_or_request_time_tampering_fails(state) -> None:
+    *_, report = state
+    rotation = deepcopy(report.to_dict())
+    rotation["outer_rotation_state"]["entry_enabled_at_utc"] = (
+        "2026-07-08T12:00:00Z"
+    )
+    rotation_basis = dict(rotation["outer_rotation_state"])
+    rotation_basis.pop("state_sha256")
+    rotation["outer_rotation_state"]["state_sha256"] = current_refit._digest(
+        rotation_basis
+    )
+    rotation["identity_manifest"]["current_rotation_state_sha256"] = rotation[
+        "outer_rotation_state"
+    ]["state_sha256"]
+    rotation["identity_manifest_sha256"] = current_refit._digest(
+        rotation["identity_manifest"]
+    )
+    basis = dict(rotation)
+    basis.pop("report_sha256")
+    forged_rotation = current_refit.CurrentRefitDecision(
+        current_refit._canonical(basis), current_refit._digest(basis)
+    )
+    with pytest.raises(current_refit.CurrentRefitError, match="rotation state"):
+        current_refit.validate_current_refit_decision(forged_rotation)
+
+    early = deepcopy(report.to_dict())
+    early["identity_manifest"]["requested_at_utc"] = "2026-07-07T23:59:59Z"
+    early["identity_manifest_sha256"] = current_refit._digest(
+        early["identity_manifest"]
+    )
+    early_basis = dict(early)
+    early_basis.pop("report_sha256")
+    forged_early = current_refit.CurrentRefitDecision(
+        current_refit._canonical(early_basis), current_refit._digest(early_basis)
+    )
+    with pytest.raises(current_refit.CurrentRefitError, match=r"\[T,T\+24h\]"):
+        current_refit.validate_current_refit_decision(forged_early)
 
 
 def test_rehashed_choice_feedback_freshness_or_activation_tampering_fails(state) -> None:
