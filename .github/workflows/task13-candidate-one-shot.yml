@@ -52,7 +52,7 @@ jobs:
                   '        "bound_candidate_selection_required": True,\n        "production_candidate_selection_supported_after_tasks_16_18": True,\n',
               ),
               (
-                  '        "candidate_matrix_task": 16,\n        "pbo_task": 17,\n        "dsr_task": 18,\n',
+                  '        "candidate_daily_matrix_task": 16,\n        "pbo_task": 17,\n        "dsr_task": 18,\n',
                   '',
               ),
           ]
@@ -82,7 +82,7 @@ jobs:
           contract["identity_policy"][
               "production_candidate_selection_supported_after_tasks_16_18"
           ] = True
-          for key in ("candidate_matrix_task", "pbo_task", "dsr_task"):
+          for key in ("candidate_daily_matrix_task", "pbo_task", "dsr_task"):
               contract["deferred_scope"].pop(key, None)
           contract_path.write_text(
               json.dumps(contract, indent=2, ensure_ascii=True) + "\n",
