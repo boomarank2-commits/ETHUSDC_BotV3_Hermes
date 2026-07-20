@@ -10,7 +10,6 @@ import pytest
 from ethusdc_bot.backtest.simulator import StrategyCandidate
 from ethusdc_bot.protocol_v3 import dsr, inner_selection, pbo
 from ethusdc_bot.protocol_v3 import transactional_cache as tx
-from ethusdc_bot.protocol_v3.trial_ledger import read_trial_ledger
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -65,9 +64,15 @@ def _production_decision(state, monkeypatch: pytest.MonkeyPatch):
         for candidate, value in zip(candidates, (0.30, 0.20), strict=True)
     ]
     candidate_ids = [row.canonical_candidate_id for row in rows]
+    daily_series = [
+        dsr_support._values(1.00, 0.0),
+        dsr_support._values(0.50, 1.3),
+    ]
     profiles = []
-    for candidate_id, value in zip(candidate_ids, (0.30, 0.20), strict=True):
-        folds = matrix_support._folds(state["inner_fold_plan"], value)
+    for candidate_id, values in zip(candidate_ids, daily_series, strict=True):
+        folds = dsr_support.pbo_support._folds_from_values(
+            state["inner_fold_plan"], values
+        )
         trial = matrix_support._trial(state, candidate_id, 1, folds)
         profiles.append(
             {
