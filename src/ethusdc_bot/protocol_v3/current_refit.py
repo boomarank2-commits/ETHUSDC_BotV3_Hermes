@@ -84,6 +84,19 @@ _CANONICAL_CONTRACT: Final = {
         "deadline": "T+24h",
         "late_completion_may_not_activate_retroactively": True,
     },
+    "data_snapshot_policy": {
+        "markets": ["ETHUSDC", "BTCUSDC", "ETHBTC"],
+        "snapshot_as_of_day": "T-1",
+        "latest_common_complete_day": "T-1",
+        "raw_interval_end_exclusive": "T",
+        "stale_or_future_snapshot_forbidden": True,
+        "exchange_info_may_not_postdate_request": True,
+    },
+    "prior_evidence_policy": {
+        "baseline_joint_and_slippage_ledger_hashes_required": True,
+        "monthly_gate_and_hindsight_are_provenance_only": True,
+        "feedback_into_current_selection_forbidden": True,
+    },
     "decision_policy": {
         "choices": [CHAMPION, CHALLENGER, CASH],
         "cash_net_usdc_per_day": 0,
