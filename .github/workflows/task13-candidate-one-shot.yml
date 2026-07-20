@@ -29,7 +29,8 @@ jobs:
 
           model_path = Path("src/ethusdc_bot/protocol_v3/transactional_cache_model.py")
           text = model_path.read_text(encoding="utf-8")
-          replacements = [
+
+          simple = [
               (
                   "from ethusdc_bot.protocol_v3.inner_selection import (\n    CANDIDATE_SELECTION_IDENTITY_SCHEMA,\n    NO_TRADE,",
                   "from ethusdc_bot.protocol_v3.inner_selection import (\n    CANDIDATE,\n    CANDIDATE_SELECTION_IDENTITY_SCHEMA,\n    NO_TRADE,",
@@ -54,15 +55,18 @@ jobs:
                   '        "candidate_matrix_task": 16,\n        "pbo_task": 17,\n        "dsr_task": 18,\n',
                   '',
               ),
-              (
-                  '    if decision["fixture_only"] is True:\n        raise ProtocolV3TransactionError(\n            "synthetic Task-15 candidate decisions cannot enter transaction state"\n        )\n    if decision["outcome"] != NO_TRADE or decision["selected_candidate"] is not None:\n        raise ProtocolV3TransactionError(\n            "Task-15 production transaction state must remain NO_TRADE until Tasks 16-18"\n        )\n',
-                  '    if decision["fixture_only"] is True:\n        raise ProtocolV3TransactionError(\n            "synthetic Task-15 candidate decisions cannot enter transaction state"\n        )\n    if decision["outcome"] not in {NO_TRADE, CANDIDATE}:\n        raise ProtocolV3TransactionError(\n            "production candidate selection outcome is invalid"\n        )\n    if decision["outcome"] == NO_TRADE and decision["selected_candidate"] is not None:\n        raise ProtocolV3TransactionError(\n            "NO_TRADE selection may not bind a candidate"\n        )\n    if decision["outcome"] == CANDIDATE and decision["selected_candidate"] is None:\n        raise ProtocolV3TransactionError(\n            "CANDIDATE selection requires a bound candidate"\n        )\n',
-              ),
           ]
-          for old, new in replacements:
+          for old, new in simple:
               if text.count(old) != 1:
                   raise SystemExit(f"expected exactly one model replacement: {old[:100]!r}")
               text = text.replace(old, new)
+
+          start_marker = '    decision = normalized["decision"]\n'
+          end_marker = '    config = decision["frozen_pipeline_config"]\n'
+          start = text.index(start_marker) + len(start_marker)
+          end = text.index(end_marker, start)
+          replacement = '''    if decision["fixture_only"] is True:\n        raise ProtocolV3TransactionError(\n            "synthetic Task-15 candidate decisions cannot enter transaction state"\n        )\n    if decision["outcome"] not in {NO_TRADE, CANDIDATE}:\n        raise ProtocolV3TransactionError(\n            "production candidate selection outcome is invalid"\n        )\n    if decision["outcome"] == NO_TRADE and decision["selected_candidate"] is not None:\n        raise ProtocolV3TransactionError(\n            "NO_TRADE selection may not bind a candidate"\n        )\n    if decision["outcome"] == CANDIDATE and decision["selected_candidate"] is None:\n        raise ProtocolV3TransactionError(\n            "CANDIDATE selection requires a bound candidate"\n        )\n\n'''
+          text = text[:start] + replacement + text[end:]
           model_path.write_text(text, encoding="utf-8")
 
           contract_path = Path("configs/protocol_v3_transaction_contract.json")
