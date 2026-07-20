@@ -29,6 +29,7 @@ from typing import Any, Final
 
 from ethusdc_bot.path_safety import is_path_within
 from ethusdc_bot.protocol_v3.boundaries import (
+    BoundaryValidationError,
     MonthlyProcessBoundaryPlan,
     build_monthly_process_boundary_plan,
     validate_monthly_process_boundary_plan,
@@ -154,9 +155,7 @@ class PipelineFinalRegistration:
     registration_sha256: str
 
     def to_dict(self) -> dict[str, Any]:
-        value = json.loads(self.canonical_json)
-        value["registration_sha256"] = self.registration_sha256
-        return value
+        return json.loads(self.canonical_json)
 
 
 @dataclass(frozen=True)
@@ -166,10 +165,7 @@ class PipelineFinalClaim:
     claim_id: str
 
     def to_dict(self) -> dict[str, Any]:
-        value = json.loads(self.canonical_json)
-        value["claim_sha256"] = self.claim_sha256
-        value["claim_id"] = self.claim_id
-        return value
+        return json.loads(self.canonical_json)
 
 
 def load_pipeline_final_contract(repo_root: str | Path) -> dict[str, Any]:
@@ -196,8 +192,13 @@ def pipeline_final_boundary_plan(
     _midnight(end, "end_exclusive_utc")
     if end - start != timedelta(days=365):
         raise PipelineFinalError("pipeline-final window must contain exactly 365 UTC days")
-    plan = build_monthly_process_boundary_plan(end.date())
-    validate_monthly_process_boundary_plan(plan)
+    try:
+        plan = build_monthly_process_boundary_plan(end.date())
+        validate_monthly_process_boundary_plan(plan)
+    except BoundaryValidationError as exc:
+        raise PipelineFinalError(
+            "pipeline-final window is not an exact Task-2 boundary plan"
+        ) from exc
     if plan.process_start_inclusive != start.date():
         raise PipelineFinalError("pipeline-final window differs from the exact Task-2 boundary plan")
     return plan
@@ -378,7 +379,7 @@ def validate_pipeline_final_registration(
     basis.pop("registration_sha256")
     if observed != _digest(basis):
         raise PipelineFinalError("pipeline-final registration digest mismatch")
-    return PipelineFinalRegistration(_canonical(basis), observed)
+    return PipelineFinalRegistration(_canonical(root), observed)
 
 
 def write_pipeline_final_registration(
@@ -548,7 +549,7 @@ def validate_pipeline_final_claim(
     basis.pop("claim_sha256")
     if observed != _digest(basis):
         raise PipelineFinalError("pipeline-final claim digest mismatch")
-    return PipelineFinalClaim(_canonical(basis), observed, root["claim_id"])
+    return PipelineFinalClaim(_canonical(root), observed, root["claim_id"])
 
 
 def read_pipeline_final_claim(

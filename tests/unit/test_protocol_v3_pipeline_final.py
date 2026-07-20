@@ -307,7 +307,7 @@ def test_claim_tampering_late_claim_and_wrong_path_are_blocked(
     }
     with pytest.raises(PipelineFinalError, match="one-shot sealing"):
         validate_pipeline_final_claim(forged)
-    with pytest.raises(PipelineFinalError, match="outside its fixed root"):
+    with pytest.raises(PipelineFinalError, match="repository_root"):
         read_pipeline_final_registration(path, tmp_path / "other")
 
 
