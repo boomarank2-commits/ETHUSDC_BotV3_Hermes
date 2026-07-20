@@ -37,6 +37,11 @@ from ethusdc_bot.protocol_v3.run_identity import (
     FrozenExchangeInfoSnapshot,
     validate_exchange_info_snapshot,
 )
+from ethusdc_bot.ui.protocol_v3_lifecycle_status import (
+    ProtocolV3LifecycleStatus,
+    build_protocol_v3_lifecycle_status,
+    validate_protocol_v3_lifecycle_status,
+)
 
 PROTOCOL_V3_TOTAL_TASKS: Final = 33
 PROTOCOL_V3_DONE_TASKS: Final = 29
@@ -207,7 +212,9 @@ def build_protocol_v3_operator_state(
     challenger_checkpoint: ResearchChallengerCheckpointReceipt | None = None,
     research_progress: ProtocolV3ResearchProgress | None = None,
     exchange_info_snapshot: FrozenExchangeInfoSnapshot | None = None,
+    lifecycle_status: ProtocolV3LifecycleStatus | None = None,
     resume_worker_available: bool = False,
+    report_open_available: bool = False,
     ui_runtime_blockers: Sequence[str] = (),
     worker_status: Mapping[str, Any] | None = None,
 ) -> ProtocolV3OperatorState:
@@ -227,6 +234,13 @@ def build_protocol_v3_operator_state(
         raise ProtocolV3OperatorStateError(
             "resume_worker_available must be a strict boolean"
         )
+    if type(report_open_available) is not bool:
+        raise ProtocolV3OperatorStateError(
+            "report_open_available must be a strict boolean"
+        )
+    lifecycle = validate_protocol_v3_lifecycle_status(
+        lifecycle_status or build_protocol_v3_lifecycle_status()
+    ).to_dict()
     exchange_payload: dict[str, Any] | None = None
     if exchange_info_snapshot is not None:
         if not isinstance(exchange_info_snapshot, FrozenExchangeInfoSnapshot):
@@ -285,7 +299,7 @@ def build_protocol_v3_operator_state(
         progress = research_progress.to_dict()
 
     worker = _worker_status(worker_status)
-    refit_summary = _refit_summary(refit, now)
+    refit_summary = _refit_summary(refit, now, lifecycle["current_refit"])
     challenger_summary = _challenger_summary(
         challenger=challenger,
         report=report,
@@ -316,6 +330,12 @@ def build_protocol_v3_operator_state(
     )
     resume_blockers = sorted(set([*resume_blockers, *runtime_blockers]))
     resume_enabled = not resume_blockers
+    report_open_blockers: list[str] = []
+    if report is None:
+        report_open_blockers.append("validated_task29_report_missing")
+    if not report_open_available:
+        report_open_blockers.append("report_open_action_missing")
+    report_open_enabled = not report_open_blockers
     operator_mode = _operator_mode(
         worker=worker,
         challenger=challenger,
@@ -337,6 +357,7 @@ def build_protocol_v3_operator_state(
             "active_task_status": "IN_PROGRESS",
         },
         "data_status": data,
+        "lifecycle_status": lifecycle,
         "research_progress": progress,
         "exchange_info_snapshot_sha256": (
             None if exchange_payload is None else exchange_payload["snapshot_sha256"]
@@ -350,6 +371,9 @@ def build_protocol_v3_operator_state(
             "challenger_stop": _button(
                 stop_enabled,
                 [] if stop_enabled else ["research_challenger_worker_not_running"],
+            ),
+            "challenger_report_open": _button(
+                report_open_enabled, report_open_blockers
             ),
             "paper": _button(False, ["protocol_v3_paper_locked"]),
             "testtrade": _button(False, ["protocol_v3_testtrade_locked"]),
@@ -365,6 +389,9 @@ def build_protocol_v3_operator_state(
             "task29_role": "order_free_diagnostic_only",
             "statistically_supported": False,
             "protocol_v3_final_status": False,
+            "process_oos_status": lifecycle["process_oos"],
+            "final_window_status": lifecycle["final_window"],
+            "canonical_shadow_status": lifecycle["canonical_shadow"],
             "next_month_anchor_utc": next_anchor,
         },
         "safety": dict(_SAFETY),
@@ -375,10 +402,12 @@ def build_protocol_v3_operator_state(
     return ProtocolV3OperatorState(_canonical(basis), _digest(basis))
 
 
-def _refit_summary(refit: dict[str, Any] | None, now: datetime) -> dict[str, Any]:
+def _refit_summary(
+    refit: dict[str, Any] | None, now: datetime, runtime_status: str
+) -> dict[str, Any]:
     if refit is None:
         return {
-            "status": "MISSING",
+            "status": runtime_status,
             "choice": None,
             "report_sha256": None,
             "valid_from_utc": None,
@@ -416,8 +445,17 @@ def _challenger_summary(
     checkpoint: dict[str, Any] | None,
     worker: dict[str, Any],
 ) -> dict[str, Any]:
-    if worker["phase"] in ACTIVE_WORKER_PHASES:
-        status = "RUNNING" if worker["phase"] != "stopping" else "STOPPING"
+    phase = worker["phase"]
+    if phase in ACTIVE_WORKER_PHASES:
+        status = "RUNNING" if phase != "stopping" else "STOPPING"
+    elif phase == "failed":
+        status = "FAILED"
+    elif phase == "paused":
+        status = "PAUSED"
+    elif phase == "paused_uncheckpointed":
+        status = "BLOCKED_UNCHECKPOINTED"
+    elif phase == "initialized":
+        status = "INITIALIZED_UNCHECKPOINTED"
     elif challenger is not None and checkpoint is not None:
         status = "RESUME_READY"
     elif challenger is not None:

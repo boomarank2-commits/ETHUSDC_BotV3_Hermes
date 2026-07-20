@@ -8,7 +8,7 @@ result. This keeps the existing backend/controller objects as the only truth.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, TypeAlias
 
@@ -20,6 +20,10 @@ from ethusdc_bot.protocol_v3.research_challenger_checkpoint import (
     ResearchChallengerCheckpointReceipt,
 )
 from ethusdc_bot.protocol_v3.run_identity import FrozenExchangeInfoSnapshot
+from ethusdc_bot.ui.protocol_v3_lifecycle_status import (
+    ProtocolV3LifecycleStatus,
+    build_protocol_v3_lifecycle_status,
+)
 from ethusdc_bot.ui.protocol_v3_operator_state import (
     ProtocolV3DataStatus,
     ProtocolV3OperatorState,
@@ -42,7 +46,11 @@ class ProtocolV3UiEvidence:
     challenger_report: ProtocolV3Report | None = None
     challenger_checkpoint: ResearchChallengerCheckpointReceipt | None = None
     research_progress: ProtocolV3ResearchProgress | None = None
+    lifecycle_status: ProtocolV3LifecycleStatus = field(
+        default_factory=build_protocol_v3_lifecycle_status
+    )
     resume_worker: ChallengerResumeWorker | None = None
+    challenger_report_opener: Callable[[], None] | None = None
 
 
 ProtocolV3EvidenceProvider: TypeAlias = Callable[[], ProtocolV3UiEvidence]
@@ -84,7 +92,9 @@ def resolve_protocol_v3_operator_state(
         challenger_checkpoint=active_checkpoint,
         research_progress=evidence.research_progress,
         exchange_info_snapshot=evidence.exchange_info_snapshot,
+        lifecycle_status=evidence.lifecycle_status,
         resume_worker_available=evidence.resume_worker is not None,
+        report_open_available=evidence.challenger_report_opener is not None,
         ui_runtime_blockers=ui_runtime_blockers,
         worker_status=worker_status,
     )
@@ -99,6 +109,7 @@ def format_protocol_v3_operator_view(state: ProtocolV3OperatorState) -> str:
     tasks = root["task_progress"]
     data = root["data_status"]
     refit = root["current_refit"]
+    lifecycle = root["lifecycle_status"]
     challenger = root["research_challenger"]
     worker = root["worker_status"]
     progress = root["research_progress"]
@@ -116,6 +127,13 @@ def format_protocol_v3_operator_view(state: ProtocolV3OperatorState) -> str:
             f"{tasks['active_task_status']}"
         ),
         f"Aktuelle Ansicht: {root['operator_mode']}",
+        "",
+        "PROTOCOL-V3-LEBENSZYKLUS",
+        f"- Historisches Prozess-OOS: {lifecycle['process_oos']}",
+        f"- Aktueller Monatsrefit: {lifecycle['current_refit']}",
+        f"- Späteres Finalfenster: {lifecycle['final_window']}",
+        f"- Kanonischer Shadow: {lifecycle['canonical_shadow']}",
+        f"- Gründe: {_blockers(lifecycle.get('reason_codes'))}",
         "",
         "DREI-MARKT-DATEN",
         f"- Status: {data['state']}",
@@ -157,6 +175,9 @@ def format_protocol_v3_operator_view(state: ProtocolV3OperatorState) -> str:
             _button_line("Manuell starten", buttons["challenger_start"]),
             _button_line("Aus Checkpoint fortsetzen", buttons["challenger_resume"]),
             _button_line("Diagnose stoppen", buttons["challenger_stop"]),
+            _button_line(
+                "Diagnosebericht öffnen", buttons["challenger_report_open"]
+            ),
             _button_line("Paper", buttons["paper"]),
             _button_line("Testtrade", buttons["testtrade"]),
             _button_line("Live", buttons["live"]),
@@ -167,6 +188,8 @@ def format_protocol_v3_operator_view(state: ProtocolV3OperatorState) -> str:
             f"- Task 29: {meaning['task29_freshness']} / {meaning['task29_role']}",
             f"- Statistisch unterstützt: {meaning['statistically_supported']}",
             f"- Protocol-v3-Finalstatus: {meaning['protocol_v3_final_status']}",
+            f"- Finalfensterstatus: {meaning['final_window_status']}",
+            f"- Kanonischer Shadowstatus: {meaning['canonical_shadow_status']}",
             "",
             "SICHERHEIT",
             f"- Orders: {safety['orders']}",

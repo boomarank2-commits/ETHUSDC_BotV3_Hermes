@@ -84,6 +84,13 @@ class ProtocolV3DashboardMixin:
             state=tk.DISABLED,
         )
         self.protocol_v3_stop_button.pack(side=tk.LEFT, padx=4)
+        self.protocol_v3_report_button = ttk.Button(
+            bar,
+            text="Diagnosebericht öffnen",
+            command=self.open_protocol_v3_challenger_report,
+            state=tk.DISABLED,
+        )
+        self.protocol_v3_report_button.pack(side=tk.LEFT, padx=4)
         ttk.Label(
             bar,
             text="NOT_FRESH | diagnostic_only | keine Adoption | keine Orders",
@@ -177,6 +184,13 @@ class ProtocolV3DashboardMixin:
             state=(
                 tk.NORMAL
                 if buttons["challenger_stop"]["enabled"]
+                else tk.DISABLED
+            )
+        )
+        self.protocol_v3_report_button.configure(
+            state=(
+                tk.NORMAL
+                if buttons["challenger_report_open"]["enabled"]
                 else tk.DISABLED
             )
         )
@@ -291,6 +305,27 @@ class ProtocolV3DashboardMixin:
             return
         self._requested_view = "protocol_v3"
         self.refresh_status(log_refresh=False)
+
+    def open_protocol_v3_challenger_report(self) -> None:
+        evidence = self._protocol_v3_evidence_snapshot()
+        state = self._resolve_protocol_v3_operator_state(evidence)
+        button = state.to_dict()["buttons"]["challenger_report_open"]
+        if button["enabled"] is not True:
+            self._show_protocol_v3_blocked(
+                "challenger_report_open", "Diagnosebericht"
+            )
+            return
+        opener = evidence.challenger_report_opener
+        if opener is None:
+            self._show_protocol_v3_blocked(
+                "challenger_report_open", "Diagnosebericht"
+            )
+            return
+        try:
+            opener()
+        except Exception as exc:
+            self._log(f"Diagnosebericht konnte nicht geöffnet werden: {exc}")
+            messagebox.showerror("Bericht öffnen fehlgeschlagen", str(exc))
 
     def stop_protocol_v3_challenger(self) -> None:
         self.protocol_v3_controller_status = (
