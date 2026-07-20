@@ -15,13 +15,26 @@ def test_task29_contract_and_public_api_are_exact() -> None:
 
     assert contract["controller_policy"] == {
         "task28_typed_provenance_required": True,
+        "current_pipeline_generation_required": True,
         "manual_start_only": True,
+        "manual_start_is_first_forward_minute": True,
         "ethusdc_only": True,
         "btcusdc_and_ethbtc_context_only": True,
         "exact_closed_three_market_bar_required": True,
+        "frozen_context_policy_required": True,
+        "public_exchange_info_snapshot_required_for_active_candidate": True,
+        "frozen_horizon_policy_required": True,
         "one_open_lot_maximum": True,
         "refresh_and_replay_must_be_idempotent": True,
         "end_of_feed_may_not_liquidate": True,
+    }
+    assert contract["warmup_policy"] == {
+        "trailing_feature_reads_only": True,
+        "signals_forbidden": True,
+        "fills_forbidden": True,
+        "pnl_forbidden": True,
+        "ledger_records_forbidden": True,
+        "minimum_minutes_from_strategy_and_context_lookbacks": True,
     }
     assert contract["evidence_policy"] == {
         "freshness": "NOT_FRESH",
