@@ -141,7 +141,7 @@ def test_task13_atomically_stores_and_resumes_only_the_compact_receipt(
         budget_usage=BudgetUsage(),
         stop_state=built["stop"],
         repository_root=built["repo"],
-        trial_ledger_root=built["ledger"],
+        trial_ledger_root=built["ledger_root"],
         owner_id="task29-checkpoint-test",
     )
     resumed = checkpointing.read_research_challenger_checkpoint(
@@ -185,7 +185,7 @@ def test_checkpoint_identity_mismatch_is_blocked(
             budget_usage=BudgetUsage(),
             stop_state=built["stop"],
             repository_root=built["repo"],
-            trial_ledger_root=built["ledger"],
+            trial_ledger_root=built["ledger_root"],
             owner_id="task29-wrong-generation",
         )
 
