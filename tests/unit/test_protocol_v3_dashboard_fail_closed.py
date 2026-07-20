@@ -35,10 +35,11 @@ def _report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     return task28.state.__wrapped__(tmp_path, monkeypatch)[-1]
 
 
-def _ready_data():
+def _ready_data(now: datetime):
+    watermark = (int(now.timestamp() * 1000) // 60_000 - 1) * 60_000
     return build_protocol_v3_data_status(
         state="READY",
-        common_watermark_open_time_ms=1_752_105_600_000,
+        common_watermark_open_time_ms=watermark,
         context_identity_sha256="c" * 64,
     )
 
@@ -89,9 +90,10 @@ def test_direct_click_rechecks_parallel_runtime_blocker(
         "askyesno",
         lambda *_args, **_kwargs: pytest.fail("confirmation must not open"),
     )
+    now = _FixedDateTime.now(UTC)
     app = _app()
     app.protocol_v3_evidence_provider = lambda: ProtocolV3UiEvidence(
-        data_status=_ready_data(),
+        data_status=_ready_data(now),
         pipeline_generation=pipeline.build_pipeline_generation(REPO_ROOT),
         current_refit=_report(tmp_path, monkeypatch),
     )
