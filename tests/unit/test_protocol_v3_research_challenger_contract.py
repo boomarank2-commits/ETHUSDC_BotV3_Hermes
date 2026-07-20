@@ -58,6 +58,8 @@ def test_task29_is_content_bound_to_the_pipeline_generation() -> None:
         "src/ethusdc_bot/protocol_v3/research_challenger_api.py",
         "src/ethusdc_bot/protocol_v3/research_challenger_evidence.py",
         "src/ethusdc_bot/protocol_v3/research_challenger_evidence_api.py",
+        "src/ethusdc_bot/protocol_v3/research_challenger_checkpoint.py",
+        "src/ethusdc_bot/protocol_v3/research_challenger_checkpoint_api.py",
         "src/ethusdc_bot/protocol_v3/intrabar_runtime.py",
     ):
         assert path in bound_files
