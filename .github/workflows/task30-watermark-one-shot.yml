@@ -1,0 +1,62 @@
+name: Task 30 watermark one-shot
+
+on:
+  push:
+    branches:
+      - codex/research-resume-and-ui-state-v1
+    paths:
+      - .github/workflows/task30-watermark-one-shot.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/research-resume-and-ui-state-v1
+          fetch-depth: 0
+      - name: Apply exact watermark hardening
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("src/ethusdc_bot/ui/protocol_v3_operator_state.py")
+          text = path.read_text(encoding="utf-8")
+          replacements = [
+              (
+                  "    resume_blockers = _resume_blockers(\n        challenger=challenger,\n        checkpoint=checkpoint,\n        generation=generation_payload,\n        resume_worker_available=resume_worker_available,\n        worker=worker,\n    )\n",
+                  "    resume_blockers = _resume_blockers(\n        now=now,\n        data=data,\n        challenger=challenger,\n        checkpoint=checkpoint,\n        generation=generation_payload,\n        resume_worker_available=resume_worker_available,\n        worker=worker,\n    )\n",
+              ),
+              (
+                  "\ndef _challenger_start_blockers(\n",
+                  "\ndef _data_runtime_blockers(\n    now: datetime, data: dict[str, Any]\n) -> list[str]:\n    if data[\"state\"] != \"READY\":\n        return [f\"data:{value}\" for value in data[\"blockers\"]]\n    watermark = data[\"common_watermark_open_time_ms\"]\n    expected = (int(now.timestamp() * 1000) // 60_000 - 1) * 60_000\n    if watermark < expected:\n        return [\"three_market_watermark_is_stale\"]\n    if watermark > expected:\n        return [\"three_market_watermark_is_future_or_unclosed\"]\n    return []\n\n\ndef _challenger_start_blockers(\n",
+              ),
+              (
+                  "    if data[\"state\"] != \"READY\":\n        blockers.extend(f\"data:{value}\" for value in data[\"blockers\"])\n",
+                  "    blockers.extend(_data_runtime_blockers(now, data))\n",
+              ),
+              (
+                  "def _resume_blockers(\n    *,\n    challenger: dict[str, Any] | None,\n",
+                  "def _resume_blockers(\n    *,\n    now: datetime,\n    data: dict[str, Any],\n    challenger: dict[str, Any] | None,\n",
+              ),
+              (
+                  "    blockers: list[str] = []\n    if challenger is None:\n",
+                  "    blockers: list[str] = []\n    blockers.extend(_data_runtime_blockers(now, data))\n    if challenger is None:\n",
+              ),
+          ]
+          for old, new in replacements:
+              if text.count(old) != 1:
+                  raise SystemExit(f"watermark replacement mismatch: {old[:140]!r}")
+              text = text.replace(old, new)
+          path.write_text(text, encoding="utf-8")
+      - name: Commit watermark hardening
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/ethusdc_bot/ui/protocol_v3_operator_state.py
+          git diff --cached --check
+          git commit -m "Validate current closed watermark in Protocol v3 UI"
+          git push origin HEAD:codex/research-resume-and-ui-state-v1
