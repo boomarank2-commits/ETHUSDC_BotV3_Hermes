@@ -1,0 +1,76 @@
+name: Task 30 checkpointed start tests one-shot
+
+on:
+  push:
+    branches:
+      - codex/research-resume-and-ui-state-v1
+    paths:
+      - .github/workflows/task30-test-worker-one-shot.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/research-resume-and-ui-state-v1
+          fetch-depth: 0
+      - name: Align checkpointed-start tests
+        shell: python
+        run: |
+          from pathlib import Path
+
+          operator_path = Path("tests/unit/test_protocol_v3_operator_state.py")
+          operator = operator_path.read_text(encoding="utf-8")
+          old = "        pipeline_generation=generation,\n        current_refit=report,\n    )\n"
+          new = "        pipeline_generation=generation,\n        current_refit=report,\n        resume_worker_available=True,\n    )\n"
+          if operator.count(old) != 2:
+              raise SystemExit("expected two valid-start operator calls")
+          operator_path.write_text(operator.replace(old, new), encoding="utf-8")
+
+          bridge_path = Path("tests/unit/test_protocol_v3_dashboard_bridge.py")
+          bridge = bridge_path.read_text(encoding="utf-8")
+          old = "    now = datetime(2026, 7, 9, 12, tzinfo=UTC)\n    evidence = ProtocolV3UiEvidence(\n"
+          new = "    now = datetime(2026, 7, 9, 12, tzinfo=UTC)\n\n    def worker(current, _stop, _callback):\n        return ResearchChallengerUiRunResult(\n            current, build_research_challenger_checkpoint_receipt(current)\n        )\n\n    evidence = ProtocolV3UiEvidence(\n"
+          if bridge.count(old) != 1:
+              raise SystemExit("bridge valid-start fixture mismatch")
+          bridge = bridge.replace(old, new)
+          old = '            current_step="Task-18 DSR",\n        ),\n    )\n'
+          new = '            current_step="Task-18 DSR",\n        ),\n        resume_worker=worker,\n    )\n'
+          if bridge.count(old) != 1:
+              raise SystemExit("bridge worker insertion mismatch")
+          bridge_path.write_text(bridge.replace(old, new), encoding="utf-8")
+
+          dashboard_path = Path(
+              "tests/unit/test_protocol_v3_operator_dashboard_integration.py"
+          )
+          dashboard = dashboard_path.read_text(encoding="utf-8")
+          old = "    now = _FixedDateTime.now(UTC)\n    evidence = ProtocolV3UiEvidence(\n"
+          new = "    now = _FixedDateTime.now(UTC)\n\n    def worker(current, _stop, _callback):\n        return ResearchChallengerUiRunResult(\n            current, build_research_challenger_checkpoint_receipt(current)\n        )\n\n    evidence = ProtocolV3UiEvidence(\n"
+          if dashboard.count(old) != 1:
+              raise SystemExit("dashboard manual-start fixture mismatch")
+          dashboard = dashboard.replace(old, new)
+          old = "        pipeline_generation=pipeline.build_pipeline_generation(REPO_ROOT),\n        current_refit=_report(tmp_path, monkeypatch),\n    )\n"
+          new = "        pipeline_generation=pipeline.build_pipeline_generation(REPO_ROOT),\n        current_refit=_report(tmp_path, monkeypatch),\n        resume_worker=worker,\n    )\n"
+          if dashboard.count(old) != 1:
+              raise SystemExit("dashboard manual-start evidence mismatch")
+          dashboard = dashboard.replace(old, new)
+          old = '    assert status["phase"] == "initialized"\n    assert status["orders_created"] == 0\n'
+          new = '    assert status["phase"] == "resume_ready"\n    assert status["resume_ready"] is True\n    assert status["checkpoint_receipt_sha256"] is not None\n    assert status["orders_created"] == 0\n'
+          if dashboard.count(old) != 1:
+              raise SystemExit("dashboard manual-start expectation mismatch")
+          dashboard_path.write_text(dashboard.replace(old, new), encoding="utf-8")
+      - name: Commit aligned tests
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            tests/unit/test_protocol_v3_operator_state.py \
+            tests/unit/test_protocol_v3_dashboard_bridge.py \
+            tests/unit/test_protocol_v3_operator_dashboard_integration.py
+          git diff --cached --check
+          git commit -m "Align Task 30 tests with checkpointed manual start"
+          git push origin HEAD:codex/research-resume-and-ui-state-v1
