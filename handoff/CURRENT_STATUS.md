@@ -21,7 +21,7 @@ Aufgaben 31 bis 33 bleiben strikt `NOT_STARTED`.
 - grüner technischer GitHub-CI-Lauf: `29736897831`;
 - vollständige Suite: `1.233 Tests erfolgreich`;
 - Python-Compile, PowerShell-Syntax und Whitespace: erfolgreich;
-- Task-29-Dokumentations-CI: noch ausstehend.
+- grüner Task-29-Dokumentations-CI-Lauf: `29737703423` auf Head `3c276345f39068e29b35b9f90669fe7aa50483c0`.
 
 ## Aufgabe 29 – DONE_100
 
@@ -69,4 +69,4 @@ Aufgabe 30 darf erst nach vollständig grünem Task-29-Dokumentations-CI begonne
 
 ## Nächster Einstieg
 
-Nach grünem Task-29-Dokumentations-CI die sieben Pflichtdateien erneut vollständig lesen und ausschließlich Aufgabe 30 beginnen.
+Die sieben Pflichtdateien erneut vollständig lesen und ausschließlich Aufgabe 30 beginnen.
