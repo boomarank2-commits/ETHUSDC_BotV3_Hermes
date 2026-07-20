@@ -114,10 +114,11 @@ class ResearchChallengerController:
         started_at_utc: datetime,
         current_pipeline_generation: PipelineGeneration,
         exchange_info_snapshot: FrozenExchangeInfoSnapshot | Mapping[str, Any] | None = None,
+        worker: ChallengerResumeWorker | None = None,
         status_callback: StatusCallback | None = None,
         initializer: ChallengerInitializer = start_research_challenger,
     ) -> tuple[threading.Thread, dict[str, Any]]:
-        """Manually initialize one empty Task-29 state asynchronously."""
+        """Initialize Task 29 and optionally run a checkpointing backend."""
 
         if not isinstance(task28_decision, CurrentRefitDecision):
             raise TypeError("typed CurrentRefitDecision is required")
@@ -126,20 +127,45 @@ class ResearchChallengerController:
         _require_utc(started_at_utc, "started_at_utc")
         if not callable(initializer):
             raise TypeError("initializer must be callable")
-        return self._launch(
-            phase="starting",
-            started_at_utc=started_at_utc,
-            status_callback=status_callback,
-            checkpoint_required=False,
-            operation=lambda _stop, _callback: ResearchChallengerUiRunResult(
-                state=initializer(
+        if worker is not None and not callable(worker):
+            raise TypeError("worker must be callable or None")
+
+        def operation(
+            stop_event: threading.Event,
+            callback: StatusCallback | None,
+        ) -> ResearchChallengerUiRunResult:
+            initial = validate_research_challenger_state(
+                initializer(
                     task28_decision,
                     started_at_utc=started_at_utc,
                     current_pipeline_generation=current_pipeline_generation,
                     exchange_info_snapshot=exchange_info_snapshot,
-                ),
-                checkpoint_receipt=None,
-            ),
+                )
+            )
+            if worker is None:
+                return ResearchChallengerUiRunResult(initial, None)
+            result = worker(initial, stop_event, callback)
+            if not isinstance(result, ResearchChallengerUiRunResult):
+                raise TypeError(
+                    "challenger backend worker must return ResearchChallengerUiRunResult"
+                )
+            current = validate_research_challenger_state(result.state)
+            if not isinstance(
+                result.checkpoint_receipt, ResearchChallengerCheckpointReceipt
+            ):
+                raise TypeError("challenger backend must return a checkpoint receipt")
+            receipt = validate_research_challenger_checkpoint_receipt(
+                result.checkpoint_receipt
+            )
+            verify_replayed_research_challenger_checkpoint(receipt, current)
+            return ResearchChallengerUiRunResult(current, receipt)
+
+        return self._launch(
+            phase="starting",
+            started_at_utc=started_at_utc,
+            status_callback=status_callback,
+            checkpoint_required=worker is not None,
+            operation=operation,
         )
 
     def resume(

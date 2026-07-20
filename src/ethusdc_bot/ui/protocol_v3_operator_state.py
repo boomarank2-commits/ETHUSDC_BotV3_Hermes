@@ -299,6 +299,7 @@ def build_protocol_v3_operator_state(
         refit=refit,
         challenger=challenger,
         exchange=exchange_payload,
+        backend_worker_available=resume_worker_available,
         worker=worker,
     )
     blockers = sorted(set([*blockers, *runtime_blockers]))
@@ -468,6 +469,7 @@ def _challenger_start_blockers(
     refit: dict[str, Any] | None,
     challenger: dict[str, Any] | None,
     exchange: dict[str, Any] | None,
+    backend_worker_available: bool,
     worker: dict[str, Any],
 ) -> list[str]:
     blockers: list[str] = []
@@ -476,6 +478,8 @@ def _challenger_start_blockers(
     if generation is None:
         blockers.append("current_pipeline_generation_missing")
     blockers.extend(_data_runtime_blockers(now, data))
+    if not backend_worker_available:
+        blockers.append("public_data_start_worker_missing")
     if challenger is not None:
         blockers.append("research_challenger_already_initialized")
     if worker["running"]:

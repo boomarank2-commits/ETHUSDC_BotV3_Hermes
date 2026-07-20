@@ -222,6 +222,7 @@ class ProtocolV3DashboardMixin:
                 started_at_utc=datetime.now(UTC),
                 current_pipeline_generation=evidence.pipeline_generation,
                 exchange_info_snapshot=evidence.exchange_info_snapshot,
+                worker=evidence.resume_worker,
             )
         except Exception as exc:
             self._log(f"Protocol-v3-Diagnose konnte nicht starten: {exc}")
