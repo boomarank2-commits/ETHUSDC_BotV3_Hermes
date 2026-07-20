@@ -33,6 +33,10 @@ from ethusdc_bot.protocol_v3.research_challenger_checkpoint import (
     ResearchChallengerCheckpointReceipt,
     validate_research_challenger_checkpoint_receipt,
 )
+from ethusdc_bot.protocol_v3.run_identity import (
+    FrozenExchangeInfoSnapshot,
+    validate_exchange_info_snapshot,
+)
 
 PROTOCOL_V3_TOTAL_TASKS: Final = 33
 PROTOCOL_V3_DONE_TASKS: Final = 29
@@ -70,7 +74,9 @@ class ProtocolV3DataStatus:
     status_sha256: str
 
     def to_dict(self) -> dict[str, Any]:
-        return json.loads(self.canonical_json)
+        root = json.loads(self.canonical_json)
+        root["status_sha256"] = self.status_sha256
+        return root
 
 
 @dataclass(frozen=True)
@@ -79,7 +85,9 @@ class ProtocolV3ResearchProgress:
     progress_sha256: str
 
     def to_dict(self) -> dict[str, Any]:
-        return json.loads(self.canonical_json)
+        root = json.loads(self.canonical_json)
+        root["progress_sha256"] = self.progress_sha256
+        return root
 
 
 @dataclass(frozen=True)
@@ -198,6 +206,8 @@ def build_protocol_v3_operator_state(
     challenger_report: ProtocolV3Report | None = None,
     challenger_checkpoint: ResearchChallengerCheckpointReceipt | None = None,
     research_progress: ProtocolV3ResearchProgress | None = None,
+    exchange_info_snapshot: FrozenExchangeInfoSnapshot | None = None,
+    resume_worker_available: bool = False,
     worker_status: Mapping[str, Any] | None = None,
 ) -> ProtocolV3OperatorState:
     """Derive one fail-closed dashboard state from typed canonical inputs."""
@@ -211,6 +221,18 @@ def build_protocol_v3_operator_state(
     if pipeline_generation is not None:
         validate_pipeline_generation(pipeline_generation)
         generation_payload = pipeline_generation.to_dict()
+    if type(resume_worker_available) is not bool:
+        raise ProtocolV3OperatorStateError(
+            "resume_worker_available must be a strict boolean"
+        )
+    exchange_payload: dict[str, Any] | None = None
+    if exchange_info_snapshot is not None:
+        if not isinstance(exchange_info_snapshot, FrozenExchangeInfoSnapshot):
+            raise ProtocolV3OperatorStateError(
+                "typed public Exchange-Info snapshot is required"
+            )
+        validate_exchange_info_snapshot(exchange_info_snapshot)
+        exchange_payload = exchange_info_snapshot.to_dict()
 
     refit: dict[str, Any] | None = None
     if current_refit is not None:
@@ -274,6 +296,7 @@ def build_protocol_v3_operator_state(
         generation=generation_payload,
         refit=refit,
         challenger=challenger,
+        exchange=exchange_payload,
         worker=worker,
     )
     start_enabled = not blockers
@@ -282,6 +305,7 @@ def build_protocol_v3_operator_state(
         challenger=challenger,
         checkpoint=checkpoint,
         generation=generation_payload,
+        resume_worker_available=resume_worker_available,
         worker=worker,
     )
     resume_enabled = not resume_blockers
@@ -307,6 +331,9 @@ def build_protocol_v3_operator_state(
         },
         "data_status": data,
         "research_progress": progress,
+        "exchange_info_snapshot_sha256": (
+            None if exchange_payload is None else exchange_payload["snapshot_sha256"]
+        ),
         "current_refit": refit_summary,
         "research_challenger": challenger_summary,
         "worker_status": worker,
@@ -420,6 +447,7 @@ def _challenger_start_blockers(
     generation: dict[str, Any] | None,
     refit: dict[str, Any] | None,
     challenger: dict[str, Any] | None,
+    exchange: dict[str, Any] | None,
     worker: dict[str, Any],
 ) -> list[str]:
     blockers: list[str] = []
@@ -445,6 +473,14 @@ def _challenger_start_blockers(
             "current_pipeline_generation_id"
         ]:
             blockers.append("task28_pipeline_generation_mismatch")
+        choice = refit["champion_challenger_cash_decision"]["choice"]
+        if choice != CASH:
+            if exchange is None:
+                blockers.append("public_exchange_info_snapshot_missing")
+            elif exchange["snapshot_sha256"] != manifest[
+                "current_exchange_info_snapshot_sha256"
+            ]:
+                blockers.append("public_exchange_info_snapshot_mismatch")
     return sorted(set(blockers))
 
 
@@ -453,6 +489,7 @@ def _resume_blockers(
     challenger: dict[str, Any] | None,
     checkpoint: dict[str, Any] | None,
     generation: dict[str, Any] | None,
+    resume_worker_available: bool,
     worker: dict[str, Any],
 ) -> list[str]:
     blockers: list[str] = []
@@ -462,6 +499,8 @@ def _resume_blockers(
         blockers.append("validated_task29_checkpoint_missing")
     if generation is None:
         blockers.append("current_pipeline_generation_missing")
+    if not resume_worker_available:
+        blockers.append("public_data_resume_worker_missing")
     if worker["running"]:
         blockers.append("research_challenger_worker_already_running")
     if challenger is not None and generation is not None:
