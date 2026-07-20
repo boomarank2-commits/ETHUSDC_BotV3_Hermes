@@ -24,10 +24,11 @@ def _report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     return task28.state.__wrapped__(tmp_path, monkeypatch)[-1]
 
 
-def _ready_data():
+def _ready_data(now: datetime):
+    watermark = (int(now.timestamp() * 1000) // 60_000 - 1) * 60_000
     return ui_state.build_protocol_v3_data_status(
         state="READY",
-        common_watermark_open_time_ms=1_752_105_600_000,
+        common_watermark_open_time_ms=watermark,
         context_identity_sha256="c" * 64,
     )
 
@@ -81,16 +82,17 @@ def test_valid_task28_generation_and_watermark_enable_manual_start(
 ) -> None:
     report = _report(tmp_path, monkeypatch)
     generation = pipeline.build_pipeline_generation(REPO_ROOT)
+    now = datetime(2026, 7, 9, 12, tzinfo=UTC)
 
     first = ui_state.build_protocol_v3_operator_state(
-        now_utc=datetime(2026, 7, 9, 12, tzinfo=UTC),
-        data_status=_ready_data(),
+        now_utc=now,
+        data_status=_ready_data(now),
         pipeline_generation=generation,
         current_refit=report,
     )
     second = ui_state.build_protocol_v3_operator_state(
-        now_utc=datetime(2026, 7, 9, 12, tzinfo=UTC),
-        data_status=_ready_data(),
+        now_utc=now,
+        data_status=_ready_data(now),
         pipeline_generation=generation,
         current_refit=report,
     )
@@ -108,13 +110,53 @@ def test_valid_task28_generation_and_watermark_enable_manual_start(
     assert payload["ui_may_write_active_config"] is False
 
 
+def test_ready_label_cannot_hide_stale_or_unclosed_watermark(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    report = _report(tmp_path, monkeypatch)
+    generation = pipeline.build_pipeline_generation(REPO_ROOT)
+    now = datetime(2026, 7, 20, 12, 30, tzinfo=UTC)
+    expected = (int(now.timestamp() * 1000) // 60_000 - 1) * 60_000
+
+    stale = ui_state.build_protocol_v3_data_status(
+        state="READY",
+        common_watermark_open_time_ms=expected - 60_000,
+        context_identity_sha256="c" * 64,
+    )
+    future = ui_state.build_protocol_v3_data_status(
+        state="READY",
+        common_watermark_open_time_ms=expected + 60_000,
+        context_identity_sha256="c" * 64,
+    )
+    stale_state = ui_state.build_protocol_v3_operator_state(
+        now_utc=now,
+        data_status=stale,
+        pipeline_generation=generation,
+        current_refit=report,
+    ).to_dict()
+    future_state = ui_state.build_protocol_v3_operator_state(
+        now_utc=now,
+        data_status=future,
+        pipeline_generation=generation,
+        current_refit=report,
+    ).to_dict()
+
+    assert "three_market_watermark_is_stale" in stale_state["buttons"][
+        "challenger_start"
+    ]["blockers"]
+    assert "three_market_watermark_is_future_or_unclosed" in future_state[
+        "buttons"
+    ]["challenger_start"]["blockers"]
+
+
 def test_expired_refit_shows_next_anchor_and_never_backfills(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     report = _report(tmp_path, monkeypatch)
+    now = datetime(2026, 8, 8, tzinfo=UTC)
     state = ui_state.build_protocol_v3_operator_state(
-        now_utc=datetime(2026, 8, 8, tzinfo=UTC),
-        data_status=_ready_data(),
+        now_utc=now,
+        data_status=_ready_data(now),
         pipeline_generation=pipeline.build_pipeline_generation(REPO_ROOT),
         current_refit=report,
     ).to_dict()
@@ -153,13 +195,14 @@ def test_untyped_task28_and_contradictory_worker_fail_closed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     report = _report(tmp_path, monkeypatch)
+    now = datetime(2026, 7, 9, 12, tzinfo=UTC)
     with pytest.raises(
         ui_state.ProtocolV3OperatorStateError,
         match="typed validated Task-28",
     ):
         ui_state.build_protocol_v3_operator_state(
-            now_utc=datetime(2026, 7, 9, 12, tzinfo=UTC),
-            data_status=_ready_data(),
+            now_utc=now,
+            data_status=_ready_data(now),
             pipeline_generation=pipeline.build_pipeline_generation(REPO_ROOT),
             current_refit=report.to_dict(),  # type: ignore[arg-type]
         )
@@ -170,6 +213,6 @@ def test_untyped_task28_and_contradictory_worker_fail_closed(
     ):
         ui_state.build_protocol_v3_operator_state(
             now_utc=datetime(2026, 7, 20, tzinfo=UTC),
-            data_status=_ready_data(),
+            data_status=_ready_data(datetime(2026, 7, 20, tzinfo=UTC)),
             worker_status={"phase": "running", "running": False},
         )
