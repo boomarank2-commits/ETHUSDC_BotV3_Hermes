@@ -8,7 +8,7 @@ Stand: 2026-07-20
 
 Abgeschlossene Aufgaben: `1 bis 28`.
 
-Aktive Aufgabe: keine. Aufgabe `29 – Orderfreier Research-Challenger-Shadow` bleibt bis zum grünen Task-28-Dokumentations-Head strikt `NOT_STARTED`.
+Aktive Aufgabe: `29 – Orderfreier Research-Challenger-Shadow` – `IN_PROGRESS`.
 
 Aufgaben 30 bis 33 bleiben strikt `NOT_STARTED`.
 
@@ -19,6 +19,7 @@ Aufgaben 30 bis 33 bleiben strikt `NOT_STARTED`.
 - Draft-PR: `#17`;
 - Task-28-technischer Head: `8b7134af30d98992ec53da9b140f1b7b9912c771`;
 - grüner technischer GitHub-CI-Lauf: `29722432007`;
+- grüner Task-28-Dokumentations-CI-Lauf: `29723295515` auf Head `69c60a44bb4fb6bdb18256757aa1a262f8c542d7`;
 - vollständige Tests, Python-Compile, PowerShell-Syntax und Whitespace: erfolgreich.
 
 ## Aufgabe 28 – DONE_100
@@ -36,17 +37,20 @@ Umgesetzt:
 - vollständiges Quellen-Replay für persistierte Ausgaben und fail-closed Negativtests für Zeit, Daten, Fenster, Vorgänger, Ablauf, Rotation, Stress, Entscheidung, Freshness und Aktivierung;
 - jede Ausgabe bleibt `diagnostic_only`, nicht adoption-/finalfähig und nicht startfähig.
 
-## Aufgabe 29 – NOT_STARTED
+## Aufgabe 29 – IN_PROGRESS
 
-Aufgabe 29 darf erst nach grünem CI-Lauf des Task-28-Dokumentations-Heads begonnen werden.
+Verbindlicher Umfang:
 
-Verbindlicher nächster Umfang:
+- strikt orderfreier `research_challenger_shadow`;
+- ausschließlich vollständig validierte Task-28-Ausgabe als Startprovenienz;
+- eigener Reporttyp, erlaubter Storage-Root, Controller und Forward-Ledger in der vorhandenen Architektur;
+- Wiederverwendung bestehender Drei-Markt-Kontext-, Simulator-, Execution-, Kosten-, Checkpoint- und Artefaktpfade;
+- virtuelle Signale, Fills, Gebühren, Slippage, Positionen, MTM und Tageswerte, aber niemals Orders;
+- kein kanonischer Adoption-Shadow und keine Verbindung zu `adopt_for_shadow`;
+- kein Paper, Testtrade, Live, Trading-API, private Endpunkte oder API-Keys;
+- vollständige Negativtests für Provenienz, Watermark, Gültigkeit, Hashes, Rotation, Ledger, Checkpoints, Resume und Safety.
 
-- strikt orderfreier Research-Challenger-Shadow;
-- eigener Reporttyp, Storage, Controller und Forward-Ledger in der vorhandenen Architektur;
-- keine Annahme als kanonischer Adoption-Shadow;
-- kein Paper, Testtrade, Live, Orders oder Trading-API;
-- Task-28-Ausgabe bleibt die gebundene Eingangsprovenienz.
+Aufgabe 30 darf erst nach vollständigem Task-29-Handoff und grünem Task-29-Dokumentations-CI begonnen werden.
 
 ## Sicherheitsstatus
 
@@ -61,4 +65,4 @@ Verbindlicher nächster Umfang:
 
 ## Nächster Einstieg
 
-Nach grünem Task-28-Dokumentations-CI die sieben Pflichtdateien erneut vollständig lesen und ausschließlich Aufgabe 29 beginnen.
+Bestehende Report-, Artifact-, Transaction-/Resume-, Shadow-, Context-, Simulator- und Runtime-State-Pfade vollständig prüfen und Aufgabe 29 minimal in diese Architektur integrieren.
