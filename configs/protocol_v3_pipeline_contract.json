@@ -119,6 +119,8 @@
       "src/ethusdc_bot/protocol_v3/research_challenger_api.py",
       "src/ethusdc_bot/protocol_v3/research_challenger_evidence.py",
       "src/ethusdc_bot/protocol_v3/research_challenger_evidence_api.py",
+      "src/ethusdc_bot/protocol_v3/research_challenger_checkpoint.py",
+      "src/ethusdc_bot/protocol_v3/research_challenger_checkpoint_api.py",
       "src/ethusdc_bot/shadow/adoption.py"
     ],
     "ranking": [
