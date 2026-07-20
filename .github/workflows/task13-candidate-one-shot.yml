@@ -21,7 +21,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Apply exact Task-13 contract migration
+      - name: Apply exact Task-13 contract migration and regression fixes
         shell: python
         run: |
           from pathlib import Path
@@ -29,7 +29,6 @@ jobs:
 
           model_path = Path("src/ethusdc_bot/protocol_v3/transactional_cache_model.py")
           text = model_path.read_text(encoding="utf-8")
-
           replacements = [
               (
                   "from ethusdc_bot.protocol_v3.inner_selection import (\n    CANDIDATE_SELECTION_IDENTITY_SCHEMA,\n    NO_TRADE,",
@@ -56,13 +55,13 @@ jobs:
                   '',
               ),
               (
-                  '    if decision["fixture_only"] is not False:\n        raise ProtocolV3TransactionError("synthetic Task-15 selection cannot enter production transaction state")\n    if decision["outcome"] != NO_TRADE or decision["selected_candidate"] is not None:\n        raise ProtocolV3TransactionError("production transaction state must remain NO_TRADE until Tasks 16-18 provide real evidence")\n',
-                  '    if decision["fixture_only"] is not False:\n        raise ProtocolV3TransactionError("synthetic Task-15 selection cannot enter production transaction state")\n    if decision["outcome"] not in {NO_TRADE, CANDIDATE}:\n        raise ProtocolV3TransactionError("production candidate selection outcome is invalid")\n    if decision["outcome"] == NO_TRADE and decision["selected_candidate"] is not None:\n        raise ProtocolV3TransactionError("NO_TRADE selection may not bind a candidate")\n    if decision["outcome"] == CANDIDATE and decision["selected_candidate"] is None:\n        raise ProtocolV3TransactionError("CANDIDATE selection requires a bound candidate")\n',
+                  '    if decision["fixture_only"] is True:\n        raise ProtocolV3TransactionError(\n            "synthetic Task-15 candidate decisions cannot enter transaction state"\n        )\n    if decision["outcome"] != NO_TRADE or decision["selected_candidate"] is not None:\n        raise ProtocolV3TransactionError(\n            "Task-15 production transaction state must remain NO_TRADE until Tasks 16-18"\n        )\n',
+                  '    if decision["fixture_only"] is True:\n        raise ProtocolV3TransactionError(\n            "synthetic Task-15 candidate decisions cannot enter transaction state"\n        )\n    if decision["outcome"] not in {NO_TRADE, CANDIDATE}:\n        raise ProtocolV3TransactionError(\n            "production candidate selection outcome is invalid"\n        )\n    if decision["outcome"] == NO_TRADE and decision["selected_candidate"] is not None:\n        raise ProtocolV3TransactionError(\n            "NO_TRADE selection may not bind a candidate"\n        )\n    if decision["outcome"] == CANDIDATE and decision["selected_candidate"] is None:\n        raise ProtocolV3TransactionError(\n            "CANDIDATE selection requires a bound candidate"\n        )\n',
               ),
           ]
           for old, new in replacements:
               if text.count(old) != 1:
-                  raise SystemExit(f"expected exactly one model replacement: {old[:80]!r}")
+                  raise SystemExit(f"expected exactly one model replacement: {old[:100]!r}")
               text = text.replace(old, new)
           model_path.write_text(text, encoding="utf-8")
 
@@ -104,11 +103,48 @@ jobs:
               json.dumps(pipeline, indent=2, ensure_ascii=True) + "\n",
               encoding="utf-8",
           )
+
+          checkpoint_test = Path(
+              "tests/unit/test_protocol_v3_research_challenger_checkpoint.py"
+          )
+          test_text = checkpoint_test.read_text(encoding="utf-8")
+          old = '''    serialized = str(result_payload).lower()\n    assert "candles" not in serialized\n    assert "ohlcv" not in serialized\n    assert "raw_market_data" not in serialized\n'''
+          new = '''    receipt_payload = result_payload["task29_checkpoint_receipt"]\n    assert receipt_payload["safety"]["raw_market_data_stored"] is False\n    assert "candles" not in receipt_payload\n    assert "ohlcv" not in receipt_payload\n    assert "raw_market_data" not in receipt_payload\n'''
+          if test_text.count(old) != 1:
+              raise SystemExit("checkpoint raw-data assertion block changed")
+          checkpoint_test.write_text(test_text.replace(old, new), encoding="utf-8")
+
+          candidate_test = Path(
+              "tests/unit/test_protocol_v3_transactional_candidate_identity.py"
+          )
+          candidate_text = candidate_test.read_text(encoding="utf-8")
+          old = "    assert decision.outcome == inner_selection.CANDIDATE\n"
+          new = (
+              "    assert decision.outcome == inner_selection.CANDIDATE, "
+              "decision.to_dict()\n"
+          )
+          if candidate_text.count(old) != 1:
+              raise SystemExit("candidate decision assertion changed")
+          candidate_test.write_text(
+              candidate_text.replace(old, new), encoding="utf-8"
+          )
+      - name: Install project test dependencies
+        run: python -m pip install -e . pytest
+      - name: Run focused Task-13 and Task-29 regressions
+        run: |
+          python -m pytest -q \
+            tests/unit/test_protocol_v3_research_challenger_checkpoint.py \
+            tests/unit/test_protocol_v3_transactional_candidate_identity.py
       - name: Commit exact migration
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/ethusdc_bot/protocol_v3/transactional_cache_model.py configs/protocol_v3_transaction_contract.json configs/protocol_v3_pipeline_contract.json
+          git add \
+            src/ethusdc_bot/protocol_v3/transactional_cache_model.py \
+            configs/protocol_v3_transaction_contract.json \
+            configs/protocol_v3_pipeline_contract.json \
+            tests/unit/test_protocol_v3_research_challenger_checkpoint.py \
+            tests/unit/test_protocol_v3_transactional_candidate_identity.py
           git diff --cached --check
           git commit -m "Allow validated production candidates in Task 13"
           git push origin HEAD:codex/research-resume-and-ui-state-v1
