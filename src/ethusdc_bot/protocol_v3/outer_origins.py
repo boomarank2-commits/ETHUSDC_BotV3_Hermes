@@ -323,6 +323,23 @@ def run_outer_origin(
 _run_origin = run_outer_origin
 
 
+def validate_outer_origin_selection(
+    value: OuterOriginSelection | Mapping[str, Any],
+    *,
+    origin: MonthlyOriginBoundary,
+) -> OuterOriginSelection:
+    """Validate one canonical origin envelope with the full Task-23 rules."""
+
+    if not isinstance(origin, MonthlyOriginBoundary):
+        raise OuterOriginError("verified MonthlyOriginBoundary required")
+    root = value.to_dict() if isinstance(value, OuterOriginSelection) else value
+    normalized = _validate_origin_envelope(root, origin)
+    observed = normalized["origin_sha256"]
+    basis = dict(normalized)
+    basis.pop("origin_sha256")
+    return OuterOriginSelection(_canonical(basis), observed)
+
+
 def validate_outer_origin_process(
     value: OuterOriginProcess | Mapping[str, Any],
     *,
@@ -700,4 +717,5 @@ __all__ = [
     "orchestrate_outer_origins",
     "run_outer_origin",
     "validate_outer_origin_process",
+    "validate_outer_origin_selection",
 ]

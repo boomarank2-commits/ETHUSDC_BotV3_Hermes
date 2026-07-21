@@ -17,11 +17,16 @@ from pathlib import Path
 import re
 from typing import Any, Final
 
-from ethusdc_bot.protocol_v3.outer_origins import OuterOriginSelection
+from ethusdc_bot.protocol_v3.outer_origins import (
+    OuterOriginError,
+    OuterOriginSelection,
+    validate_outer_origin_selection,
+)
 from ethusdc_bot.protocol_v3.pipeline_final import (
     PipelineFinalClaim,
     PipelineFinalError,
     PipelineFinalRegistration,
+    pipeline_final_boundary_plan,
     validate_pipeline_final_claim,
     validate_pipeline_final_registration,
 )
@@ -605,40 +610,23 @@ def _validate_origin_selection(
         raise PipelineFinalProgressError(
             "typed OuterOriginSelection required"
         )
-    root = selection.to_dict()
-    required = {
-        "schema_version",
-        "origin_index",
-        "training_start_inclusive",
-        "training_end_exclusive",
-        "test_start_inclusive",
-        "test_end_exclusive",
-        "selection_decision",
-        "frozen_candidate_bundle",
-        "pipeline_generation_id",
-        "code_commit",
-        "outer_results_visible_during_fit",
-        "safety",
-        "origin_sha256",
-    }
-    if set(root) != required or root["origin_index"] != expected_origin_index:
-        raise PipelineFinalProgressError(
-            "outer origin selection fields or order are invalid"
-        )
     registration_payload = registration.to_dict()
-    expected_boundary = registration_payload["boundary_plan"]["origins"][
-        expected_origin_index - 1
-    ]
-    for key in (
-        "training_start_inclusive",
-        "training_end_exclusive",
-        "test_start_inclusive",
-        "test_end_exclusive",
-    ):
-        if root[key] != expected_boundary[key]:
-            raise PipelineFinalProgressError(
-                "outer origin selection boundary differs from preregistration"
-            )
+    plan = pipeline_final_boundary_plan(
+        start_inclusive_utc=registration_payload["start_inclusive_utc"],
+        end_exclusive_utc=registration_payload["end_exclusive_utc"],
+    )
+    if type(expected_origin_index) is not int or not 1 <= expected_origin_index <= 12:
+        raise PipelineFinalProgressError("expected origin index is invalid")
+    try:
+        validated = validate_outer_origin_selection(
+            selection,
+            origin=plan.origins[expected_origin_index - 1],
+        )
+    except OuterOriginError as exc:
+        raise PipelineFinalProgressError(
+            "outer origin selection failed the full Task-23 validation"
+        ) from exc
+    root = validated.to_dict()
     manifest = registration_payload["frozen_identity_manifest"]
     if (
         root["pipeline_generation_id"] != manifest["pipeline_generation_id"]
@@ -648,15 +636,11 @@ def _validate_origin_selection(
         raise PipelineFinalProgressError(
             "outer origin selection changed pipeline, code, or visibility"
         )
-    observed = _sha(root["origin_sha256"], "origin_sha256")
-    basis = dict(root)
-    basis.pop("origin_sha256")
-    if observed != _digest(basis) or selection.origin_sha256 != observed:
+    if selection.origin_sha256 != validated.origin_sha256:
         raise PipelineFinalProgressError(
-            "outer origin selection digest mismatch"
+            "outer origin selection typed digest mismatch"
         )
-    return observed
-
+    return validated.origin_sha256
 
 def _origin_identities(value: Mapping[str, Any]) -> dict[str, str]:
     root = dict(_mapping(value, "completion_identities"))
