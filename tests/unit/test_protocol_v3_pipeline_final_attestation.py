@@ -16,6 +16,8 @@ from ethusdc_bot.protocol_v3 import pipeline_final_checkpoint
 from ethusdc_bot.protocol_v3 import pipeline_final_progress
 from ethusdc_bot.protocol_v3 import monthly_quality_gate
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
 _TASK23_PATH = Path(__file__).with_name("test_protocol_v3_outer_origins.py")
 _SPEC23 = importlib.util.spec_from_file_location(
     "protocol_v3_task31_attestation_task23_support", _TASK23_PATH
@@ -56,30 +58,11 @@ def _utc_text(value: datetime) -> str:
 
 
 def _manifest(base, plan) -> dict[str, str]:
-    run = base["identity"].to_dict()["run_fingerprint"]
-    return {
-        "bootstrap_contract_sha256": "1" * 64,
-        "boundary_plan_sha256": pipeline_final.pipeline_final_boundary_plan_sha256(
-            plan
-        ),
-        "code_commit": run["code"]["git_commit"],
-        "context_contract_sha256": "2" * 64,
-        "cost_contract_sha256": "3" * 64,
-        "data_contract_sha256": "4" * 64,
-        "exchange_info_contract_sha256": "5" * 64,
-        "execution_contract_sha256": "6" * 64,
-        "feature_contract_sha256": "7" * 64,
-        "pipeline_contract_sha256": "8" * 64,
-        "pipeline_generation_id": run["pipeline"]["generation_id"],
-        "quality_gate_contract_sha256": "9" * 64,
-        "report_contract_sha256": "a" * 64,
-        "run_fingerprint": "protocol_v3_run_sha256:" + run["fingerprint_sha256"],
-        "search_budget_sha256": "b" * 64,
-        "seed_policy_sha256": "c" * 64,
-        "simulator_contract_sha256": "d" * 64,
-        "stop_policy_sha256": "e" * 64,
-        "trial_ledger_head_sha256": run["trial_ledger_head"]["head_sha256"],
-    }
+    return pipeline_final.build_pipeline_final_identity_manifest(
+        repository_root=REPO_ROOT,
+        boundary_plan=plan,
+        run_fingerprint=base["identity"].to_dict()["run_fingerprint"],
+    )
 
 
 def _completion_identities(index: int, base) -> dict[str, str]:
@@ -252,6 +235,7 @@ def _build(state):
         regime_evidence=state["regime_evidence"],
         integrity_evidence=state["integrity_evidence"],
         bound_hindsight_benchmarks=state["bound"],
+        source_repository_root=REPO_ROOT,
         completed_at_utc=state["completed_at"],
     )
 
@@ -272,6 +256,7 @@ def _dependencies(state) -> dict[str, object]:
         "regime_evidence": state["regime_evidence"],
         "integrity_evidence": state["integrity_evidence"],
         "bound_hindsight_benchmarks": state["bound"],
+        "source_repository_root": REPO_ROOT,
     }
 
 
@@ -303,6 +288,35 @@ def test_attestation_recomputes_task25_26_27_and_derives_freshness(state) -> Non
     )
 
 
+def test_frozen_identity_manifest_is_recomputed_from_repository(state) -> None:
+    manifest = state["registration"].to_dict()["frozen_identity_manifest"]
+    assert (
+        pipeline_final.validate_pipeline_final_identity_manifest_against_repository(
+            manifest,
+            repository_root=REPO_ROOT,
+            boundary_plan=state["plan"],
+            run_fingerprint=state["base"]["identity"].to_dict()[
+                "run_fingerprint"
+            ],
+        )
+        == manifest
+    )
+    changed = dict(manifest)
+    changed["quality_gate_contract_sha256"] = "0" * 64
+    with pytest.raises(
+        pipeline_final.PipelineFinalError,
+        match="differs from repository truth",
+    ):
+        pipeline_final.validate_pipeline_final_identity_manifest_against_repository(
+            changed,
+            repository_root=REPO_ROOT,
+            boundary_plan=state["plan"],
+            run_fingerprint=state["base"]["identity"].to_dict()[
+                "run_fingerprint"
+            ],
+        )
+
+
 def test_incomplete_or_early_final_evidence_is_blocked(state) -> None:
     start_progress = pipeline_final_progress.start_pipeline_final_progress(
         state["registration"],
@@ -327,6 +341,7 @@ def test_incomplete_or_early_final_evidence_is_blocked(state) -> None:
             regime_evidence=state["regime_evidence"],
             integrity_evidence=state["integrity_evidence"],
             bound_hindsight_benchmarks=state["bound"],
+            source_repository_root=REPO_ROOT,
             completed_at_utc=state["completed_at"],
         )
     early = _utc_text(

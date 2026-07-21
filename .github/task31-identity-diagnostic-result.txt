@@ -1,20 +1,14 @@
-result=FAIL
-source_head=57cb7bea580209cf16188b5b838fc48bb7e6fef8
-patch_status=0
+result=PASS
+source_head=c55f21be419cc9802e20b89cfe4e03dff9eb3822
+first_patch_status=0
+second_patch_status=0
 install_status=0
-pytest_status=1
+pytest_status=0
 compile_status=0
 whitespace_status=0
 --- patch tail ---
 --- pytest tail ---
-..............................................................F......... [ 81%]
+........................................................................ [ 81%]
 ................                                                         [100%]
-=================================== FAILURES ===================================
-______________ test_incomplete_or_early_final_evidence_is_blocked ______________
-tests/unit/test_protocol_v3_pipeline_final_attestation.py:329: in test_incomplete_or_early_final_evidence_is_blocked
-    pipeline_final_attestation.build_pipeline_final_attestation(
-E   TypeError: build_pipeline_final_attestation() missing 1 required keyword-only argument: 'source_repository_root'
-=========================== short test summary info ============================
-FAILED tests/unit/test_protocol_v3_pipeline_final_attestation.py::test_incomplete_or_early_final_evidence_is_blocked - TypeError: build_pipeline_final_attestation() missing 1 required keyword-only argument: 'source_repository_root'
 --- compile tail ---
 --- whitespace tail ---

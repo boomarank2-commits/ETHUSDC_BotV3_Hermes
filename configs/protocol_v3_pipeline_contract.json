@@ -26,7 +26,11 @@
       "protocol_v3_causally_bound_hindsight_solvers_v1",
       "protocol_v3_transitively_bound_hindsight_benchmarks_v1",
       "protocol_v3_bound_hindsight_capture_and_stationary_bootstrap_v2",
-      "protocol_v3_order_free_research_challenger_shadow_v2"
+      "protocol_v3_order_free_research_challenger_shadow_v2",
+      "protocol_v3_preregistered_single_open_pipeline_final_v1",
+      "protocol_v3_result_blind_twelve_origin_progress_v1",
+      "protocol_v3_task13_result_blind_pipeline_final_checkpoint_v1",
+      "protocol_v3_transitively_revalidated_pipeline_final_attestation_v1"
     ],
     "ranking": [
       "protocol_v3_lexicographic_inner_ranking_v1",
@@ -121,7 +125,17 @@
       "src/ethusdc_bot/protocol_v3/research_challenger_evidence_api.py",
       "src/ethusdc_bot/protocol_v3/research_challenger_checkpoint.py",
       "src/ethusdc_bot/protocol_v3/research_challenger_checkpoint_api.py",
-      "src/ethusdc_bot/shadow/adoption.py"
+      "src/ethusdc_bot/shadow/adoption.py",
+      "configs/protocol_v3_pipeline_final_contract.json",
+      "configs/protocol_v3_pipeline_final_progress_contract.json",
+      "src/ethusdc_bot/protocol_v3/pipeline_final.py",
+      "src/ethusdc_bot/protocol_v3/pipeline_final_api.py",
+      "src/ethusdc_bot/protocol_v3/pipeline_final_progress.py",
+      "src/ethusdc_bot/protocol_v3/pipeline_final_progress_api.py",
+      "src/ethusdc_bot/protocol_v3/pipeline_final_checkpoint.py",
+      "src/ethusdc_bot/protocol_v3/pipeline_final_checkpoint_api.py",
+      "src/ethusdc_bot/protocol_v3/pipeline_final_attestation.py",
+      "src/ethusdc_bot/protocol_v3/pipeline_final_attestation_api.py"
     ],
     "ranking": [
       "configs/protocol_v3_candidate_matrix_contract.json",

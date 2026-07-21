@@ -47,6 +47,7 @@ from ethusdc_bot.protocol_v3.pipeline_final import (
     pipeline_final_boundary_plan,
     pipeline_final_boundary_plan_sha256,
     validate_pipeline_final_claim,
+    validate_pipeline_final_identity_manifest_against_repository,
     validate_pipeline_final_registration,
 )
 from ethusdc_bot.protocol_v3.pipeline_final_checkpoint import (
@@ -111,6 +112,7 @@ def build_pipeline_final_attestation(
     regime_evidence: Mapping[str, Any],
     integrity_evidence: Mapping[str, Any],
     bound_hindsight_benchmarks: BoundHindsightBenchmarks,
+    source_repository_root: str | Path,
     completed_at_utc: str,
 ) -> PipelineFinalAttestation:
     reg = validate_pipeline_final_registration(registration)
@@ -161,6 +163,24 @@ def build_pipeline_final_attestation(
         claim=claimed,
     )
     checkpoint_payload = checkpoint.checkpoint.to_dict()
+    checkpoint_identity = _mapping(
+        checkpoint_payload.get("identity"), "checkpoint.identity"
+    )
+    checkpoint_run = _mapping(
+        checkpoint_identity.get("run_fingerprint"),
+        "checkpoint.identity.run_fingerprint",
+    )
+    try:
+        validate_pipeline_final_identity_manifest_against_repository(
+            reg_payload["frozen_identity_manifest"],
+            repository_root=source_repository_root,
+            boundary_plan=plan,
+            run_fingerprint=checkpoint_run,
+        )
+    except PipelineFinalError as exc:
+        raise PipelineFinalAttestationError(
+            "pipeline-final frozen identity failed repository revalidation"
+        ) from exc
     result = _mapping(checkpoint_payload.get("result"), "checkpoint.result")
     result_payload = _mapping(result.get("payload"), "checkpoint.result.payload")
     if (
@@ -343,6 +363,7 @@ def validate_pipeline_final_attestation(
     regime_evidence: Mapping[str, Any] | None = None,
     integrity_evidence: Mapping[str, Any] | None = None,
     bound_hindsight_benchmarks: BoundHindsightBenchmarks | None = None,
+    source_repository_root: str | Path | None = None,
 ) -> PipelineFinalAttestation:
     root = (
         value.to_dict()
@@ -365,6 +386,7 @@ def validate_pipeline_final_attestation(
             regime_evidence,
             integrity_evidence,
             bound_hindsight_benchmarks,
+            source_repository_root,
         )
         if any(item is None for item in dependencies):
             raise PipelineFinalAttestationError(
@@ -385,6 +407,7 @@ def validate_pipeline_final_attestation(
             regime_evidence=regime_evidence,
             integrity_evidence=integrity_evidence,
             bound_hindsight_benchmarks=bound_hindsight_benchmarks,
+            source_repository_root=source_repository_root,
             completed_at_utc=root.get("completed_at_utc"),
         ).to_dict()
         if root != expected:

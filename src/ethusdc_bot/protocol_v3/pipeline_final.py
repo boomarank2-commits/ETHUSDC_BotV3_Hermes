@@ -34,9 +34,15 @@ from ethusdc_bot.protocol_v3.boundaries import (
     build_monthly_process_boundary_plan,
     validate_monthly_process_boundary_plan,
 )
+from ethusdc_bot.protocol_v3.pipeline import build_pipeline_generation
 from ethusdc_bot.protocol_v3.reporting import (
     FORWARD_REGISTRATION_ROOT,
     read_forward_window_registration,
+)
+from ethusdc_bot.protocol_v3.run_identity import (
+    RunFingerprint,
+    RunIdentityError,
+    validate_run_fingerprint,
 )
 
 PROTOCOL_VERSION: Final = "3.0.0"
@@ -88,6 +94,52 @@ _IDENTITY_FIELDS: Final = (
     "stop_policy_sha256",
     "trial_ledger_head_sha256",
 )
+_IDENTITY_SOURCE_GROUPS: Final = {
+    "bootstrap": (
+        "configs/protocol_v3_historical_diagnostics_contract.json",
+    ),
+    "context": (
+        "configs/protocol_v3_context_parity_contract.json",
+        "configs/protocol_v3_data_snapshot_contract.json",
+    ),
+    "cost": (
+        "configs/protocol_v3_execution_parity_contract.json",
+        "configs/protocol_v3_intrabar_execution_contract.json",
+    ),
+    "data": (
+        "configs/protocol_v3_data_snapshot_contract.json",
+    ),
+    "exchange_info": (
+        "configs/protocol_v3_run_identity_contract.json",
+    ),
+    "execution": (
+        "configs/protocol_v3_execution_parity_contract.json",
+        "configs/protocol_v3_intrabar_execution_contract.json",
+        "configs/protocol_v3_runtime_state_contract.json",
+    ),
+    "feature": (
+        "configs/protocol_v3_data_snapshot_contract.json",
+        "configs/protocol_v3_feature_store_contract.json",
+        "configs/protocol_v3_opportunity_regime_contract.json",
+    ),
+    "quality_gate": (
+        "configs/protocol_v3_historical_diagnostics_contract.json",
+        "configs/protocol_v3_monthly_quality_gate_contract.json",
+        "configs/protocol_v3_pipeline_final_contract.json",
+        "configs/protocol_v3_pipeline_final_progress_contract.json",
+        "configs/protocol_v3_report_contract.json",
+        "configs/protocol_v3_transaction_contract.json",
+    ),
+    "report": (
+        "configs/protocol_v3_report_contract.json",
+    ),
+    "simulator": (
+        "configs/protocol_v3_context_parity_contract.json",
+        "configs/protocol_v3_execution_parity_contract.json",
+        "configs/protocol_v3_intrabar_execution_contract.json",
+        "configs/protocol_v3_runtime_state_contract.json",
+    ),
+}
 _CANONICAL_CONTRACT: Final = {
     "schema_version": CONTRACT_SCHEMA_VERSION,
     "protocol_version": PROTOCOL_VERSION,
@@ -237,6 +289,145 @@ def pipeline_final_boundary_plan_sha256(plan: MonthlyProcessBoundaryPlan) -> str
 
 def visible_forward_registration_head(repository_root: str | Path) -> str:
     rows = _visible_forward_registrations(repository_root)
+    return _digest(rows)
+
+
+def build_pipeline_final_identity_manifest(
+    *,
+    repository_root: str | Path,
+    boundary_plan: MonthlyProcessBoundaryPlan,
+    run_fingerprint: RunFingerprint | Mapping[str, Any],
+) -> dict[str, str]:
+    """Recompute every frozen Task-31 identity from typed runtime evidence."""
+
+    repo = _repo(repository_root)
+    validate_monthly_process_boundary_plan(boundary_plan)
+    run = _validated_run_fingerprint_payload(run_fingerprint, repo)
+    generation = build_pipeline_generation(repo)
+    pipeline = dict(_mapping(run["pipeline"], "run_fingerprint.pipeline"))
+    if (
+        pipeline.get("generation_id") != generation.generation_id
+        or pipeline.get("contract_sha256") != generation.contract_sha256
+    ):
+        raise PipelineFinalError(
+            "run fingerprint differs from the current pipeline generation"
+        )
+    pipeline_contract_path = repo / "configs/protocol_v3_pipeline_contract.json"
+    try:
+        pipeline_contract = _strict_load(
+            pipeline_contract_path.read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise PipelineFinalError(
+            "pipeline contract is missing during final identity derivation"
+        ) from exc
+    for key in ("budget_policy", "seed_policy", "stop_policy"):
+        _mapping(pipeline_contract.get(key), f"pipeline_contract.{key}")
+    trial = dict(
+        _mapping(run["trial_ledger_head"], "run_fingerprint.trial_ledger_head")
+    )
+    code = dict(_mapping(run["code"], "run_fingerprint.code"))
+    manifest = {
+        "bootstrap_contract_sha256": _source_group_sha256(
+            repo, _IDENTITY_SOURCE_GROUPS["bootstrap"]
+        ),
+        "boundary_plan_sha256": pipeline_final_boundary_plan_sha256(boundary_plan),
+        "code_commit": code["git_commit"],
+        "context_contract_sha256": _source_group_sha256(
+            repo, _IDENTITY_SOURCE_GROUPS["context"]
+        ),
+        "cost_contract_sha256": _source_group_sha256(
+            repo, _IDENTITY_SOURCE_GROUPS["cost"]
+        ),
+        "data_contract_sha256": _source_group_sha256(
+            repo, _IDENTITY_SOURCE_GROUPS["data"]
+        ),
+        "exchange_info_contract_sha256": _source_group_sha256(
+            repo, _IDENTITY_SOURCE_GROUPS["exchange_info"]
+        ),
+        "execution_contract_sha256": _source_group_sha256(
+            repo, _IDENTITY_SOURCE_GROUPS["execution"]
+        ),
+        "feature_contract_sha256": _source_group_sha256(
+            repo, _IDENTITY_SOURCE_GROUPS["feature"]
+        ),
+        "pipeline_contract_sha256": generation.contract_sha256,
+        "pipeline_generation_id": generation.generation_id,
+        "quality_gate_contract_sha256": _source_group_sha256(
+            repo, _IDENTITY_SOURCE_GROUPS["quality_gate"]
+        ),
+        "report_contract_sha256": _source_group_sha256(
+            repo, _IDENTITY_SOURCE_GROUPS["report"]
+        ),
+        "run_fingerprint": "protocol_v3_run_sha256:" + run["fingerprint_sha256"],
+        "search_budget_sha256": _digest(pipeline_contract["budget_policy"]),
+        "seed_policy_sha256": _digest(pipeline_contract["seed_policy"]),
+        "simulator_contract_sha256": _source_group_sha256(
+            repo, _IDENTITY_SOURCE_GROUPS["simulator"]
+        ),
+        "stop_policy_sha256": _digest(pipeline_contract["stop_policy"]),
+        "trial_ledger_head_sha256": trial["head_sha256"],
+    }
+    return _identity_manifest(manifest)
+
+
+def validate_pipeline_final_identity_manifest_against_repository(
+    value: Mapping[str, Any],
+    *,
+    repository_root: str | Path,
+    boundary_plan: MonthlyProcessBoundaryPlan,
+    run_fingerprint: RunFingerprint | Mapping[str, Any],
+) -> dict[str, str]:
+    observed = _identity_manifest(value)
+    expected = build_pipeline_final_identity_manifest(
+        repository_root=repository_root,
+        boundary_plan=boundary_plan,
+        run_fingerprint=run_fingerprint,
+    )
+    if observed != expected:
+        raise PipelineFinalError(
+            "frozen pipeline-final identity manifest differs from repository truth"
+        )
+    return observed
+
+
+def _validated_run_fingerprint_payload(
+    value: RunFingerprint | Mapping[str, Any],
+    repository_root: Path,
+) -> dict[str, Any]:
+    if isinstance(value, RunFingerprint):
+        payload = value.to_dict()
+    elif isinstance(value, Mapping):
+        payload = dict(value)
+    else:
+        raise PipelineFinalError("validated run fingerprint is required")
+    try:
+        validate_run_fingerprint(payload, repo_root=repository_root)
+    except RunIdentityError as exc:
+        raise PipelineFinalError(
+            "run fingerprint failed repository revalidation"
+        ) from exc
+    return payload
+
+
+def _source_group_sha256(repo: Path, relative_paths: Sequence[str]) -> str:
+    rows: list[dict[str, str]] = []
+    for relative_text in relative_paths:
+        relative = PurePosixPath(relative_text)
+        if relative.is_absolute() or ".." in relative.parts:
+            raise PipelineFinalError("final identity source path is unsafe")
+        path = repo.joinpath(*relative.parts)
+        _no_symlinks(repo, path)
+        if not path.exists() or not path.is_file() or path.is_symlink():
+            raise PipelineFinalError(
+                f"final identity source is missing or unsafe: {relative_text}"
+            )
+        rows.append(
+            {
+                "path": relative.as_posix(),
+                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            }
+        )
     return _digest(rows)
 
 
@@ -812,6 +1003,7 @@ __all__ = [
     "PipelineFinalRegistration",
     "REGISTRATION_ROOT",
     "REGISTRATION_SCHEMA_VERSION",
+    "build_pipeline_final_identity_manifest",
     "build_pipeline_final_registration",
     "claim_pipeline_final_evaluation",
     "load_pipeline_final_contract",
@@ -822,6 +1014,7 @@ __all__ = [
     "read_pipeline_final_registration",
     "validate_pipeline_final_claim",
     "validate_pipeline_final_contract",
+    "validate_pipeline_final_identity_manifest_against_repository",
     "validate_pipeline_final_registration",
     "visible_forward_registration_head",
     "write_pipeline_final_registration",
