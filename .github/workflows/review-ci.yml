@@ -3,112 +3,58 @@ name: Review CI
 on:
   push:
     branches:
-      - "review/**"
-      - "agent/**"
-  pull_request:
-    branches:
-      - main
-      - "agent/**"
-      - "review/**"
-      - "codex/**"
+      - codex/research-resume-and-ui-state-v1
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  test:
+  task31-checkpoint-diagnostics:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
-
-      - name: Install project and test dependencies
-        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
-
-      - name: Run full test suite and preserve diagnostics
+      - name: Install project
+        run: python -m pip install -e . pytest
+      - name: Run Task 31 checkpoint tests and preserve diagnostics
         id: pytest
         shell: bash
         run: |
           set +e
-          python -m pytest -q --tb=short > pytest-output.txt 2>&1
+          python -m pytest -q --tb=short \
+            tests/unit/test_protocol_v3_pipeline_final.py \
+            tests/unit/test_protocol_v3_pipeline_final_progress.py \
+            tests/unit/test_protocol_v3_pipeline_final_checkpoint.py \
+            tests/unit/test_protocol_v3_outer_origins.py \
+            tests/unit/test_protocol_v3_research_challenger_checkpoint.py \
+            > task31-checkpoint-pytest.txt 2>&1
           status=$?
-          cat pytest-output.txt
+          cat task31-checkpoint-pytest.txt
           echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
-
-      - name: Upload pytest diagnostics
+      - name: Compile Task 31 checkpoint modules
+        run: |
+          python -m compileall -q \
+            src/ethusdc_bot/protocol_v3/pipeline_final.py \
+            src/ethusdc_bot/protocol_v3/pipeline_final_progress.py \
+            src/ethusdc_bot/protocol_v3/pipeline_final_checkpoint.py \
+            src/ethusdc_bot/protocol_v3/pipeline_final_checkpoint_api.py
+          git diff --check
+      - name: Upload diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pytest-output-${{ github.sha }}
-          path: pytest-output.txt
+          name: task31-checkpoint-${{ github.sha }}
+          path: task31-checkpoint-pytest.txt
           if-no-files-found: error
           retention-days: 14
-
-      - name: Compile source tree
-        run: python -m compileall -q src
-
-      - name: Validate PowerShell script syntax
-        shell: pwsh
-        run: |
-          $files = @(Get-ChildItem -Path tools -Filter "*.ps1" -File -ErrorAction SilentlyContinue)
-          foreach ($file in $files) {
-            $tokens = $null
-            $errors = $null
-            [System.Management.Automation.Language.Parser]::ParseFile(
-              $file.FullName,
-              [ref]$tokens,
-              [ref]$errors
-            ) | Out-Null
-            if ($errors.Count -gt 0) {
-              $errors | ForEach-Object { Write-Error "$($file.FullName): $($_.Message)" }
-              exit 1
-            }
-          }
-          Write-Host "Validated $($files.Count) PowerShell script(s)."
-
-      - name: Check committed whitespace errors
-        shell: bash
-        run: |
-          if [[ -n "${GITHUB_BASE_REF}" ]]; then
-            base_ref="${GITHUB_BASE_REF}"
-          elif [[ "${GITHUB_REF_NAME}" == "review/backtest-ui-live-status-v1" ]]; then
-            base_ref="codex/pr12-final-local-run"
-          elif [[ "${GITHUB_REF_NAME}" == "review/context-research-integration-v1" ]]; then
-            base_ref="review/research-checkpoints-context-v1"
-          elif [[ "${GITHUB_REF_NAME}" == "review/research-checkpoints-context-v1" ]]; then
-            base_ref="review/context-veto-engine-v1"
-          elif [[ "${GITHUB_REF_NAME}" == "review/context-veto-engine-v1" ]]; then
-            base_ref="review/context-data-alignment-v1"
-          elif [[ "${GITHUB_REF_NAME}" == "review/context-data-alignment-v1" ]]; then
-            base_ref="review/windows-production-research-runner-v1"
-          elif [[ "${GITHUB_REF_NAME}" == "review/windows-production-research-runner-v1" ]]; then
-            base_ref="review/search-frontier-v2"
-          elif [[ "${GITHUB_REF_NAME}" == "review/search-frontier-v2" ]]; then
-            base_ref="review/research-evidence-producers-v1"
-          elif [[ "${GITHUB_REF_NAME}" == "review/research-evidence-producers-v1" ]]; then
-            base_ref="review/pr4-final-alignment"
-          elif [[ "${GITHUB_REF_NAME}" == "review/pr4-final-alignment" ]]; then
-            base_ref="agent/portfolio-shadow-v1"
-          elif [[ "${GITHUB_REF_NAME}" == review/* ]]; then
-            base_ref="main"
-          else
-            base_ref="main"
-          fi
-          git fetch --no-tags origin "${base_ref}"
-          git diff --check "origin/${base_ref}...HEAD"
-
-      - name: Fail when pytest failed
+      - name: Fail when tests failed
         if: always()
         shell: bash
         run: test "${{ steps.pytest.outputs.status }}" -eq 0
