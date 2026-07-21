@@ -311,13 +311,19 @@ def build_pipeline_final_attestation(
         "safety": _SAFETY,
     }
     digest = _digest(basis)
-    return validate_pipeline_final_attestation(
-        {
-            **basis,
-            "attestation_id": f"protocol_v3_pipeline_final_attestation_sha256:{digest}",
-            "attestation_sha256": digest,
-        }
+    attestation_id = f"protocol_v3_pipeline_final_attestation_sha256:{digest}"
+    candidate = PipelineFinalAttestation(
+        _canonical(
+            {
+                **basis,
+                "attestation_id": attestation_id,
+                "attestation_sha256": digest,
+            }
+        ),
+        digest,
+        attestation_id,
     )
+    return validate_pipeline_final_attestation(candidate)
 
 
 def validate_pipeline_final_attestation(
@@ -614,7 +620,12 @@ def read_pipeline_final_attestation(
     root = _safe_root(repo, ATTESTATION_ROOT, create=False)
     guarded = _exact_child(Path(path), root, repo)
     value, raw = _read(guarded)
-    attestation = validate_pipeline_final_attestation(value)
+    candidate = PipelineFinalAttestation(
+        _canonical(value),
+        str(value.get("attestation_sha256", "")),
+        str(value.get("attestation_id", "")),
+    )
+    attestation = validate_pipeline_final_attestation(candidate)
     expected = root / f"{attestation.to_dict()['registration_sha256']}.json"
     if guarded.resolve(strict=True) != expected.resolve(strict=True):
         raise PipelineFinalAttestationError(
@@ -669,7 +680,7 @@ def _bind_process_to_progress_and_registration(
         if (
             selected["origin_index"] != expected_index
             or completed["origin_index"] != expected_index
-            or completed["outer_origin_selection_sha256"]
+            or completed["origin_selection_sha256"]
             != selected["origin_sha256"]
         ):
             raise PipelineFinalAttestationError(

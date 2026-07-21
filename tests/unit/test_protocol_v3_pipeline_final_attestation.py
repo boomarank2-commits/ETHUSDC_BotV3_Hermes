@@ -104,9 +104,15 @@ def _completion_identities(index: int, base) -> dict[str, str]:
 @pytest.fixture
 def state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     future_plan = boundaries.build_monthly_process_boundary_plan("2027-07-08")
-    original_builder = task23.boundaries.build_monthly_process_boundary_plan
+    original_task23_builder = task23.boundaries.build_monthly_process_boundary_plan
+    original_task13_builder = task23.support.build_monthly_process_boundary_plan
     monkeypatch.setattr(
         task23.boundaries,
+        "build_monthly_process_boundary_plan",
+        lambda *_args, **_kwargs: future_plan,
+    )
+    monkeypatch.setattr(
+        task23.support,
         "build_monthly_process_boundary_plan",
         lambda *_args, **_kwargs: future_plan,
     )
@@ -114,7 +120,12 @@ def state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         task23.boundaries,
         "build_monthly_process_boundary_plan",
-        original_builder,
+        original_task23_builder,
+    )
+    monkeypatch.setattr(
+        task23.support,
+        "build_monthly_process_boundary_plan",
+        original_task13_builder,
     )
     assert plan == future_plan
     process = outer_origins.orchestrate_outer_origins(plan, requests)
