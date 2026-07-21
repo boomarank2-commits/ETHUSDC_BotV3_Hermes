@@ -47,8 +47,11 @@ from ethusdc_bot.protocol_v3.run_identity import (
 
 PROTOCOL_VERSION: Final = "3.0.0"
 CONTRACT_PATH: Final = Path("configs/protocol_v3_pipeline_final_contract.json")
-CONTRACT_SCHEMA_VERSION: Final = "protocol_v3_pipeline_final_contract_v1"
-CONTRACT_VERSION: Final = "protocol_v3_preregistered_single_open_pipeline_final_v1"
+CONTRACT_SCHEMA_VERSION: Final = "protocol_v3_pipeline_final_contract_v2"
+CONTRACT_VERSION: Final = (
+    "protocol_v3_preregistered_transitively_attested_exactly_once_"
+    "pipeline_final_v2"
+)
 REGISTRATION_SCHEMA_VERSION: Final = "protocol_v3_pipeline_final_registration_v1"
 CLAIM_SCHEMA_VERSION: Final = "protocol_v3_pipeline_final_claim_v1"
 REGISTRATION_ROOT: Final = "reports/protocol_v3/evidence_windows/pipeline_final"
@@ -146,9 +149,25 @@ _CANONICAL_CONTRACT: Final = {
     "contract_version": CONTRACT_VERSION,
     "registration_schema_version": REGISTRATION_SCHEMA_VERSION,
     "claim_schema_version": CLAIM_SCHEMA_VERSION,
+    "progress_schema_version": "protocol_v3_pipeline_final_progress_v1",
+    "checkpoint_receipt_schema_version": (
+        "protocol_v3_pipeline_final_checkpoint_receipt_v1"
+    ),
+    "attestation_schema_version": "protocol_v3_pipeline_final_attestation_v1",
+    "final_report_schema_version": "protocol_v3_report_v1",
+    "open_receipt_schema_version": (
+        "protocol_v3_pipeline_final_open_receipt_v1"
+    ),
     "roots": {
         "registration_root": REGISTRATION_ROOT,
         "claim_root": CLAIM_ROOT,
+        "attestation_root": (
+            "reports/protocol_v3/pipeline_final/attestations"
+        ),
+        "final_report_root": "reports/protocol_v3/pipeline_final",
+        "open_receipt_root": (
+            "reports/protocol_v3/pipeline_final_open_receipts"
+        ),
     },
     "window_policy": {
         "window_class": WINDOW_CLASS,
@@ -181,7 +200,15 @@ _CANONICAL_CONTRACT: Final = {
         "intermediate_strategy_switches_visible": False,
         "final_report_artifact_kind": "protocol_v3_pipeline_final",
         "task31_attestation_required_before_open": True,
+        "attestation_transitively_revalidates_tasks_23_25_26_27": True,
+        "final_report_contract_version": (
+            "protocol_v3_exactly_once_pipeline_final_report_open_v1"
+        ),
         "open_exactly_once_after_complete": True,
+        "report_written_before_open_receipt": True,
+        "exact_report_without_receipt_is_crash_recoverable": True,
+        "second_open_after_receipt_forbidden": True,
+        "result_feedback_to_pipeline_forbidden": True,
     },
     "legacy_separation": {
         "legacy_report_type_forbidden": "final_evaluation",

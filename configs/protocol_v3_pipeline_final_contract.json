@@ -1,12 +1,15 @@
 {
-  "schema_version": "protocol_v3_pipeline_final_contract_v1",
+  "schema_version": "protocol_v3_pipeline_final_contract_v2",
   "protocol_version": "3.0.0",
-  "contract_version": "protocol_v3_preregistered_single_open_pipeline_final_v1",
+  "contract_version": "protocol_v3_preregistered_transitively_attested_exactly_once_pipeline_final_v2",
   "registration_schema_version": "protocol_v3_pipeline_final_registration_v1",
   "claim_schema_version": "protocol_v3_pipeline_final_claim_v1",
   "roots": {
     "registration_root": "reports/protocol_v3/evidence_windows/pipeline_final",
-    "claim_root": "reports/protocol_v3/pipeline_final_claims"
+    "claim_root": "reports/protocol_v3/pipeline_final_claims",
+    "attestation_root": "reports/protocol_v3/pipeline_final/attestations",
+    "final_report_root": "reports/protocol_v3/pipeline_final",
+    "open_receipt_root": "reports/protocol_v3/pipeline_final_open_receipts"
   },
   "window_policy": {
     "window_class": "sealed_final_holdout",
@@ -59,7 +62,13 @@
     "intermediate_strategy_switches_visible": false,
     "final_report_artifact_kind": "protocol_v3_pipeline_final",
     "task31_attestation_required_before_open": true,
-    "open_exactly_once_after_complete": true
+    "open_exactly_once_after_complete": true,
+    "attestation_transitively_revalidates_tasks_23_25_26_27": true,
+    "final_report_contract_version": "protocol_v3_exactly_once_pipeline_final_report_open_v1",
+    "report_written_before_open_receipt": true,
+    "exact_report_without_receipt_is_crash_recoverable": true,
+    "second_open_after_receipt_forbidden": true,
+    "result_feedback_to_pipeline_forbidden": true
   },
   "legacy_separation": {
     "legacy_report_type_forbidden": "final_evaluation",
@@ -75,5 +84,10 @@
     "paper": "locked",
     "testtrade": "locked",
     "trading_api": "forbidden"
-  }
+  },
+  "progress_schema_version": "protocol_v3_pipeline_final_progress_v1",
+  "checkpoint_receipt_schema_version": "protocol_v3_pipeline_final_checkpoint_receipt_v1",
+  "attestation_schema_version": "protocol_v3_pipeline_final_attestation_v1",
+  "final_report_schema_version": "protocol_v3_report_v1",
+  "open_receipt_schema_version": "protocol_v3_pipeline_final_open_receipt_v1"
 }

@@ -28,6 +28,7 @@ from ethusdc_bot.protocol_v3.outer_origins import OuterOriginProcess
 from ethusdc_bot.protocol_v3.pipeline_final import (
     PipelineFinalClaim,
     PipelineFinalRegistration,
+    validate_pipeline_final_registration,
 )
 from ethusdc_bot.protocol_v3.pipeline_final_attestation import (
     PipelineFinalAttestation,
@@ -160,6 +161,7 @@ class PipelineFinalReportOpenResult:
 
 def build_pipeline_final_report(
     attestation: PipelineFinalAttestation,
+    registration: PipelineFinalRegistration,
     *,
     created_at_utc: str,
 ) -> ProtocolV3Report:
@@ -168,7 +170,22 @@ def build_pipeline_final_report(
             "validated PipelineFinalAttestation required to build final report"
         )
     attested = validate_pipeline_final_attestation(attestation)
+    registered = validate_pipeline_final_registration(registration)
     source = attested.to_dict()
+    registration_payload = registered.to_dict()
+    if (
+        source["registration_id"] != registration_payload["registration_id"]
+        or source["registration_sha256"] != registered.registration_sha256
+    ):
+        raise PipelineFinalReportError(
+            "pipeline-final report registration differs from attestation"
+        )
+    manifest = dict(
+        _mapping(
+            registration_payload["frozen_identity_manifest"],
+            "registration.frozen_identity_manifest",
+        )
+    )
     created = _utc(created_at_utc, "created_at_utc")
     window = dict(_mapping(source["window"], "attestation.window"))
     end = _utc(window["end_exclusive_utc"], "attestation.window.end")
@@ -199,10 +216,8 @@ def build_pipeline_final_report(
         "artifact_kind": PROTOCOL_V3_PIPELINE_FINAL,
         "report_id": _report_id(source["registration_sha256"]),
         "created_at_utc": _fmt(created),
-        "run_fingerprint": source["frozen_identity_manifest_sha256"] and source[
-            "registration_sha256"
-        ],
-        "pipeline_generation": "",
+        "run_fingerprint": manifest["run_fingerprint"],
+        "pipeline_generation": manifest["pipeline_generation_id"],
         "evidence_window": {
             "window_id": "sealed_final_" + source["registration_sha256"][:24],
             "window_class": "sealed_final_holdout",
@@ -252,9 +267,6 @@ def build_pipeline_final_report(
         },
         "safety": _REPORT_SAFETY,
     }
-    # Run and pipeline identities are not duplicated in the attestation body; they
-    # remain frozen in the persisted registration.  The opener injects them only
-    # after re-reading that exact registration.
     return _validate_report_structure(basis)
 
 
@@ -311,11 +323,11 @@ def open_pipeline_final_report(
             "registration.frozen_identity_manifest",
         )
     )
-    report = build_pipeline_final_report(attested, created_at_utc=opened_at_utc)
-    report_payload = report.to_dict()
-    report_payload["run_fingerprint"] = manifest["run_fingerprint"]
-    report_payload["pipeline_generation"] = manifest["pipeline_generation_id"]
-    report = _validate_report_structure(report_payload)
+    report = build_pipeline_final_report(
+        attested,
+        registration,
+        created_at_utc=opened_at_utc,
+    )
     opened = _utc(opened_at_utc, "opened_at_utc")
     if abs(_utc_now() - opened) > _CLOCK_TOLERANCE:
         raise PipelineFinalReportError(
@@ -330,6 +342,7 @@ def open_pipeline_final_report(
             receipt_path,
             repo,
             attestation=attested,
+            registration=registration,
             report=report,
         )
         raise PipelineFinalReportAlreadyOpenedError(
@@ -340,6 +353,7 @@ def open_pipeline_final_report(
             report_path,
             repo,
             attestation=attested,
+            registration=registration,
         )
         if existing_report != report:
             raise PipelineFinalReportError(
@@ -351,11 +365,13 @@ def open_pipeline_final_report(
             report_path,
             repo,
             attestation=attested,
+            registration=registration,
         )
         if existing_report != report:
             raise PipelineFinalReportError("pipeline-final report reload mismatch")
     receipt = build_pipeline_final_open_receipt(
         attested,
+        registration,
         report,
         opened_at_utc=opened_at_utc,
         report_path=report_path.relative_to(repo).as_posix(),
@@ -370,6 +386,7 @@ def open_pipeline_final_report(
         receipt_path,
         repo,
         attestation=attested,
+        registration=registration,
         report=report,
     )
     if reloaded_receipt != receipt:
@@ -386,19 +403,18 @@ def validate_pipeline_final_report(
     value: ProtocolV3Report | Mapping[str, Any],
     *,
     attestation: PipelineFinalAttestation,
+    registration: PipelineFinalRegistration,
 ) -> ProtocolV3Report:
     attested = validate_pipeline_final_attestation(attestation)
     root = value.to_dict() if isinstance(value, ProtocolV3Report) else dict(
         _mapping(value, "pipeline_final_report")
     )
     validated = _validate_report_structure(root)
-    expected = build_pipeline_final_report(
+    expected_report = build_pipeline_final_report(
         attested,
+        registration,
         created_at_utc=root["created_at_utc"],
-    ).to_dict()
-    expected["run_fingerprint"] = root["run_fingerprint"]
-    expected["pipeline_generation"] = root["pipeline_generation"]
-    expected_report = _validate_report_structure(expected)
+    )
     if validated.to_dict() != expected_report.to_dict():
         raise PipelineFinalReportError(
             "pipeline-final report differs from its Task-31 attestation"
@@ -411,12 +427,17 @@ def read_pipeline_final_report(
     repository_root: str | Path,
     *,
     attestation: PipelineFinalAttestation,
+    registration: PipelineFinalRegistration,
 ) -> ProtocolV3Report:
     repo = _repo(repository_root)
     root = _safe_root(repo, REPORT_ROOT, create=False)
     guarded = _exact_child(Path(path), root, repo)
     value, raw = _read(guarded, "pipeline-final report")
-    report = validate_pipeline_final_report(value, attestation=attestation)
+    report = validate_pipeline_final_report(
+        value,
+        attestation=attestation,
+        registration=registration,
+    )
     expected = root / f"{report.report_id}.json"
     if guarded.resolve(strict=True) != expected.resolve(strict=True):
         raise PipelineFinalReportError(
@@ -431,6 +452,7 @@ def read_pipeline_final_report(
 
 def build_pipeline_final_open_receipt(
     attestation: PipelineFinalAttestation,
+    registration: PipelineFinalRegistration,
     report: ProtocolV3Report,
     *,
     opened_at_utc: str,
@@ -440,6 +462,7 @@ def build_pipeline_final_open_receipt(
     validated_report = validate_pipeline_final_report(
         report,
         attestation=attested,
+        registration=registration,
     )
     opened = _utc(opened_at_utc, "opened_at_utc")
     path = PurePosixPath(report_path)
@@ -475,6 +498,7 @@ def build_pipeline_final_open_receipt(
     return validate_pipeline_final_open_receipt(
         PipelineFinalOpenReceipt(_canonical(root), digest, receipt_id),
         attestation=attested,
+        registration=registration,
         report=validated_report,
     )
 
@@ -483,12 +507,14 @@ def validate_pipeline_final_open_receipt(
     value: PipelineFinalOpenReceipt | Mapping[str, Any],
     *,
     attestation: PipelineFinalAttestation,
+    registration: PipelineFinalRegistration,
     report: ProtocolV3Report,
 ) -> PipelineFinalOpenReceipt:
     source = validate_pipeline_final_attestation(attestation).to_dict()
     validated_report = validate_pipeline_final_report(
         report,
         attestation=attestation,
+        registration=registration,
     )
     report_payload = validated_report.to_dict()
     root = value.to_dict() if isinstance(value, PipelineFinalOpenReceipt) else dict(
@@ -567,6 +593,7 @@ def read_pipeline_final_open_receipt(
     repository_root: str | Path,
     *,
     attestation: PipelineFinalAttestation,
+    registration: PipelineFinalRegistration,
     report: ProtocolV3Report,
 ) -> PipelineFinalOpenReceipt:
     repo = _repo(repository_root)
@@ -576,6 +603,7 @@ def read_pipeline_final_open_receipt(
     receipt = validate_pipeline_final_open_receipt(
         value,
         attestation=attestation,
+        registration=registration,
         report=report,
     )
     expected = root / f"{receipt.to_dict()['registration_sha256']}.json"

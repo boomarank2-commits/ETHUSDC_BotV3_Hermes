@@ -112,12 +112,26 @@ def _persist_forward(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 def test_pipeline_final_contract_is_exact_and_explicitly_separate_from_legacy() -> None:
     contract = load_pipeline_final_contract(REPO_ROOT)
     assert contract["contract_version"] == (
-        "protocol_v3_preregistered_single_open_pipeline_final_v1"
+        "protocol_v3_preregistered_transitively_attested_exactly_once_"
+        "pipeline_final_v2"
     )
     assert contract["window_policy"]["calendar_days"] == 365
     assert contract["window_policy"]["outer_origins"] == 12
     assert contract["claim_policy"]["exactly_one_evaluation_attempt"] is True
     assert contract["sealing_policy"]["intermediate_outer_pnl_visible"] is False
+    assert contract["roots"]["attestation_root"] == (
+        "reports/protocol_v3/pipeline_final/attestations"
+    )
+    assert contract["roots"]["final_report_root"] == (
+        "reports/protocol_v3/pipeline_final"
+    )
+    assert contract["roots"]["open_receipt_root"] == (
+        "reports/protocol_v3/pipeline_final_open_receipts"
+    )
+    assert contract["sealing_policy"][
+        "attestation_transitively_revalidates_tasks_23_25_26_27"
+    ] is True
+    assert contract["sealing_policy"]["second_open_after_receipt_forbidden"] is True
     assert contract["legacy_separation"]["legacy_report_type_forbidden"] == (
         "final_evaluation"
     )
