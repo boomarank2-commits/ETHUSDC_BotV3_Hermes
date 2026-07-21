@@ -1,0 +1,66 @@
+result=PASS
+source_head=49eac9959f8e01e33d78966b13351cb16c0eb70d
+install_status=0
+pytest_status=0
+compile_status=0
+powershell_status=0
+whitespace_status=0
+--- pytest tail ---
+........................................................................ [  5%]
+........................................................................ [ 11%]
+........................................................................ [ 16%]
+........................................................................ [ 22%]
+........................................................................ [ 27%]
+........................................................................ [ 33%]
+........................................................................ [ 38%]
+........................................................................ [ 44%]
+........................................................................ [ 49%]
+........................................................................ [ 55%]
+........................................................................ [ 60%]
+........................................................................ [ 66%]
+........................................................................ [ 71%]
+........................................................................ [ 77%]
+........................................................................ [ 82%]
+........................................................................ [ 88%]
+........................................................................ [ 93%]
+........................................................................ [ 99%]
+.........                                                                [100%]
+--- compile tail ---
+--- powershell tail ---
+Validated 1 PowerShell script(s).
+--- whitespace tail ---
+--- install tail ---
+Obtaining file:///home/runner/work/ETHUSDC_BotV3_Hermes/ETHUSDC_BotV3_Hermes
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Collecting pytest>=8.0 (from ethusdc-bot-v3-hermes==0.1.0)
+  Downloading pytest-9.1.1-py3-none-any.whl.metadata (7.6 kB)
+Collecting iniconfig>=1.0.1 (from pytest>=8.0->ethusdc-bot-v3-hermes==0.1.0)
+  Downloading iniconfig-2.3.0-py3-none-any.whl.metadata (2.5 kB)
+Collecting packaging>=22 (from pytest>=8.0->ethusdc-bot-v3-hermes==0.1.0)
+  Downloading packaging-26.2-py3-none-any.whl.metadata (3.5 kB)
+Collecting pluggy<2,>=1.5 (from pytest>=8.0->ethusdc-bot-v3-hermes==0.1.0)
+  Downloading pluggy-1.6.0-py3-none-any.whl.metadata (4.8 kB)
+Collecting pygments>=2.7.2 (from pytest>=8.0->ethusdc-bot-v3-hermes==0.1.0)
+  Downloading pygments-2.20.0-py3-none-any.whl.metadata (2.5 kB)
+Downloading pytest-9.1.1-py3-none-any.whl (386 kB)
+Downloading pluggy-1.6.0-py3-none-any.whl (20 kB)
+Downloading iniconfig-2.3.0-py3-none-any.whl (7.5 kB)
+Downloading packaging-26.2-py3-none-any.whl (100 kB)
+Downloading pygments-2.20.0-py3-none-any.whl (1.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.2/1.2 MB 52.7 MB/s  0:00:00
+Building wheels for collected packages: ethusdc-bot-v3-hermes
+  Building editable for ethusdc-bot-v3-hermes (pyproject.toml): started
+  Building editable for ethusdc-bot-v3-hermes (pyproject.toml): finished with status 'done'
+  Created wheel for ethusdc-bot-v3-hermes: filename=ethusdc_bot_v3_hermes-0.1.0-0.editable-py3-none-any.whl size=2417 sha256=6bafc86c35cd872b010b62bb99d0d80801fd73254a0db8782b473c771ad1d269
+  Stored in directory: /tmp/pip-ephem-wheel-cache-_327em6i/wheels/61/d1/68/c17a3c82b3b3ec5abbff006f366aad79bced1d209e3b39a3e7
+Successfully built ethusdc-bot-v3-hermes
+Installing collected packages: pygments, pluggy, packaging, iniconfig, ethusdc-bot-v3-hermes, pytest
+
+Successfully installed ethusdc-bot-v3-hermes-0.1.0 iniconfig-2.3.0 packaging-26.2 pluggy-1.6.0 pygments-2.20.0 pytest-9.1.1
