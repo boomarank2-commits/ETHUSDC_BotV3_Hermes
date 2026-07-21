@@ -1,0 +1,36 @@
+"""Stable public facade for the exactly-once Task-31 final report open."""
+from ethusdc_bot.protocol_v3.pipeline_final_report import (
+    FINAL_REPORT_CONTRACT_VERSION,
+    OPEN_RECEIPT_ROOT,
+    OPEN_RECEIPT_SCHEMA_VERSION,
+    REPORT_ROOT,
+    PipelineFinalOpenReceipt,
+    PipelineFinalReportAlreadyOpenedError,
+    PipelineFinalReportError,
+    PipelineFinalReportOpenResult,
+    build_pipeline_final_open_receipt,
+    build_pipeline_final_report,
+    open_pipeline_final_report,
+    read_pipeline_final_open_receipt,
+    read_pipeline_final_report,
+    validate_pipeline_final_open_receipt,
+    validate_pipeline_final_report,
+)
+
+__all__ = [
+    "FINAL_REPORT_CONTRACT_VERSION",
+    "OPEN_RECEIPT_ROOT",
+    "OPEN_RECEIPT_SCHEMA_VERSION",
+    "REPORT_ROOT",
+    "PipelineFinalOpenReceipt",
+    "PipelineFinalReportAlreadyOpenedError",
+    "PipelineFinalReportError",
+    "PipelineFinalReportOpenResult",
+    "build_pipeline_final_open_receipt",
+    "build_pipeline_final_report",
+    "open_pipeline_final_report",
+    "read_pipeline_final_open_receipt",
+    "read_pipeline_final_report",
+    "validate_pipeline_final_open_receipt",
+    "validate_pipeline_final_report",
+]
