@@ -1,9 +1,12 @@
 name: Review CI
 
 on:
-  push:
+  pull_request:
     branches:
-      - codex/research-resume-and-ui-state-v1
+      - main
+      - "agent/**"
+      - "review/**"
+      - "codex/**"
   workflow_dispatch:
 
 permissions:
@@ -82,7 +85,7 @@ jobs:
             echo "powershell_status=$powershell_status"
             echo "whitespace_status=$whitespace_status"
             echo "--- pytest tail ---"
-            tail -n 220 task31-full-pytest.txt || true
+            tail -n 260 task31-full-pytest.txt || true
             echo "--- compile tail ---"
             tail -n 60 task31-full-compile.txt || true
             echo "--- powershell tail ---"
@@ -94,6 +97,7 @@ jobs:
           } > .github/task31-full-ci-result.txt
 
           git show ec873cc6605a445f34d3236625bc7d2ca28bb142:.github/workflows/review-ci.yml > .github/workflows/review-ci.yml
+          git rm -f --ignore-unmatch .github/task31-full-ci-trigger.txt
           git add .github/workflows/review-ci.yml .github/task31-full-ci-result.txt
           git diff --cached --check
           git config user.name "github-actions[bot]"
