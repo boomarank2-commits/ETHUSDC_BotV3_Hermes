@@ -10,7 +10,12 @@ old = '''for old, new in call_replacements:
 '''
 new = '''for old, new in call_replacements:
     count = text.count(old)
-    expected = 2 if old.startswith("            report_path,") else 1
+    if old.startswith("            report_path,"):
+        expected = 2
+    elif old.startswith("        report_path,"):
+        expected = 0
+    else:
+        expected = 1
     if count != expected:
         raise SystemExit(
             f"final report call replacement count={count} expected={expected}: "
