@@ -1,0 +1,13 @@
+result=FAIL
+source_head=2ed76b7b735bf4e14a70d9f8e782b57ca93a60ab
+first_patch_status=1
+second_patch_status=99
+install_status=99
+pytest_status=99
+compile_status=99
+whitespace_status=99
+--- patch tail ---
+final report call replacement count=2: '            report_path,\n            repo,\n            attestation=attested,\n        )\n'
+--- pytest tail ---
+--- compile tail ---
+--- whitespace tail ---
