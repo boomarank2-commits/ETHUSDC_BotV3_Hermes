@@ -136,4 +136,89 @@ progress_test_path.write_text(
 )
 
 checkpoint_test_path = Path("tests/unit/test_protocol_v3_pipeline_final_checkpoint.py")
-test = checkpoint_test_path.read_text(encoding="utf-8")n
+test = checkpoint_test_path.read_text(encoding="utf-8")
+old_compact = '''    built, _, _, _, receipt = _built(tmp_path, monkeypatch)
+    committed = checkpointing.commit_pipeline_final_checkpoint(
+        receipt,
+        identity=built["identity"],
+'''
+new_compact = '''    built, registration, claim, _, receipt = _built(tmp_path, monkeypatch)
+    committed = checkpointing.commit_pipeline_final_checkpoint(
+        receipt,
+        registration=registration,
+        claim=claim,
+        identity=built["identity"],
+'''
+if test.count(old_compact) != 1:
+    raise SystemExit("compact checkpoint call replacement mismatch")
+test = test.replace(old_compact, new_compact)
+old_read = '''    resumed = checkpointing.read_pipeline_final_checkpoint(
+        current_identity=built["identity"],
+'''
+new_read = '''    resumed = checkpointing.read_pipeline_final_checkpoint(
+        current_registration=registration,
+        current_claim=claim,
+        current_identity=built["identity"],
+'''
+if test.count(old_read) != 1:
+    raise SystemExit("checkpoint read call replacement mismatch")
+test = test.replace(old_read, new_read)
+old_mismatch = '''    built, _, _, _, receipt = _built(tmp_path, monkeypatch)
+    cases = {
+'''
+new_mismatch = '''    built, registration, claim, _, receipt = _built(tmp_path, monkeypatch)
+    cases = {
+'''
+if test.count(old_mismatch) != 1:
+    raise SystemExit("transaction mismatch fixture replacement mismatch")
+test = test.replace(old_mismatch, new_mismatch)
+old_wrong_call = '''            checkpointing.commit_pipeline_final_checkpoint(
+                wrong,
+                identity=built["identity"],
+'''
+new_wrong_call = '''            checkpointing.commit_pipeline_final_checkpoint(
+                wrong,
+                registration=registration,
+                claim=claim,
+                identity=built["identity"],
+'''
+if test.count(old_wrong_call) != 1:
+    raise SystemExit("transaction mismatch call replacement mismatch")
+test = test.replace(old_wrong_call, new_wrong_call)
+insert_anchor = '''def test_receipt_rejects_result_keys_and_inconsistent_progress_cursor(
+'''
+source_test = '''def test_registration_or_claim_receipt_mismatch_is_blocked(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    built, registration, claim, _, receipt = _built(tmp_path, monkeypatch)
+    changed = deepcopy(receipt.to_dict())
+    changed["registration_id"] = "forged_other_registration"
+    basis = dict(changed)
+    basis.pop("receipt_sha256")
+    changed["receipt_sha256"] = checkpointing._digest(basis)
+    wrong = checkpointing.validate_pipeline_final_checkpoint_receipt(changed)
+    with pytest.raises(
+        checkpointing.PipelineFinalCheckpointError,
+        match="another registration or claim",
+    ):
+        checkpointing.commit_pipeline_final_checkpoint(
+            wrong,
+            registration=registration,
+            claim=claim,
+            identity=built["identity"],
+            pre_run_manifest=built["manifest"],
+            seed_state=built["seed"],
+            budget_usage=built["budget"],
+            stop_state=built["stop"],
+            repository_root=built["repo"],
+            trial_ledger_root=built["ledger_root"],
+            owner_id="task31-wrong-registration",
+        )
+
+
+'''
+if test.count(insert_anchor) != 1:
+    raise SystemExit("source-binding test insertion anchor mismatch")
+test = test.replace(insert_anchor, source_test + insert_anchor)
+checkpoint_test_path.write_text(test, encoding="utf-8")
