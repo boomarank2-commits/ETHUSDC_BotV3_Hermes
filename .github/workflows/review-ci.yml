@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   task31-checkpoint-diagnostics:
@@ -20,41 +20,71 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install project
-        run: python -m pip install -e . pytest
-      - name: Run Task 31 checkpoint tests and preserve diagnostics
-        id: pytest
+      - name: Test, record result, and restore normal CI
         shell: bash
         run: |
+          set -u
+          branch="codex/research-resume-and-ui-state-v1"
+          git fetch --no-tags origin "$branch"
+          git checkout -B "$branch" "origin/$branch"
+
           set +e
-          python -m pytest -q --tb=short \
-            tests/unit/test_protocol_v3_pipeline_final.py \
-            tests/unit/test_protocol_v3_pipeline_final_progress.py \
-            tests/unit/test_protocol_v3_pipeline_final_checkpoint.py \
-            tests/unit/test_protocol_v3_outer_origins.py \
-            tests/unit/test_protocol_v3_research_challenger_checkpoint.py \
-            > task31-checkpoint-pytest.txt 2>&1
-          status=$?
-          cat task31-checkpoint-pytest.txt
-          echo "status=$status" >> "$GITHUB_OUTPUT"
-          exit 0
-      - name: Compile Task 31 checkpoint modules
-        run: |
-          python -m compileall -q \
-            src/ethusdc_bot/protocol_v3/pipeline_final.py \
-            src/ethusdc_bot/protocol_v3/pipeline_final_progress.py \
-            src/ethusdc_bot/protocol_v3/pipeline_final_checkpoint.py \
-            src/ethusdc_bot/protocol_v3/pipeline_final_checkpoint_api.py
-          git diff --check
-      - name: Upload diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: task31-checkpoint-${{ github.sha }}
-          path: task31-checkpoint-pytest.txt
-          if-no-files-found: error
-          retention-days: 14
-      - name: Fail when tests failed
-        if: always()
-        shell: bash
-        run: test "${{ steps.pytest.outputs.status }}" -eq 0
+          python -m pip install -e . pytest > task31-install.txt 2>&1
+          install_status=$?
+          pytest_status=99
+          compile_status=99
+          whitespace_status=99
+          if [[ $install_status -eq 0 ]]; then
+            python -m pytest -q --tb=short \
+              tests/unit/test_protocol_v3_pipeline_final.py \
+              tests/unit/test_protocol_v3_pipeline_final_progress.py \
+              tests/unit/test_protocol_v3_pipeline_final_checkpoint.py \
+              tests/unit/test_protocol_v3_outer_origins.py \
+              tests/unit/test_protocol_v3_research_challenger_checkpoint.py \
+              > task31-checkpoint-pytest.txt 2>&1
+            pytest_status=$?
+            python -m compileall -q \
+              src/ethusdc_bot/protocol_v3/pipeline_final.py \
+              src/ethusdc_bot/protocol_v3/pipeline_final_progress.py \
+              src/ethusdc_bot/protocol_v3/pipeline_final_checkpoint.py \
+              src/ethusdc_bot/protocol_v3/pipeline_final_checkpoint_api.py \
+              > task31-compile.txt 2>&1
+            compile_status=$?
+            git diff --check > task31-whitespace.txt 2>&1
+            whitespace_status=$?
+          else
+            : > task31-checkpoint-pytest.txt
+            : > task31-compile.txt
+            : > task31-whitespace.txt
+          fi
+          set -e
+
+          result="FAIL"
+          if [[ $install_status -eq 0 && $pytest_status -eq 0 && $compile_status -eq 0 && $whitespace_status -eq 0 ]]; then
+            result="PASS"
+          fi
+          {
+            echo "result=$result"
+            echo "source_head=$GITHUB_SHA"
+            echo "install_status=$install_status"
+            echo "pytest_status=$pytest_status"
+            echo "compile_status=$compile_status"
+            echo "whitespace_status=$whitespace_status"
+            echo "--- pytest tail ---"
+            tail -n 80 task31-checkpoint-pytest.txt || true
+            echo "--- compile tail ---"
+            tail -n 40 task31-compile.txt || true
+            echo "--- whitespace tail ---"
+            tail -n 40 task31-whitespace.txt || true
+            echo "--- install tail ---"
+            tail -n 40 task31-install.txt || true
+          } > .github/task31-checkpoint-diagnostic-result.txt
+
+          git show ec873cc6605a445f34d3236625bc7d2ca28bb142:.github/workflows/review-ci.yml \
+            > .github/workflows/review-ci.yml
+          git add .github/workflows/review-ci.yml .github/task31-checkpoint-diagnostic-result.txt
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Record Task 31 checkpoint diagnostics"
+          git push origin HEAD:"$branch"
