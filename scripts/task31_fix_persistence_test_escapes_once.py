@@ -16,6 +16,12 @@ replacements = [
         r'''    path.write_text(raw[:-1] + ',"registration_id":"duplicate"}\\n', encoding="utf-8")''',
     ),
 ]
+# The first line ends directly after the quoted string; remove the visual
+# separator space used inside the raw triple-quoted literal above.
+replacements[0] = (
+    replacements[0][0][:-1],
+    replacements[0][1][:-1],
+)
 for old, new in replacements:
     if text.count(old) != 1:
         raise SystemExit(f"persistence test escape replacement mismatch: {old!r}")
