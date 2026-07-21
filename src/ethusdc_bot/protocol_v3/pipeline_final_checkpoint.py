@@ -259,6 +259,8 @@ def validate_pipeline_final_checkpoint_receipt(
 def commit_pipeline_final_checkpoint(
     receipt: PipelineFinalCheckpointReceipt,
     *,
+    registration: PipelineFinalRegistration,
+    claim: PipelineFinalClaim,
     identity: TransactionIdentity,
     pre_run_manifest: PreRunManifest,
     seed_state: Mapping[str, Any],
@@ -269,6 +271,7 @@ def commit_pipeline_final_checkpoint(
     owner_id: str,
 ) -> PipelineFinalCheckpoint:
     validated = validate_pipeline_final_checkpoint_receipt(receipt)
+    _assert_receipt_sources(validated, registration, claim)
     _assert_receipt_identity(validated, identity, repository_root)
     lock = acquire_transaction_lock(
         identity.transaction_id,
@@ -295,6 +298,8 @@ def commit_pipeline_final_checkpoint(
 
 def read_pipeline_final_checkpoint(
     *,
+    current_registration: PipelineFinalRegistration,
+    current_claim: PipelineFinalClaim,
     current_identity: TransactionIdentity,
     current_pre_run_manifest: PreRunManifest,
     repository_root: str | Path,
@@ -319,6 +324,7 @@ def read_pipeline_final_checkpoint(
     receipt = validate_pipeline_final_checkpoint_receipt(
         payload["task31_pipeline_final_checkpoint_receipt"]
     )
+    _assert_receipt_sources(receipt, current_registration, current_claim)
     _assert_receipt_identity(receipt, current_identity, repository_root)
     return PipelineFinalCheckpoint(checkpoint, receipt)
 
@@ -346,6 +352,43 @@ def verify_replayed_pipeline_final_checkpoint(
             "replayed pipeline-final progress differs from the committed checkpoint"
         )
     return progress
+
+
+def _assert_receipt_sources(
+    receipt: PipelineFinalCheckpointReceipt,
+    registration: PipelineFinalRegistration,
+    claim: PipelineFinalClaim,
+) -> None:
+    expected = validate_pipeline_final_checkpoint_receipt(receipt).to_dict()
+    registration_payload = validate_pipeline_final_registration(registration).to_dict()
+    claim_payload = validate_pipeline_final_claim(claim).to_dict()
+    if (
+        claim_payload["registration_id"] != registration_payload["registration_id"]
+        or claim_payload["registration_sha256"]
+        != registration.registration_sha256
+        or claim_payload["result_opened"] is not False
+    ):
+        raise PipelineFinalCheckpointError(
+            "Task-31 claim belongs to another registration or is already opened"
+        )
+    manifest = registration_payload["frozen_identity_manifest"]
+    source_identity = {
+        "registration_id": registration_payload["registration_id"],
+        "registration_sha256": registration.registration_sha256,
+        "claim_id": claim.claim_id,
+        "claim_sha256": claim.claim_sha256,
+        "frozen_identity_manifest_sha256": registration_payload[
+            "frozen_identity_manifest_sha256"
+        ],
+        "run_fingerprint": manifest["run_fingerprint"],
+        "pipeline_generation_id": manifest["pipeline_generation_id"],
+        "code_commit": manifest["code_commit"],
+        "trial_ledger_head_sha256": manifest["trial_ledger_head_sha256"],
+    }
+    if any(expected[key] != value for key, value in source_identity.items()):
+        raise PipelineFinalCheckpointError(
+            "Task-31 checkpoint receipt uses another registration or claim"
+        )
 
 
 def _assert_receipt_identity(

@@ -269,8 +269,19 @@ def test_completion_time_must_follow_closed_oos_and_remain_monotonic(state) -> N
     early = f"{plan.origins[0].test_start_inclusive.isoformat()}T00:00:00Z"
     with pytest.raises(PipelineFinalProgressError, match="cannot predate"):
         _append(progress, selections[0], 1, state=state, completed=early)
-    first = _append(progress, selections[0], 1, state=state)
-    earlier_than_first = f"{plan.origins[0].test_end_exclusive.isoformat()}T00:00:00Z"
+    delayed_first_dt = datetime.combine(
+        plan.origins[1].test_end_exclusive,
+        datetime.min.time(),
+        tzinfo=UTC,
+    ) + timedelta(days=1)
+    first = _append(
+        progress,
+        selections[0],
+        1,
+        state=state,
+        completed=_fmt(delayed_first_dt),
+    )
+    earlier_than_first = f"{plan.origins[1].test_end_exclusive.isoformat()}T00:00:00Z"
     with pytest.raises(PipelineFinalProgressError, match="monotonic"):
         _append(first, selections[1], 2, state=state, completed=earlier_than_first)
 

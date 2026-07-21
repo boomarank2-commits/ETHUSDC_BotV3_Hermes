@@ -163,9 +163,11 @@ def test_task13_atomically_stores_and_resumes_only_the_compact_receipt(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    built, _, _, _, receipt = _built(tmp_path, monkeypatch)
+    built, registration, claim, _, receipt = _built(tmp_path, monkeypatch)
     committed = checkpointing.commit_pipeline_final_checkpoint(
         receipt,
+        registration=registration,
+        claim=claim,
         identity=built["identity"],
         pre_run_manifest=built["manifest"],
         seed_state=built["seed"],
@@ -176,6 +178,8 @@ def test_task13_atomically_stores_and_resumes_only_the_compact_receipt(
         owner_id="task31-checkpoint-test",
     )
     resumed = checkpointing.read_pipeline_final_checkpoint(
+        current_registration=registration,
+        current_claim=claim,
         current_identity=built["identity"],
         current_pre_run_manifest=built["manifest"],
         repository_root=built["repo"],
@@ -198,7 +202,7 @@ def test_transaction_run_pipeline_code_and_trial_head_mismatches_are_blocked(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    built, _, _, _, receipt = _built(tmp_path, monkeypatch)
+    built, registration, claim, _, receipt = _built(tmp_path, monkeypatch)
     cases = {
         "run_fingerprint": "protocol_v3_run_sha256:" + "0" * 64,
         "pipeline_generation_id": "protocol_v3_pipeline_sha256:" + "0" * 64,
@@ -214,10 +218,12 @@ def test_transaction_run_pipeline_code_and_trial_head_mismatches_are_blocked(
         wrong = checkpointing.validate_pipeline_final_checkpoint_receipt(changed)
         with pytest.raises(
             checkpointing.PipelineFinalCheckpointError,
-            match="Task-13 transaction uses another",
+            match="another registration or claim",
         ):
             checkpointing.commit_pipeline_final_checkpoint(
                 wrong,
+                registration=registration,
+                claim=claim,
                 identity=built["identity"],
                 pre_run_manifest=built["manifest"],
                 seed_state=built["seed"],
@@ -227,6 +233,62 @@ def test_transaction_run_pipeline_code_and_trial_head_mismatches_are_blocked(
                 trial_ledger_root=built["ledger_root"],
                 owner_id=f"task31-wrong-{field}",
             )
+
+
+def test_valid_alternate_task13_transaction_is_rejected(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, registration, claim, _, receipt = _built(tmp_path, monkeypatch)
+    monkeypatch.setattr(task13, "COMMIT", "b" * 40)
+    alternate = task13.build_state(tmp_path / "alternate_transaction", monkeypatch)
+    with pytest.raises(
+        checkpointing.PipelineFinalCheckpointError,
+        match="Task-13 transaction uses another run fingerprint",
+    ):
+        checkpointing.commit_pipeline_final_checkpoint(
+            receipt,
+            registration=registration,
+            claim=claim,
+            identity=alternate["identity"],
+            pre_run_manifest=alternate["manifest"],
+            seed_state=alternate["seed"],
+            budget_usage=alternate["budget"],
+            stop_state=alternate["stop"],
+            repository_root=alternate["repo"],
+            trial_ledger_root=alternate["ledger_root"],
+            owner_id="task31-alternate-transaction",
+        )
+
+
+def test_registration_or_claim_receipt_mismatch_is_blocked(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    built, registration, claim, _, receipt = _built(tmp_path, monkeypatch)
+    changed = deepcopy(receipt.to_dict())
+    changed["registration_id"] = "forged_other_registration"
+    basis = dict(changed)
+    basis.pop("receipt_sha256")
+    changed["receipt_sha256"] = checkpointing._digest(basis)
+    wrong = checkpointing.validate_pipeline_final_checkpoint_receipt(changed)
+    with pytest.raises(
+        checkpointing.PipelineFinalCheckpointError,
+        match="another registration or claim",
+    ):
+        checkpointing.commit_pipeline_final_checkpoint(
+            wrong,
+            registration=registration,
+            claim=claim,
+            identity=built["identity"],
+            pre_run_manifest=built["manifest"],
+            seed_state=built["seed"],
+            budget_usage=built["budget"],
+            stop_state=built["stop"],
+            repository_root=built["repo"],
+            trial_ledger_root=built["ledger_root"],
+            owner_id="task31-wrong-registration",
+        )
 
 
 def test_receipt_rejects_result_keys_and_inconsistent_progress_cursor(

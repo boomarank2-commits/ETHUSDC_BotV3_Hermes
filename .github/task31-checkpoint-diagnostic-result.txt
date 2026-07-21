@@ -1,23 +1,13 @@
-result=FAIL
-source_head=2f722e3275c2120d078dbd37a91e9c68ccc63aea
-patch_status=0
+result=PASS
+source_head=504aaafdf3470176ff379ea1847857f4fe690565
+first_patch_status=0
+second_patch_status=0
 install_status=0
-pytest_status=1
+pytest_status=0
 compile_status=0
 whitespace_status=0
 --- patch tail ---
 --- pytest tail ---
-.......................F............                                     [100%]
-=================================== FAILURES ===================================
-___ test_transaction_run_pipeline_code_and_trial_head_mismatches_are_blocked ___
-tests/unit/test_protocol_v3_pipeline_final_checkpoint.py:219: in test_transaction_run_pipeline_code_and_trial_head_mismatches_are_blocked
-    with pytest.raises(
-E   AssertionError: Regex pattern did not match.
-E     Expected regex: 'Task-13 transaction uses another'
-E     Actual message: 'Task-31 checkpoint receipt uses another registration or claim'
-=========================== short test summary info ============================
-FAILED tests/unit/test_protocol_v3_pipeline_final_checkpoint.py::test_transaction_run_pipeline_code_and_trial_head_mismatches_are_blocked - AssertionError: Regex pattern did not match.
-  Expected regex: 'Task-13 transaction uses another'
-  Actual message: 'Task-31 checkpoint receipt uses another registration or claim'
+.....................................                                    [100%]
 --- compile tail ---
 --- whitespace tail ---
