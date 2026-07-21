@@ -139,6 +139,10 @@ def test_report_contract_is_exact_and_storage_roots_are_unique() -> None:
     assert set(contract["artifact_kinds"]) == set(REPORT_KINDS)
     assert len(set(REPORT_STORAGE_ROOTS.values())) == len(REPORT_KINDS)
     assert contract["final_evidence_policy"]["legacy_final_report_type_forbidden"] == "final_evaluation"
+    assert contract["final_evidence_policy"]["task31_attestation_available"] is False
+    assert contract["final_evidence_policy"]["generic_task11_builder_remains_reserved"] is True
+    assert contract["final_evidence_policy"]["dedicated_task31_opener_required"] is True
+    assert contract["final_evidence_policy"]["dedicated_task31_reader_required"] is True
     changed = json.loads(json.dumps(contract))
     changed["artifact_kinds"][MONTHLY_PROCESS_OOS]["freshness"] = "FRESH"
     with pytest.raises(ProtocolV3ReportError, match="not canonical"):

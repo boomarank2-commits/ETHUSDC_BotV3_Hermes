@@ -31,7 +31,7 @@
       "protocol_v3_task13_result_blind_pipeline_final_checkpoint_v1",
       "protocol_v3_transitively_revalidated_pipeline_final_attestation_v1",
       "protocol_v3_preregistered_transitively_attested_exactly_once_pipeline_final_v2",
-      "protocol_v3_exactly_once_pipeline_final_report_open_v1"
+      "protocol_v3_exactly_once_pipeline_final_report_open_v2"
     ],
     "ranking": [
       "protocol_v3_lexicographic_inner_ranking_v1",

@@ -57,7 +57,7 @@ _CANONICAL_CONTRACT: dict[str, Any] = {
     "artifact_kinds": {kind: {"storage_root": REPORT_STORAGE_ROOTS[kind], "window_class": _WINDOWS[kind], "freshness": _FRESHNESS[kind], "canonical_adoption_eligible": False} for kind in REPORT_KINDS},
     "forward_registration_root": FORWARD_REGISTRATION_ROOT, "evidence_fields": sorted(_STATUS_KEYS),
     "target_policy": {"target_usdc_per_calendar_day": 3.0, "process_oos_calendar_days": 365, "historically_hit_formula": "process_oos_net_usdc/process_oos_calendar_days>=target_usdc_per_calendar_day", "historically_hit_never_implies_statistical_support": True},
-    "final_evidence_policy": {"sealed_final_holdout_is_window_class_not_report_kind": True, "pipeline_final_artifact_kind": PROTOCOL_V3_PIPELINE_FINAL, "legacy_final_report_type_forbidden": "final_evaluation", "task31_attestation_required": True, "task31_attestation_available": False, "visible_forward_month_overlap_forbidden": True},
+    "final_evidence_policy": {"sealed_final_holdout_is_window_class_not_report_kind": True, "pipeline_final_artifact_kind": PROTOCOL_V3_PIPELINE_FINAL, "legacy_final_report_type_forbidden": "final_evaluation", "task31_attestation_required": True, "task31_attestation_available": False, "generic_task11_builder_remains_reserved": True, "dedicated_task31_opener_required": True, "dedicated_task31_reader_required": True, "visible_forward_month_overlap_forbidden": True},
     "strict_json": {"exact_keys": True, "duplicate_keys_forbidden": True, "unknown_security_fields_forbidden": True, "nan_forbidden": True, "infinity_forbidden": True, "canonical_serialization_required": True},
     "safety": {"api_keys": "forbidden", "live": "locked", "orders": "locked", "paper": "locked", "testtrade": "locked", "trading_api": "forbidden"},
 }

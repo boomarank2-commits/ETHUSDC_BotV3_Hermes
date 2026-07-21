@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timedelta
 import hashlib
 import importlib.util
 from pathlib import Path
@@ -160,10 +160,84 @@ def test_exact_report_without_receipt_can_finish_crash_recovery(
         pipeline_final_report._bytes(report.canonical_json),
     )
     original = report_path.read_bytes()
-    opened = _open(state)
+    recovered_dt = state["opened_dt"] + timedelta(hours=2)
+    recovered = dict(state)
+    recovered["opened_dt"] = recovered_dt
+    recovered["opened_at"] = recovered_dt.isoformat().replace("+00:00", "Z")
+    monkeypatch.setattr(
+        pipeline_final_report,
+        "_utc_now",
+        lambda: recovered_dt,
+    )
+    opened = _open(recovered)
     assert opened.report == report
     assert report_path.read_bytes() == original
+    assert opened.receipt.to_dict()["opened_at_utc"] == recovered["opened_at"]
     assert opened.receipt_path.exists()
+
+
+def test_duplicate_key_json_and_orphan_receipt_fail_closed(
+    state,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = pipeline_final_report.build_pipeline_final_report(
+        state["attestation"],
+        state["registration"],
+        created_at_utc=state["opened_at"],
+    )
+    root = pipeline_final_report._safe_root(
+        Path(state["repo"]).resolve(),
+        pipeline_final_report.REPORT_ROOT,
+        create=True,
+    )
+    report_path = root / f"{report.report_id}.json"
+    malformed = report.canonical_json[:-1] + ',"report_id":"duplicate"}\n'
+    report_path.write_text(malformed, encoding="utf-8")
+    with pytest.raises(
+        pipeline_final_report.PipelineFinalReportError,
+        match="duplicate-key JSON",
+    ):
+        pipeline_final_report.read_pipeline_final_report(
+            report_path,
+            state["repo"],
+            attestation=state["attestation"],
+            registration=state["registration"],
+        )
+
+    report_path.unlink()
+    receipt_root = pipeline_final_report._safe_root(
+        Path(state["repo"]).resolve(),
+        pipeline_final_report.OPEN_RECEIPT_ROOT,
+        create=True,
+    )
+    orphan = receipt_root / (
+        state["attestation"].to_dict()["registration_sha256"] + ".json"
+    )
+    orphan.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        pipeline_final_report,
+        "_utc_now",
+        lambda: state["opened_dt"],
+    )
+    with pytest.raises(
+        pipeline_final_report.PipelineFinalReportError,
+        match="receipt exists without its final report",
+    ):
+        _open(state)
+
+
+def test_duplicate_key_attestation_is_rejected(state) -> None:
+    path = state["attestation_path"]
+    raw = state["attestation"].canonical_json
+    path.write_text(raw[:-1] + ',"registration_id":"duplicate"}\n', encoding="utf-8")
+    with pytest.raises(
+        pipeline_final_attestation.PipelineFinalAttestationError,
+        match="duplicate-key JSON",
+    ):
+        pipeline_final_attestation.read_pipeline_final_attestation(
+            path,
+            state["repo"],
+        )
 
 
 def test_forged_report_evidence_or_legacy_source_is_blocked(state) -> None:

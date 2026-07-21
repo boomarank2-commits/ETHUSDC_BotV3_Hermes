@@ -21,6 +21,7 @@ import re
 from typing import Any, Final
 
 from ethusdc_bot.path_safety import is_path_within
+from ethusdc_bot.protocol_v3.boundaries import MonthlyProcessBoundaryPlan
 from ethusdc_bot.protocol_v3.hindsight_binding import BoundHindsightBenchmarks
 from ethusdc_bot.protocol_v3.monthly_quality_gate import MonthlyQualityGateReport
 from ethusdc_bot.protocol_v3.outer_mtm_ledger import OuterMtmLedger
@@ -47,7 +48,7 @@ from ethusdc_bot.protocol_v3.reporting import (
 )
 
 FINAL_REPORT_CONTRACT_VERSION: Final = (
-    "protocol_v3_exactly_once_pipeline_final_report_open_v1"
+    "protocol_v3_exactly_once_pipeline_final_report_open_v2"
 )
 OPEN_RECEIPT_SCHEMA_VERSION: Final = (
     "protocol_v3_pipeline_final_open_receipt_v1"
@@ -279,7 +280,7 @@ def open_pipeline_final_report(
     claim: PipelineFinalClaim,
     progress: PipelineFinalProgress,
     checkpoint: PipelineFinalCheckpoint,
-    boundary_plan: Any,
+    boundary_plan: MonthlyProcessBoundaryPlan,
     outer_process: OuterOriginProcess,
     baseline_ledger: OuterMtmLedger,
     joint_stress_ledger: OuterMtmLedger,
@@ -316,28 +317,38 @@ def open_pipeline_final_report(
         raise PipelineFinalReportError(
             "pipeline-final attestation failed transitive revalidation"
         ) from exc
-    registration_payload = registration.to_dict()
-    manifest = dict(
-        _mapping(
-            registration_payload["frozen_identity_manifest"],
-            "registration.frozen_identity_manifest",
-        )
-    )
-    report = build_pipeline_final_report(
-        attested,
-        registration,
-        created_at_utc=opened_at_utc,
-    )
     opened = _utc(opened_at_utc, "opened_at_utc")
     if abs(_utc_now() - opened) > _CLOCK_TOLERANCE:
         raise PipelineFinalReportError(
             "pipeline-final report open timestamp is not current"
         )
+    source = attested.to_dict()
     report_root = _safe_root(repo, REPORT_ROOT, create=True)
     receipt_root = _safe_root(repo, OPEN_RECEIPT_ROOT, create=True)
-    report_path = report_root / f"{report.report_id}.json"
-    receipt_path = receipt_root / f"{attested.to_dict()['registration_sha256']}.json"
-    if receipt_path.exists() or receipt_path.is_symlink():
+    report_id = _report_id(source["registration_sha256"])
+    report_path = report_root / f"{report_id}.json"
+    receipt_path = receipt_root / f"{source['registration_sha256']}.json"
+
+    report_exists = report_path.exists() or report_path.is_symlink()
+    receipt_exists = receipt_path.exists() or receipt_path.is_symlink()
+    if receipt_exists and not report_exists:
+        raise PipelineFinalReportError(
+            "pipeline-final open receipt exists without its final report"
+        )
+    if report_exists:
+        report = read_pipeline_final_report(
+            report_path,
+            repo,
+            attestation=attested,
+            registration=registration,
+        )
+    else:
+        report = build_pipeline_final_report(
+            attested,
+            registration,
+            created_at_utc=opened_at_utc,
+        )
+    if receipt_exists:
         existing = read_pipeline_final_open_receipt(
             receipt_path,
             repo,
@@ -348,27 +359,27 @@ def open_pipeline_final_report(
         raise PipelineFinalReportAlreadyOpenedError(
             f"pipeline-final report was already opened: {existing.receipt_id}"
         )
-    if report_path.exists() or report_path.is_symlink():
-        existing_report = read_pipeline_final_report(
-            report_path,
-            repo,
-            attestation=attested,
-            registration=registration,
-        )
-        if existing_report != report:
-            raise PipelineFinalReportError(
-                "existing pipeline-final report differs from the attestation"
+    if not report_exists:
+        try:
+            _write_create_only(report_path, _bytes(report.canonical_json))
+        except FileExistsError:
+            report = read_pipeline_final_report(
+                report_path,
+                repo,
+                attestation=attested,
+                registration=registration,
             )
-    else:
-        _write_create_only(report_path, _bytes(report.canonical_json))
-        existing_report = read_pipeline_final_report(
-            report_path,
-            repo,
-            attestation=attested,
-            registration=registration,
-        )
-        if existing_report != report:
-            raise PipelineFinalReportError("pipeline-final report reload mismatch")
+        else:
+            reloaded_report = read_pipeline_final_report(
+                report_path,
+                repo,
+                attestation=attested,
+                registration=registration,
+            )
+            if reloaded_report != report:
+                raise PipelineFinalReportError(
+                    "pipeline-final report reload mismatch"
+                )
     receipt = build_pipeline_final_open_receipt(
         attested,
         registration,
@@ -397,7 +408,6 @@ def open_pipeline_final_report(
         receipt,
         receipt_path,
     )
-
 
 def validate_pipeline_final_report(
     value: ProtocolV3Report | Mapping[str, Any],
@@ -564,10 +574,22 @@ def validate_pipeline_final_open_receipt(
         raise PipelineFinalReportError(
             "pipeline-final open receipt identity mismatch"
         )
-    _utc(root["opened_at_utc"], "opened_at_utc")
+    opened = _utc(root["opened_at_utc"], "opened_at_utc")
+    report_created = _utc(report_payload["created_at_utc"], "report.created_at_utc")
     path = PurePosixPath(root["report_path"])
-    if path.is_absolute() or ".." in path.parts:
-        raise PipelineFinalReportError("pipeline-final receipt report path is unsafe")
+    expected_path = PurePosixPath(
+        REPORT_ROOT,
+        f"{report_payload['report_id']}.json",
+    )
+    if (
+        opened < report_created
+        or path.is_absolute()
+        or ".." in path.parts
+        or path != expected_path
+    ):
+        raise PipelineFinalReportError(
+            "pipeline-final receipt time or report path is invalid"
+        )
     if (
         root["open_count"] != 1
         or root["result_feedback_to_pipeline_allowed"] is not False
@@ -659,7 +681,8 @@ def _validate_report_structure(value: Mapping[str, Any]) -> ProtocolV3Report:
     metrics = dict(_mapping(root["metrics"], "metrics"))
     if set(metrics) != _METRIC_KEYS:
         raise PipelineFinalReportError("pipeline-final report metrics are invalid")
-    net = _number(metrics["process_oos_net_usdc"], "process_oos_net_usdc")
+    _number(metrics["process_oos_net_usdc"], "process_oos_net_usdc")
+    net = _decimal(metrics["process_oos_net_usdc"], "process_oos_net_usdc")
     if metrics["process_oos_calendar_days"] != 365 or metrics[
         "target_usdc_per_calendar_day"
     ] != 3.0:
@@ -674,7 +697,7 @@ def _validate_report_structure(value: Mapping[str, Any]) -> ProtocolV3Report:
     evidence = dict(_mapping(root["evidence_status"], "evidence_status"))
     if set(evidence) != _STATUS_KEYS:
         raise PipelineFinalReportError("pipeline-final evidence status fields are invalid")
-    expected_hit = net / 365 >= 3.0
+    expected_hit = net / Decimal(365) >= _TARGET
     if (
         evidence["historically_hit"] is not expected_hit
         or evidence["historical_bootstrap_lower_bound"] is not False
@@ -869,21 +892,64 @@ def _write_create_only(path: Path, data: bytes) -> None:
             handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
+        _fsync_directory(path.parent)
     except FileExistsError:
         raise
     except OSError as exc:
-        raise PipelineFinalReportError(f"could not persist pipeline-final JSON: {path}") from exc
+        raise PipelineFinalReportError(
+            f"could not persist pipeline-final JSON: {path}"
+        ) from exc
 
 
 def _read(path: Path, name: str) -> tuple[dict[str, Any], bytes]:
     try:
         raw = path.read_bytes()
-        value = json.loads(raw.decode("utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        text = raw.decode("utf-8")
+    except (OSError, UnicodeError) as exc:
         raise PipelineFinalReportError(f"{name} is unreadable or invalid") from exc
+    value = _strict_json_loads(text, name)
     if not isinstance(value, dict):
         raise PipelineFinalReportError(f"{name} must contain one object")
     return value, raw
+
+
+def _strict_json_loads(text: str, name: str) -> Any:
+    def pairs_hook(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"duplicate JSON key: {key}")
+            result[key] = value
+        return result
+
+    def reject_constant(value: str) -> None:
+        raise ValueError(f"non-finite JSON constant: {value}")
+
+    try:
+        return json.loads(
+            text,
+            object_pairs_hook=pairs_hook,
+            parse_constant=reject_constant,
+        )
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise PipelineFinalReportError(
+            f"{name} contains invalid or duplicate-key JSON"
+        ) from exc
+
+
+def _fsync_directory(path: Path) -> None:
+    if os.name == "nt":
+        return
+    try:
+        descriptor = os.open(path, os.O_RDONLY)
+    except OSError as exc:
+        raise PipelineFinalReportError(
+            f"could not open directory for fsync: {path}"
+        ) from exc
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 def _utc_now() -> datetime:

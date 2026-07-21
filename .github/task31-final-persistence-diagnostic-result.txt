@@ -1,13 +1,14 @@
-result=FAIL
-source_head=2f8b35037d1f3ed38715d2d7ed72452baf54ebf3
-escape_patch_status=1
-patch_status=99
-install_status=99
-pytest_status=99
-compile_status=99
-whitespace_status=99
+result=PASS
+source_head=a606391bc5e72ef74607a8cd03fca39917560c1c
+escape_patch_status=0
+patch_status=0
+install_status=0
+pytest_status=0
+compile_status=0
+whitespace_status=0
 --- patch tail ---
-persistence test escape replacement mismatch: '    malformed = report.canonical_json[:-1] + \',"report_id":"duplicate"}\\n\' '
 --- pytest tail ---
+........................................................................ [ 60%]
+................................................                         [100%]
 --- compile tail ---
 --- whitespace tail ---

@@ -871,21 +871,62 @@ def _write_create_only(path: Path, data: bytes) -> None:
         handle.write(data)
         handle.flush()
         os.fsync(handle.fileno())
+    _fsync_directory(path.parent)
 
 
 def _read(path: Path) -> tuple[dict[str, Any], bytes]:
     try:
         raw = path.read_bytes()
-        value = json.loads(raw.decode("utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        text = raw.decode("utf-8")
+    except (OSError, UnicodeError) as exc:
         raise PipelineFinalAttestationError(
             "pipeline-final attestation is unreadable or invalid"
         ) from exc
+    value = _strict_json_loads(text)
     if not isinstance(value, dict):
         raise PipelineFinalAttestationError(
             "pipeline-final attestation must contain one object"
         )
     return value, raw
+
+
+def _strict_json_loads(text: str) -> Any:
+    def pairs_hook(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"duplicate JSON key: {key}")
+            result[key] = value
+        return result
+
+    def reject_constant(value: str) -> None:
+        raise ValueError(f"non-finite JSON constant: {value}")
+
+    try:
+        return json.loads(
+            text,
+            object_pairs_hook=pairs_hook,
+            parse_constant=reject_constant,
+        )
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise PipelineFinalAttestationError(
+            "pipeline-final attestation contains invalid or duplicate-key JSON"
+        ) from exc
+
+
+def _fsync_directory(path: Path) -> None:
+    if os.name == "nt":
+        return
+    try:
+        descriptor = os.open(path, os.O_RDONLY)
+    except OSError as exc:
+        raise PipelineFinalAttestationError(
+            f"could not open directory for fsync: {path}"
+        ) from exc
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 def _utc_now() -> datetime:

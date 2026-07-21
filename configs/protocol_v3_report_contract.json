@@ -48,7 +48,10 @@
     "sealed_final_holdout_is_window_class_not_report_kind": true,
     "task31_attestation_available": false,
     "task31_attestation_required": true,
-    "visible_forward_month_overlap_forbidden": true
+    "visible_forward_month_overlap_forbidden": true,
+    "generic_task11_builder_remains_reserved": true,
+    "dedicated_task31_opener_required": true,
+    "dedicated_task31_reader_required": true
   },
   "forward_registration_root": "reports/protocol_v3/evidence_windows/forward_shadow_month",
   "protocol_version": "3.0.0",

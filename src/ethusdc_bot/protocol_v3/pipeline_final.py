@@ -202,11 +202,15 @@ _CANONICAL_CONTRACT: Final = {
         "task31_attestation_required_before_open": True,
         "attestation_transitively_revalidates_tasks_23_25_26_27": True,
         "final_report_contract_version": (
-            "protocol_v3_exactly_once_pipeline_final_report_open_v1"
+            "protocol_v3_exactly_once_pipeline_final_report_open_v2"
         ),
         "open_exactly_once_after_complete": True,
         "report_written_before_open_receipt": True,
         "exact_report_without_receipt_is_crash_recoverable": True,
+        "delayed_receipt_recovery_uses_persisted_report_timestamp": True,
+        "duplicate_json_keys_forbidden": True,
+        "file_and_directory_fsync_required": True,
+        "receipt_without_report_forbidden": True,
         "second_open_after_receipt_forbidden": True,
         "result_feedback_to_pipeline_forbidden": True,
     },

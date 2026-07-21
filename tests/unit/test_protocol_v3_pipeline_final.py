@@ -132,6 +132,15 @@ def test_pipeline_final_contract_is_exact_and_explicitly_separate_from_legacy() 
         "attestation_transitively_revalidates_tasks_23_25_26_27"
     ] is True
     assert contract["sealing_policy"]["second_open_after_receipt_forbidden"] is True
+    assert contract["sealing_policy"]["final_report_contract_version"] == (
+        "protocol_v3_exactly_once_pipeline_final_report_open_v2"
+    )
+    assert contract["sealing_policy"][
+        "delayed_receipt_recovery_uses_persisted_report_timestamp"
+    ] is True
+    assert contract["sealing_policy"]["duplicate_json_keys_forbidden"] is True
+    assert contract["sealing_policy"]["file_and_directory_fsync_required"] is True
+    assert contract["sealing_policy"]["receipt_without_report_forbidden"] is True
     assert contract["legacy_separation"]["legacy_report_type_forbidden"] == (
         "final_evaluation"
     )
