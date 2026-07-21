@@ -1,0 +1,62 @@
+result=FAIL
+source_head=4b4fa506249b506fa99710ba376157e63278f721
+patch_status=0
+install_status=0
+pytest_status=1
+compile_status=0
+whitespace_status=0
+--- patch tail ---
+--- pytest tail ---
+............................EEEE.......................                  [100%]
+==================================== ERRORS ====================================
+_ ERROR at setup of test_attestation_recomputes_task25_26_27_and_derives_freshness _
+tests/unit/test_protocol_v3_pipeline_final_attestation.py:113: in state
+    base, plan, requests = task23.state.__wrapped__(tmp_path, monkeypatch)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/test_protocol_v3_outer_origins.py:34: in state
+    config = inner_selection.build_frozen_selection_config(
+src/ethusdc_bot/protocol_v3/inner_selection.py:732: in build_frozen_selection_config
+    _cross_validate_manifest_fingerprint_fold(manifest, fingerprint, fold, origin)
+src/ethusdc_bot/protocol_v3/inner_selection.py:1118: in _cross_validate_manifest_fingerprint_fold
+    raise InnerSelectionError("Task-14 fold plan differs from selected manifest origin")
+E   ethusdc_bot.protocol_v3.inner_selection.InnerSelectionError: Task-14 fold plan differs from selected manifest origin
+_____ ERROR at setup of test_incomplete_or_early_final_evidence_is_blocked _____
+tests/unit/test_protocol_v3_pipeline_final_attestation.py:113: in state
+    base, plan, requests = task23.state.__wrapped__(tmp_path, monkeypatch)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/test_protocol_v3_outer_origins.py:34: in state
+    config = inner_selection.build_frozen_selection_config(
+src/ethusdc_bot/protocol_v3/inner_selection.py:732: in build_frozen_selection_config
+    _cross_validate_manifest_fingerprint_fold(manifest, fingerprint, fold, origin)
+src/ethusdc_bot/protocol_v3/inner_selection.py:1118: in _cross_validate_manifest_fingerprint_fold
+    raise InnerSelectionError("Task-14 fold plan differs from selected manifest origin")
+E   ethusdc_bot.protocol_v3.inner_selection.InnerSelectionError: Task-14 fold plan differs from selected manifest origin
+_ ERROR at setup of test_forged_support_claim_or_changed_gate_source_is_rejected _
+tests/unit/test_protocol_v3_pipeline_final_attestation.py:113: in state
+    base, plan, requests = task23.state.__wrapped__(tmp_path, monkeypatch)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/test_protocol_v3_outer_origins.py:34: in state
+    config = inner_selection.build_frozen_selection_config(
+src/ethusdc_bot/protocol_v3/inner_selection.py:732: in build_frozen_selection_config
+    _cross_validate_manifest_fingerprint_fold(manifest, fingerprint, fold, origin)
+src/ethusdc_bot/protocol_v3/inner_selection.py:1118: in _cross_validate_manifest_fingerprint_fold
+    raise InnerSelectionError("Task-14 fold plan differs from selected manifest origin")
+E   ethusdc_bot.protocol_v3.inner_selection.InnerSelectionError: Task-14 fold plan differs from selected manifest origin
+_ ERROR at setup of test_attestation_is_create_only_and_persisted_bytes_are_canonical _
+tests/unit/test_protocol_v3_pipeline_final_attestation.py:113: in state
+    base, plan, requests = task23.state.__wrapped__(tmp_path, monkeypatch)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/test_protocol_v3_outer_origins.py:34: in state
+    config = inner_selection.build_frozen_selection_config(
+src/ethusdc_bot/protocol_v3/inner_selection.py:732: in build_frozen_selection_config
+    _cross_validate_manifest_fingerprint_fold(manifest, fingerprint, fold, origin)
+src/ethusdc_bot/protocol_v3/inner_selection.py:1118: in _cross_validate_manifest_fingerprint_fold
+    raise InnerSelectionError("Task-14 fold plan differs from selected manifest origin")
+E   ethusdc_bot.protocol_v3.inner_selection.InnerSelectionError: Task-14 fold plan differs from selected manifest origin
+=========================== short test summary info ============================
+ERROR tests/unit/test_protocol_v3_pipeline_final_attestation.py::test_attestation_recomputes_task25_26_27_and_derives_freshness - ethusdc_bot.protocol_v3.inner_selection.InnerSelectionError: Task-14 fold plan differs from selected manifest origin
+ERROR tests/unit/test_protocol_v3_pipeline_final_attestation.py::test_incomplete_or_early_final_evidence_is_blocked - ethusdc_bot.protocol_v3.inner_selection.InnerSelectionError: Task-14 fold plan differs from selected manifest origin
+ERROR tests/unit/test_protocol_v3_pipeline_final_attestation.py::test_forged_support_claim_or_changed_gate_source_is_rejected - ethusdc_bot.protocol_v3.inner_selection.InnerSelectionError: Task-14 fold plan differs from selected manifest origin
+ERROR tests/unit/test_protocol_v3_pipeline_final_attestation.py::test_attestation_is_create_only_and_persisted_bytes_are_canonical - ethusdc_bot.protocol_v3.inner_selection.InnerSelectionError: Task-14 fold plan differs from selected manifest origin
+--- compile tail ---
+--- whitespace tail ---
