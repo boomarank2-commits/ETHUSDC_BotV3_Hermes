@@ -1,0 +1,144 @@
+{
+  "schema_version": "protocol_v3_acceptance_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_fixture_isolated_e2e_parity_and_fault_acceptance_v1",
+  "execution_modes": [
+    "FIRST_RUN",
+    "TASK13_RESUME",
+    "CACHE_REUSE",
+    "DETERMINISTIC_REPLAY"
+  ],
+  "required_parity_identities": [
+    "attestation_sha256",
+    "baseline_ledger_sha256",
+    "bootstrap_contract_sha256",
+    "boundary_plan_sha256",
+    "claim_sha256",
+    "code_commit",
+    "context_contract_sha256",
+    "cost_contract_sha256",
+    "data_contract_sha256",
+    "exchange_info_contract_sha256",
+    "execution_contract_sha256",
+    "feature_contract_sha256",
+    "final_report_sha256",
+    "hindsight_binding_sha256",
+    "monthly_quality_report_sha256",
+    "open_receipt_sha256",
+    "outer_process_sha256",
+    "pipeline_contract_sha256",
+    "pipeline_generation_id",
+    "progress_sha256",
+    "quality_gate_contract_sha256",
+    "registration_sha256",
+    "report_contract_sha256",
+    "run_fingerprint",
+    "search_budget_sha256",
+    "seed_policy_sha256",
+    "simulator_contract_sha256",
+    "stop_policy_sha256",
+    "trial_ledger_head_sha256",
+    "ui_state_sha256"
+  ],
+  "fault_matrix": {
+    "atomic_checkpoint_and_head": [
+      "before_checkpoint_temp",
+      "after_checkpoint_temp_fsync",
+      "after_checkpoint_temp_validate",
+      "after_checkpoint_replace",
+      "after_checkpoint_reload",
+      "before_head_replace",
+      "after_head_replace"
+    ],
+    "final_report_open": [
+      "crash_after_report_before_receipt",
+      "orphan_receipt",
+      "second_open"
+    ],
+    "identity_mutation": [
+      "pipeline_generation",
+      "code",
+      "snapshot",
+      "feature",
+      "context",
+      "exchange",
+      "execution",
+      "cost",
+      "gate",
+      "bootstrap",
+      "seed",
+      "trial_ledger",
+      "boundary"
+    ],
+    "origin_topology": [
+      "missing_origin",
+      "duplicate_origin",
+      "reordered_origin",
+      "wrong_origin"
+    ],
+    "data_context_and_warmup": [
+      "data_gap",
+      "context_gap",
+      "stale_watermark",
+      "future_watermark",
+      "misaligned_watermark",
+      "incomplete_warmup"
+    ],
+    "resume_cache_sources": [
+      "registration",
+      "claim",
+      "progress",
+      "checkpoint",
+      "final_attestation"
+    ],
+    "result_claim_mutation": [
+      "pnl",
+      "ranking",
+      "freshness",
+      "bootstrap_support",
+      "final_status",
+      "adoption",
+      "safety"
+    ],
+    "path_and_encoding": [
+      "symlink",
+      "root_escape",
+      "duplicate_json_key",
+      "nan",
+      "infinity",
+      "noncanonical_bytes",
+      "foreign_temp_path"
+    ],
+    "create_only_races": [
+      "parallel_claim",
+      "parallel_checkpoint",
+      "parallel_attestation",
+      "parallel_open"
+    ]
+  },
+  "fixture_isolation": {
+    "canonical_repository_root_forbidden": true,
+    "canonical_report_roots_forbidden": true,
+    "real_final_evidence": false,
+    "freshness_claim": "FIXTURE_ONLY",
+    "diagnostic_only": true,
+    "task33_research_run": false
+  },
+  "acceptance": {
+    "outer_origins": 12,
+    "process_oos_days": 365,
+    "all_modes_bit_identical": true,
+    "ui_reads_are_state_neutral": true,
+    "all_faults_fail_closed": true,
+    "last_committed_head_remains_valid": true
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "canonical_adoption": "locked",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}
