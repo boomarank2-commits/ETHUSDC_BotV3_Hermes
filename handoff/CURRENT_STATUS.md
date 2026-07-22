@@ -1,45 +1,54 @@
 # Current Status – GPT 1 / Protocol v3
 
-Stand: 2026-07-20
+Stand: 2026-07-22
 
 ## Verbindlicher Gesamtstand
 
-`30/33 = 90,91 % DONE_100`.
+`31/33 = 93,94 % DONE_100`.
 
-Abgeschlossene Aufgaben: `1 bis 30`.
+Abgeschlossene Aufgaben: `1 bis 31`.
 
-Aktive Aufgabe: `31 – Pipeline-Final-Evaluator für ein frisches versiegeltes Jahr` – `IN_PROGRESS`.
+Nächste Aufgabe: `32 – End-to-End-Parität, Fehler-Injektion und vollständige Abnahme` – `NOT_STARTED`.
 
-Aufgaben 32 und 33 bleiben strikt `NOT_STARTED`.
+Aufgabe 33 bleibt strikt `NOT_STARTED`.
 
 ## Repository-Wahrheit
 
 - Repository: `boomarank2-commits/ETHUSDC_BotV3_Hermes`;
 - Branch: `codex/research-resume-and-ui-state-v1`;
 - Draft-PR: `#17`;
-- bereinigter Task-30-Abschluss-Head: `4276857df93f94ee84ea7819bf81227c067bf915`;
-- grüner abschließender Task-30-Dokumentations-CI-Lauf: `29774916422`;
-- vollständige Suite: `1.266 Tests erfolgreich`;
-- Python-Compile, PowerShell-Syntax und Whitespace: erfolgreich.
+- bereinigter Task-31-Technikstand vor Dokumentation: `79b9c6ad3bd6f74f8fe8028897996a625df8b81b`;
+- technischer Volltest-Source-Head: `49eac9959f8e01e33d78966b13351cb16c0eb70d`;
+- vollständige Suite: `1.305 Tests erfolgreich`;
+- Python-Compile, PowerShell-Syntax und Whitespace: erfolgreich;
+- abschließender Task-31-Dokumentations-CI: wird nach dem finalen Lauf ergänzt.
 
-## Aufgabe 30 – DONE_100
+## Aufgabe 31 – DONE_100
 
 Abschlussbericht:
-`handoff/PROTOCOL_V3_TASK_30_2026-07-20.md`
+`handoff/PROTOCOL_V3_TASK_31_2026-07-22.md`
 
-Das bestehende Dashboard zeigt nun einen einzigen fail-closed Protocol-v3-Operatorzustand, getrennte Lebenszykluszustände, kanonische Blocker und den orderfreien Task-29-Bedienpfad. Refresh und Neustart bleiben zustandsneutral. Paper, Testtrade, Live, Orders, private Endpunkte, Adoption und Botstart bleiben gesperrt.
+Aufgabe 31 stellt die getrennt versionierte Pipeline-Final-Schicht für genau ein wirklich neues, vorab registriertes und bis zum Ende versiegeltes 365-Tage-Fenster bereit.
 
-## Aufgabe 31 – IN_PROGRESS
+Technisch bewiesen sind:
 
-Verbindlicher Umfang:
+- exakter Task-2-Plan mit zwölf Origins, 730 Entwicklungstagen je Origin, T+24h und 365 lückenlosen OOS-Tagen;
+- create-only Vorregistrierung und genau ein Claim vor Fensterstart;
+- Ausschluss des verbrauchten Audits und bereits sichtbarer Forward-Monate;
+- vollständige Bindung von Pipelinegeneration, Code, Daten, Feature, Kontext, Exchange, Execution, Kosten, Gates, Bootstrap, Seed, Budget, Stop, Boundary und Trial-Ledger;
+- result-blinder Fortschritt und Task-13-Checkpoint-/HEAD-/Resume-Bindung;
+- transitive Neuberechnung von Task 23, 25, 26 und 27;
+- neu abgeleitete Freshness-, Bootstrap- und Supportclaims statt nackter Bool-Werte;
+- genau ein `protocol_v3_pipeline_final`-Report mit create-only Open-Receipt und Crash-Recovery zwischen Reportwrite und Receipt;
+- Legacy-, Protocol-v2-, Single-Candidate-, Task-27-, Task-28- und Task-29-Pfade können keinen Task-31-Finalstatus erzeugen.
 
-- einen getrennt versionierten Pipeline-Final-Evaluator für genau ein wirklich neues, vorab registriertes und bis zum Ende versiegeltes 365-Tage-Fenster bauen;
-- dieselbe unveränderte monatlich refittende Pipeline mit zwölf Origins und vollständiger Drei-Markt-/Execution-/Kosten-/Boundary-Parität verwenden;
-- sichtbare Forward-Monate, verbrauchte Historie und Legacy-/Single-Candidate-Finalpfade strikt ausschließen;
-- genau eine Auswertung zulassen und erst danach einen Protocol-v3-Pipeline-Finalreport mit Task-31-Attestation erzeugen;
-- keine Orders, keine Adoption, kein Paper, kein Testtrade und kein Live vorziehen.
+Es wurde kein echtes Finalfenster registriert, geclaimt, gelesen, ausgeführt oder geöffnet.
 
-Aktuell wird ausschließlich die vorhandene Report-, Window-, Pipeline-, Checkpoint-, Bootstrap- und Provenienzarchitektur inventarisiert. Es wird kein echtes Finalfenster registriert, geöffnet, ausgeführt oder ausgewertet.
+## Nächste Aufgabe – 32 NOT_STARTED
+
+Aufgabe 32 darf erst nach dem grünen abschließenden Task-31-Dokumentations-CI begonnen werden.
+
+Sie führt ausschließlich fixture-basierte End-to-End-Parität, Fehler-Injektionen und einen vollständigen zwölf-Origin-Dry-Run durch. Der erste echte Protocol-v3-Research-Lauf bleibt Aufgabe 33.
 
 ## Sicherheitsstatus
 
@@ -48,10 +57,10 @@ Aktuell wird ausschließlich die vorhandene Report-, Window-, Pipeline-, Checkpo
 - keine Secrets committed;
 - keine Quality-Gates gelockert;
 - keine Fake-Trades, Fake-Fills oder Fake-Reports;
-- kein kanonischer Adoption- oder Finalpfad geöffnet;
-- kein Protocol-v3-Finalstatus ohne wirklich neuen `sealed_final_holdout`;
+- kein kanonischer Adoption- oder Botstart-Pfad geöffnet;
+- kein echtes Finalfenster verbraucht;
 - der Bot darf nicht gestartet werden.
 
 ## Nächster Einstieg
 
-Ausschließlich `handoff/NEXT_ACTION.md` für Aufgabe 31 ausführen.
+Ausschließlich `handoff/NEXT_ACTION.md` für Aufgabe 32 ausführen.
