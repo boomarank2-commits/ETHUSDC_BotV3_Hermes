@@ -1,8 +1,8 @@
 # Protocol v3 – verbindliche Implementierungsreihenfolge
 
-Stand: 2026-07-20
+Stand: 2026-07-22
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 30/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 31/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -461,9 +461,23 @@ Das bestehende Operator-Dashboard zeigt genau einen fail-closed Protocol-v3-Zust
 
 ### Aufgabe 31 – Pipeline-Final-Evaluator für ein frisches versiegeltes Jahr
 
-**Status:** `NOT_STARTED`
+**Status:** `DONE_100`
 
-Die monatlich refittende Pipeline wird in einem vorab registrierten neuen 365-Tage-Fenster genau einmal geprüft; nur dieser Pfad erzeugt einen Protocol-v3-Finalreport.
+Die monatlich refittende Pipeline besitzt nun eine getrennt versionierte, genau-einmalige Finalschicht für ein wirklich neues, vorab registriertes und bis zum Ende versiegeltes 365-Tage-Fenster.
+
+**Abnahme:**
+
+- Exakt der Task-2-Plan mit zwölf Origins, 730 Entwicklungstagen je Origin, T+24h und 365 lückenlosen UTC-OOS-Tagen ist bindend; falsche oder überlappende Fenster blockieren.
+- Vorregistrierung und Einmal-Claim sind create-only, müssen vor Fensterstart aktuell persistiert werden, schließen den verbrauchten Audit sowie sichtbare Forward-Monate aus und erlauben keinen zweiten Evaluationsversuch.
+- Pipelinegeneration, Code, Run-Fingerprint, Daten, Features, Kontext, Exchange Info, Execution, Kosten, Gates, Bootstrap, Seeds, Budgets, Stopregeln, Boundaries und permanenter Trial-Ledger-Head werden aus Repository- und Runtime-Wahrheit neu berechnet und unveränderlich gebunden.
+- Der zwölf-Origin-Fortschritt bleibt result-blind. Outer-PnL, Rankings, Strategiewechsel, Reports und Finalclaims sind bis zum vollständigen Fensterende ausgeschlossen.
+- Task 13 bleibt die einzige Checkpoint-/HEAD-/Resume-Wahrheit. Registration, Claim, Progress, Run-Fingerprint, Pipelinegeneration, Code und Trial-Ledger-Head müssen beim Resume bitgleich sein.
+- Die create-only Task-31-Attestation revalidiert transitiv Task 23, Task 25, Task 26 und Task 27. `historically_hit`, `fresh_pre_registered_sealed_365`, `sealed_bootstrap_target_supported` und `statistically_supported` werden neu abgeleitet; nackte oder neu gehashte Bool-Claims werden abgewiesen.
+- Genau ein `protocol_v3_pipeline_final`-Report darf aus einer persistierten Attestation geöffnet werden. Report-vor-Receipt-Reihenfolge erlaubt ausschließlich die exakte Crash-Recovery zwischen vollständigem Reportwrite und Open-Receipt; danach blockiert jeder zweite Open-Versuch.
+- Legacy-`final_evaluation`, Protocol v2, Single-Candidate-Pfade sowie Task-27-/28-/29-Objekte können keinen Task-31-Finalstatus erzeugen. Adoption, Paper, Testtrade, Live, Orders, private Endpunkte und API-Keys bleiben gesperrt.
+- Kein echtes Finalfenster wurde registriert, geclaimt, gelesen, ausgeführt oder geöffnet. Der fixture-basierte vollständige Dry-Run bleibt Aufgabe 32; der erste echte Protocol-v3-Lauf bleibt Aufgabe 33.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_31_2026-07-22.md`
 
 ### Aufgabe 32 – End-to-End-Parität, Fehler-Injektion und vollständige Abnahme
 
@@ -484,7 +498,8 @@ Protocol v3: Aufgabe 27/33 – Hindsight-Benchmarks, Capture-Ratios und Bootstra
 Protocol v3: Aufgabe 28/33 – Aktueller 730-Tage-Refit und Champion/Challenger/Cash – DONE_100
 Protocol v3: Aufgabe 29/33 – Orderfreier Research-Challenger-Shadow – DONE_100
 Protocol v3: Aufgabe 30/33 – UI und Bedienzustände vollständig anschließen – DONE_100
-Gesamt: 30/33 DONE_100 = 90,91 %
+Protocol v3: Aufgabe 31/33 – Pipeline-Final-Evaluator für ein frisches versiegeltes Jahr – DONE_100
+Gesamt: 31/33 DONE_100 = 93,94 %
 ```
 
 Fortschritt wird ausschließlich als `DONE_100 / 33` ausgewiesen, nicht nach Zeit oder Token geschätzt.
