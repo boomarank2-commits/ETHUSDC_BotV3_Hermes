@@ -3,174 +3,112 @@ name: Review CI
 on:
   push:
     branches:
-      - codex/research-resume-and-ui-state-v1
+      - "review/**"
+      - "agent/**"
+  pull_request:
+    branches:
+      - main
+      - "agent/**"
+      - "review/**"
+      - "codex/**"
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  task31-final-documentation-validation:
+  test:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Patch Task 31 completion documentation
-        shell: bash
-        run: |
-          python - <<'PY'
-          import os
-          from pathlib import Path
+          cache: pip
 
-          sequence_path = Path("docs/41_PROTOCOL_V3_IMPLEMENTATION_SEQUENCE.md")
-          text = sequence_path.read_text(encoding="utf-8")
-          text = text.replace(
-              "Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 30/33 abgeschlossen",
-              "Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 31/33 abgeschlossen",
-          )
-          old = '''### Aufgabe 31 – Pipeline-Final-Evaluator für ein frisches versiegeltes Jahr
+      - name: Install project and test dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
 
-**Status:** `NOT_STARTED`
-
-Die monatlich refittende Pipeline wird in einem vorab registrierten neuen 365-Tage-Fenster genau einmal geprüft; nur dieser Pfad erzeugt einen Protocol-v3-Finalreport.
-'''
-          new = '''### Aufgabe 31 – Pipeline-Final-Evaluator für ein frisches versiegeltes Jahr
-
-**Status:** `DONE_100`
-
-Die monatlich refittende Pipeline besitzt nun eine getrennt versionierte, genau-einmalige Finalschicht für ein wirklich neues, vorab registriertes und bis zum Ende versiegeltes 365-Tage-Fenster.
-
-**Abnahme:**
-
-- Exakt der Task-2-Plan mit zwölf Origins, 730 Entwicklungstagen je Origin, T+24h und 365 lückenlosen UTC-OOS-Tagen ist bindend; falsche oder überlappende Fenster blockieren.
-- Vorregistrierung und Einmal-Claim sind create-only, müssen vor Fensterstart aktuell persistiert werden, schließen den verbrauchten Audit sowie sichtbare Forward-Monate aus und erlauben keinen zweiten Evaluationsversuch.
-- Pipelinegeneration, Code, Run-Fingerprint, Daten, Features, Kontext, Exchange Info, Execution, Kosten, Gates, Bootstrap, Seeds, Budgets, Stopregeln, Boundaries und permanenter Trial-Ledger-Head werden aus Repository- und Runtime-Wahrheit neu berechnet und unveränderlich gebunden.
-- Der zwölf-Origin-Fortschritt bleibt result-blind. Outer-PnL, Rankings, Strategiewechsel, Reports und Finalclaims sind bis zum vollständigen Fensterende ausgeschlossen.
-- Task 13 bleibt die einzige Checkpoint-/HEAD-/Resume-Wahrheit. Registration, Claim, Progress, Run-Fingerprint, Pipelinegeneration, Code und Trial-Ledger-Head müssen beim Resume bitgleich sein.
-- Die create-only Task-31-Attestation revalidiert transitiv Task 23, Task 25, Task 26 und Task 27. `historically_hit`, `fresh_pre_registered_sealed_365`, `sealed_bootstrap_target_supported` und `statistically_supported` werden neu abgeleitet; nackte oder neu gehashte Bool-Claims werden abgewiesen.
-- Genau ein `protocol_v3_pipeline_final`-Report darf aus einer persistierten Attestation geöffnet werden. Report-vor-Receipt-Reihenfolge erlaubt ausschließlich die exakte Crash-Recovery zwischen vollständigem Reportwrite und Open-Receipt; danach blockiert jeder zweite Open-Versuch.
-- Legacy-`final_evaluation`, Protocol v2, Single-Candidate-Pfade sowie Task-27-/28-/29-Objekte können keinen Task-31-Finalstatus erzeugen. Adoption, Paper, Testtrade, Live, Orders, private Endpunkte und API-Keys bleiben gesperrt.
-- Kein echtes Finalfenster wurde registriert, geclaimt, gelesen, ausgeführt oder geöffnet. Der fixture-basierte vollständige Dry-Run bleibt Aufgabe 32; der erste echte Protocol-v3-Lauf bleibt Aufgabe 33.
-
-**Bericht:** `handoff/PROTOCOL_V3_TASK_31_2026-07-22.md`
-'''
-          if text.count(old) != 1:
-              raise SystemExit("Task-31 sequence block replacement mismatch")
-          text = text.replace(old, new)
-          old_progress = '''Protocol v3: Aufgabe 30/33 – UI und Bedienzustände vollständig anschließen – DONE_100
-Gesamt: 30/33 DONE_100 = 90,91 %
-'''
-          new_progress = '''Protocol v3: Aufgabe 30/33 – UI und Bedienzustände vollständig anschließen – DONE_100
-Protocol v3: Aufgabe 31/33 – Pipeline-Final-Evaluator für ein frisches versiegeltes Jahr – DONE_100
-Gesamt: 31/33 DONE_100 = 93,94 %
-'''
-          if text.count(old_progress) != 1:
-              raise SystemExit("Task-31 progress block replacement mismatch")
-          sequence_path.write_text(text.replace(old_progress, new_progress), encoding="utf-8")
-
-          run_id = os.environ["GITHUB_RUN_ID"]
-          source_sha = os.environ["GITHUB_SHA"]
-          handoff_path = Path("handoff/PROTOCOL_V3_TASK_31_2026-07-22.md")
-          handoff = handoff_path.read_text(encoding="utf-8")
-          old_handoff = "Der finale Dokumentations-Head und dessen grüner CI-Lauf werden nach dem Abschlusslauf hier ergänzt."
-          new_handoff = (
-              f"Abschließender Dokumentations-Volltest: GitHub Actions Run `{run_id}`; "
-              f"der getestete Worktree basiert auf `{source_sha}` und enthält die vollständige "
-              "Task-31-Abschlussdokumentation."
-          )
-          if handoff.count(old_handoff) != 1:
-              raise SystemExit("Task-31 handoff final-CI replacement mismatch")
-          handoff_path.write_text(handoff.replace(old_handoff, new_handoff), encoding="utf-8")
-
-          status_path = Path("handoff/CURRENT_STATUS.md")
-          status = status_path.read_text(encoding="utf-8")
-          old_status = "- abschließender Task-31-Dokumentations-CI: wird nach dem finalen Lauf ergänzt."
-          new_status = (
-              f"- abschließender Task-31-Dokumentations-CI: GitHub Actions Run `{run_id}` "
-              f"auf dem vollständig gepatchten Worktree, Basis `{source_sha}`."
-          )
-          if status.count(old_status) != 1:
-              raise SystemExit("CURRENT_STATUS final-CI replacement mismatch")
-          status_path.write_text(status.replace(old_status, new_status), encoding="utf-8")
-          PY
-      - name: Install project and run complete validation
-        id: validate
+      - name: Run full test suite and preserve diagnostics
+        id: pytest
         shell: bash
         run: |
           set +e
-          python -m pip install -e ".[dev]" > task31-final-install.txt 2>&1
-          install_status=$?
-          pytest_status=99
-          compile_status=99
-          powershell_status=99
-          whitespace_status=99
-          if [[ $install_status -eq 0 ]]; then
-            python -m pytest -q --tb=short > task31-final-pytest.txt 2>&1
-            pytest_status=$?
-            python -m compileall -q src > task31-final-compile.txt 2>&1
-            compile_status=$?
-            pwsh -NoProfile -Command '
-              $files = @(Get-ChildItem -Path tools -Filter "*.ps1" -File -ErrorAction SilentlyContinue)
-              foreach ($file in $files) {
-                $tokens = $null
-                $errors = $null
-                [System.Management.Automation.Language.Parser]::ParseFile($file.FullName,[ref]$tokens,[ref]$errors) | Out-Null
-                if ($errors.Count -gt 0) {
-                  $errors | ForEach-Object { Write-Error "$($file.FullName): $($_.Message)" }
-                  exit 1
-                }
-              }
-              Write-Host "Validated $($files.Count) PowerShell script(s)."
-            ' > task31-final-powershell.txt 2>&1
-            powershell_status=$?
-            git fetch --no-tags origin codex/ui-responsiveness-and-next-iteration
-            git diff --check origin/codex/ui-responsiveness-and-next-iteration...HEAD > task31-final-whitespace.txt 2>&1
-            whitespace_status=$?
-          else
-            : > task31-final-pytest.txt
-            : > task31-final-compile.txt
-            : > task31-final-powershell.txt
-            : > task31-final-whitespace.txt
-          fi
-          result=FAIL
-          if [[ $install_status -eq 0 && $pytest_status -eq 0 && $compile_status -eq 0 && $powershell_status -eq 0 && $whitespace_status -eq 0 ]]; then
-            result=PASS
-          fi
-          {
-            echo "result=$result"
-            echo "run_id=$GITHUB_RUN_ID"
-            echo "source_head=$GITHUB_SHA"
-            echo "install_status=$install_status"
-            echo "pytest_status=$pytest_status"
-            echo "compile_status=$compile_status"
-            echo "powershell_status=$powershell_status"
-            echo "whitespace_status=$whitespace_status"
-            echo "--- pytest tail ---"
-            tail -n 260 task31-final-pytest.txt || true
-            echo "--- compile tail ---"
-            tail -n 60 task31-final-compile.txt || true
-            echo "--- powershell tail ---"
-            tail -n 60 task31-final-powershell.txt || true
-            echo "--- whitespace tail ---"
-            tail -n 80 task31-final-whitespace.txt || true
-            echo "--- install tail ---"
-            tail -n 40 task31-final-install.txt || true
-          } > .github/task31-final-ci-result.txt
-          echo "result=$result" >> "$GITHUB_OUTPUT"
+          python -m pytest -q --tb=short > pytest-output.txt 2>&1
+          status=$?
+          cat pytest-output.txt
+          echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
-      - name: Publish tested documentation and restore normal CI
+
+      - name: Upload pytest diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-output-${{ github.sha }}
+          path: pytest-output.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Compile source tree
+        run: python -m compileall -q src
+
+      - name: Validate PowerShell script syntax
+        shell: pwsh
+        run: |
+          $files = @(Get-ChildItem -Path tools -Filter "*.ps1" -File -ErrorAction SilentlyContinue)
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $file.FullName,
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error "$($file.FullName): $($_.Message)" }
+              exit 1
+            }
+          }
+          Write-Host "Validated $($files.Count) PowerShell script(s)."
+
+      - name: Check committed whitespace errors
         shell: bash
         run: |
-          git show ec873cc6605a445f34d3236625bc7d2ca28bb142:.github/workflows/review-ci.yml > .github/workflows/review-ci.yml
-          git add docs/41_PROTOCOL_V3_IMPLEMENTATION_SEQUENCE.md handoff/CURRENT_STATUS.md handoff/NEXT_ACTION.md handoff/PROTOCOL_V3_TASK_31_2026-07-22.md .github/workflows/review-ci.yml .github/task31-final-ci-result.txt
-          git diff --cached --check
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Mark Protocol v3 Task 31 done"
-          git push origin HEAD:codex/research-resume-and-ui-state-v1
-          test "${{ steps.validate.outputs.result }}" = PASS
+          if [[ -n "${GITHUB_BASE_REF}" ]]; then
+            base_ref="${GITHUB_BASE_REF}"
+          elif [[ "${GITHUB_REF_NAME}" == "review/backtest-ui-live-status-v1" ]]; then
+            base_ref="codex/pr12-final-local-run"
+          elif [[ "${GITHUB_REF_NAME}" == "review/context-research-integration-v1" ]]; then
+            base_ref="review/research-checkpoints-context-v1"
+          elif [[ "${GITHUB_REF_NAME}" == "review/research-checkpoints-context-v1" ]]; then
+            base_ref="review/context-veto-engine-v1"
+          elif [[ "${GITHUB_REF_NAME}" == "review/context-veto-engine-v1" ]]; then
+            base_ref="review/context-data-alignment-v1"
+          elif [[ "${GITHUB_REF_NAME}" == "review/context-data-alignment-v1" ]]; then
+            base_ref="review/windows-production-research-runner-v1"
+          elif [[ "${GITHUB_REF_NAME}" == "review/windows-production-research-runner-v1" ]]; then
+            base_ref="review/search-frontier-v2"
+          elif [[ "${GITHUB_REF_NAME}" == "review/search-frontier-v2" ]]; then
+            base_ref="review/research-evidence-producers-v1"
+          elif [[ "${GITHUB_REF_NAME}" == "review/research-evidence-producers-v1" ]]; then
+            base_ref="review/pr4-final-alignment"
+          elif [[ "${GITHUB_REF_NAME}" == "review/pr4-final-alignment" ]]; then
+            base_ref="agent/portfolio-shadow-v1"
+          elif [[ "${GITHUB_REF_NAME}" == review/* ]]; then
+            base_ref="main"
+          else
+            base_ref="main"
+          fi
+          git fetch --no-tags origin "${base_ref}"
+          git diff --check "origin/${base_ref}...HEAD"
+
+      - name: Fail when pytest failed
+        if: always()
+        shell: bash
+        run: test "${{ steps.pytest.outputs.status }}" -eq 0
