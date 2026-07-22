@@ -1,80 +1,61 @@
-# Current Status – GPT 1 / Protocol v3
+# Current Status – Protocol v3
 
 Stand: 2026-07-22
 
 ## Verbindlicher Gesamtstand
 
-`32/33 = 96,97 % DONE_100`.
+`33/33 = 100 % DONE_100` Aufgabenfortschritt.
 
-Abgeschlossene Aufgaben: `1 bis 32`.
+Alle Aufgaben 1 bis 33 der Implementierungssequenz sind formal abgeschlossen. Aufgabe 33 endet mit dem vertraglich zulässigen, reproduzierbaren Status `BLOCKED_INSUFFICIENT_TRIAL_HISTORY`.
 
-Aktive Aufgabe: `33 – Erster vollständiger Protocol-v3-Research-Lauf und Abschlussbericht` – `IN_PROGRESS`.
-
-Aufgabe 33 darf erst nach grünem GitHub-CI des Task-32-Dokumentations-Heads beginnen.
+100 % Aufgabenfortschritt bedeutet hier ausdrücklich nicht: Ziel erreicht, Backtest bestanden oder Bot startbereit. Das Ziel `+3 USDC/Tag` ist nicht ausgewertet; der Bot bleibt gesperrt.
 
 ## Repository-Wahrheit
 
-- Repository: `boomarank2-commits/ETHUSDC_BotV3_Hermes`;
-- Branch: `codex/research-resume-and-ui-state-v1`;
-- Draft-PR: `#17`;
-- Task-32-Technik-Head: `3290ddea022400e2a03462621c214d23454722ba`;
-- vollständige Suite: `1.321 Tests erfolgreich`;
-- Python-Compile, PowerShell-Syntax, Ruff und Whitespace: erfolgreich;
-- Task-32-Technik-Head wurde im normalen GitHub-PR-CI Run `29924203612` vollständig grün geprüft;
-- Task-32-Abschluss-Handoff: `handoff/PROTOCOL_V3_TASK_32_2026-07-22.md`;
-- `NEXT_ACTION.md` öffnet ausschließlich Aufgabe 33, sobald der Task-32-Dokumentations-Head grün geprüft ist.
+- Repository: `boomarank2-commits/ETHUSDC_BotV3_Hermes`
+- Branch: `codex/research-resume-and-ui-state-v1`
+- Draft-PR: `#17`
+- Task-33-Issue: `#19`
+- Task-33-Technik-Head: `713ccbaa3b11e3ed9d2b5e92325e7c070e3aad6a`
+- vollständige lokale Suite: 1.326/1.326 Tests erfolgreich
+- Task-33-Technik-CI: Run `29928845971` vollständig grün
+- Task-33-Abschluss: `handoff/PROTOCOL_V3_TASK_33_2026-07-22.md`
 
-## Aufgabe 31 – DONE_100
+## Aufgabe 31 – erneut bestätigt
 
-Abschlussbericht:
-`handoff/PROTOCOL_V3_TASK_31_2026-07-22.md`
-
-Aufgabe 31 stellt die getrennt versionierte Pipeline-Final-Schicht für genau ein wirklich neues, vorab registriertes und bis zum Ende versiegeltes 365-Tage-Fenster bereit.
-
-Technisch bewiesen sind:
-
-- exakter Task-2-Plan mit zwölf Origins, 730 Entwicklungstagen je Origin, T+24h und 365 lückenlosen OOS-Tagen;
-- create-only Vorregistrierung und genau ein Claim vor Fensterstart;
-- Ausschluss des verbrauchten Audits und bereits sichtbarer Forward-Monate;
-- vollständige Bindung von Pipelinegeneration, Code, Daten, Feature, Kontext, Exchange, Execution, Kosten, Gates, Bootstrap, Seed, Budget, Stop, Boundary und Trial-Ledger;
-- result-blinder Fortschritt und Task-13-Checkpoint-/HEAD-/Resume-Bindung;
-- transitive Neuberechnung von Task 23, 25, 26 und 27;
-- neu abgeleitete Freshness-, Bootstrap- und Supportclaims statt nackter Bool-Werte;
-- genau ein `protocol_v3_pipeline_final`-Report mit create-only Open-Receipt und Crash-Recovery zwischen Reportwrite und Receipt;
-- Legacy-, Protocol-v2-, Single-Candidate-, Task-27-, Task-28- und Task-29-Pfade können keinen Task-31-Finalstatus erzeugen.
-
-Es wurde kein echtes Finalfenster registriert, geclaimt, gelesen, ausgeführt oder geöffnet.
+41 zielgerichtete Task-31-Tests und die damalige vollständige Suite mit 1.305/1.305 Tests waren grün. Final-Registrierung, Exactly-once-Claim, result-blinder Fortschritt, transitive Attestation, frischer versiegelter Holdout und alle Safety-Sperren sind korrekt gebunden. Es wurde kein echtes Finalfenster verbraucht.
 
 ## Aufgabe 32 – DONE_100
 
-Abschlussbericht: `handoff/PROTOCOL_V3_TASK_32_2026-07-22.md`.
+Der fixture-isolierte End-to-End-Dry-Run war in allen vier Modi bitgleich. 1.321/1.321 lokale Tests sowie GitHub-CI `29924203612` und Abschluss-CI `29925381805` waren grün. Die Evidenz blieb `FIXTURE_ONLY` und nicht adoption- oder startfähig.
 
-Der technische Task-32-Head `3290ddea022400e2a03462621c214d23454722ba` wurde im GitHub-PR-CI Run `29924203612` vollständig grün geprüft. Lokal waren 1.321/1.321 Tests, Python-Compile, PowerShell-Syntax, Ruff und Whitespace grün.
+## Aufgabe 33 – DONE_100 mit belegtem Blocker
 
-Der Dry-Run blieb strikt `FIXTURE_ONLY`, außerhalb der kanonischen Reportroots und ohne echte Final-, Adoption- oder Botstart-Evidenz.
+Der reale Preflight hat den externen Drei-Markt-Datenbestand, das vollständige 1m-Raster, den dynamischen Warmup, aktuelle öffentliche Binance-Filter, Pipelinegeneration und permanenten Trial-Ledger geprüft.
 
-## Aktive Aufgabe – 33 IN_PROGRESS
+- Run-ID: `task33-preflight-713ccbaa3b11-ea4cb7750cea-f1782ba70088`
+- Daten-Snapshot: `ea4cb7750cea5bc75574a15e29fee6715af751d9a41a9d807fead70680d71447`
+- gemeinsamer vollständiger Stichtag: `2026-07-07`
+- historischer Prozess: `2025-07-08..2026-07-07`, 365 Tage, dauerhaft `NOT_FRESH`
+- Ledger: 180 bekannte Auswertungszeilen, aber 0 beweisbare unabhängige Trials
+- Ledger-Status: `INSUFFICIENT_TRIAL_HISTORY`, einzig zulässig `NO_TRADE`
+- weitere Lücken: produktiv eingefrorene Lookbacks, exakte HorizonPolicy und realer Outer-Origin-Produktionsadapter
+- voller Research-Lauf gestartet: nein
+- sämtliche Ergebnis- und Handelsmetriken: `null`, `not_executed_due_blocker`
+- Adoption: nein; Botstart: nein
 
-Der Task-32-Dokumentations-CI Run `29925381805` ist vollständig grün. Aufgabe 33 ist mit GitHub-Issue `#19` eröffnet. Der Pflicht-Preflight prüft jetzt den echten Drei-Markt-Datenbestand, Warmup, Runner, Exchange-Info, Trial-Ledger und alle eingefrorenen Identitäten, bevor irgendein rechenintensiver Research-Lauf beginnt.
-
-## Übergabegrenze dieser Sitzung
-
-- Task-32-Technik ist abgeschlossen und gepusht.
-- Aufgabe 33 wurde noch nicht gestartet.
-- Kein echtes Protocol-v3-Research-Ergebnis wurde erzeugt oder angesehen.
-- Der aktuelle Einstieg ist vollständig in GitHub dokumentiert; lokale Chat-Zwischenstände sind nicht maßgeblich.
+Der create-only Bericht liegt ausschließlich im externen Runtime-Root unter `C:\TradingBot\data\ETHUSDC_BotV3_Hermes\runtime\protocol_v3\task33` und ist nicht ins Repository aufgenommen.
 
 ## Sicherheitsstatus
 
-- kein Backtest-, Paper-, Testtrade-, Live- oder Order-Start;
-- keine API-Keys oder privaten Endpunkte;
-- keine Secrets committed;
-- keine Quality-Gates gelockert;
-- keine Fake-Trades, Fake-Fills oder Fake-Reports;
-- kein kanonischer Adoption- oder Botstart-Pfad geöffnet;
-- kein echtes Finalfenster verbraucht;
-- der Bot darf nicht gestartet werden.
+- keine API-Keys, privaten Endpunkte, Kontoabfragen oder Secrets
+- keine Orders, kein Paper-, Testtrade- oder Live-Start
+- keine Quality-Gates gelockert
+- keine Fake-Trades, Fake-Fills oder Fake-Reports
+- kein `sealed_final_holdout` registriert oder verbraucht
+- kein `active_config.json` und keine kanonische Adoption
+- der Bot darf nicht gestartet werden
 
 ## Nächster Einstieg
 
-Ausschließlich `handoff/NEXT_ACTION.md` für Aufgabe 33 ausführen.
+`handoff/NEXT_ACTION.md` beschreibt ausschließlich die Blocker-Remediation. Sie ist eine neue, separat freizugebende Arbeit nach der abgeschlossenen 33-Punkte-Sequenz.

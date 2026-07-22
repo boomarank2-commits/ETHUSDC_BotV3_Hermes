@@ -1,92 +1,48 @@
-# Next Action – Protocol v3 Aufgabe 33
+# Next Action – Protocol-v3-Blocker-Remediation
 
 Stand: 2026-07-22
 
-## Startbedingung
+## Ausgangslage
 
-Aufgabe 33 darf ausschließlich beginnen, wenn der abschließende GitHub-PR-CI-Lauf des Task-32-Dokumentations-Heads vollständig grün ist.
+Die Implementierungssequenz 1 bis 33 ist vollständig abgearbeitet. Aufgabe 33 endete rechtmäßig mit `BLOCKED_INSUFFICIENT_TRIAL_HISTORY`; dies ist kein Backtest-Pass und keine Bot-Freigabe.
 
-Vor der ersten Task-33-Änderung vollständig lesen:
+Vor neuer Arbeit vollständig lesen:
 
 1. `AGENTS.md`
 2. `handoff/CURRENT_STATUS.md`
-3. `handoff/NEXT_ACTION.md`
-4. `handoff/PROTOCOL_V3_TASK_32_2026-07-22.md`
-5. `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-6. `docs/41_PROTOCOL_V3_IMPLEMENTATION_SEQUENCE.md`
-7. `docs/42_PROTOCOL_V3_EXECUTABLE_CONTRACT.md`
-8. `configs/protocol_v3_contract.json`
-9. `configs/protocol_v3_pipeline_contract.json`
-10. `configs/protocol_v3_acceptance_contract.json`
+3. `handoff/PROTOCOL_V3_TASK_33_2026-07-22.md`
+4. `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
+5. `docs/41_PROTOCOL_V3_IMPLEMENTATION_SEQUENCE.md`
+6. `docs/42_PROTOCOL_V3_EXECUTABLE_CONTRACT.md`
+7. `configs/protocol_v3_pipeline_contract.json`
+8. `configs/protocol_v3_task33_contract.json`
 
-## Exakter Auftrag
+## Nächster zulässiger Auftrag
 
-Ausschließlich Aufgabe 33 umsetzen:
+Nur nach ausdrücklicher Nutzerfreigabe ein neues Remediation-Issue anlegen. Nicht den blockierten Research-Lauf starten.
 
-`Erster vollständiger Protocol-v3-Research-Lauf und Abschlussbericht`.
+Die Remediation muss in dieser Reihenfolge erfolgen:
 
-## Pflicht-Preflight
+1. Historische Trial-Evidenz untersuchen: aus den unveränderlichen lokalen Protocol-v2-Artefakten Seeds, vollständige Kandidaten-/Versionsidentitäten, Beobachtungszuordnungen und tägliche MTM-Reihen rekonstruieren und attestieren. Nicht rekonstruierbare Felder ausdrücklich als unbeweisbar dokumentieren; 180 beobachtete Zeilen niemals automatisch als 180 unabhängige Trials zählen.
+2. Nur auf Basis des belegten Ergebnisses eine separate Architekturentscheidung vorbereiten. Keine Änderung der Trial-Multiplicity- oder DSR-Regeln ohne Nutzerfreigabe und neue Vertragsgeneration.
+3. Den produktiven aktiven Lookback-Satz und die exakte `HorizonPolicy` für Labelhorizont, maximale Haltedauer und Pending-Latenz versioniert einfrieren; sie muss mit den zulässigen Specialist-Haltedauern widerspruchsfrei sein.
+4. Den realen Produktionsadapter vom Drei-Markt-Rohdatenbestand durch Task 15 bis 27, zwölf Origins und Task-13-Resume implementieren. Keine Testfixtures als reale Evidenz verwenden.
+5. Vollständige Tests, Handoff, Push und grüne GitHub-CI verlangen.
+6. Erst danach den create-only Task-33-Preflight erneut ausführen. Nur `READY_FOR_FULL_RESEARCH_RUN` darf den rechenintensiven historischen Monatsprozess öffnen.
 
-Vor einem rechenintensiven Lauf fail-closed und ohne Ergebnisanpassung prüfen:
+## Unveränderliche Grenzen
 
-- aktuellen Git-/Pipeline-/Code-Commit und sauberen Branchstand;
-- aktuellen gemeinsamen vollständigen UTC-Stichtag für ETHUSDC, BTCUSDC und ETHBTC;
-- exakt vollständiges 1m-Raster, Rohdaten-/Archivdigests und erforderlichen 20-Tage-plus-1-Minute-Warmup aller drei Märkte;
-- öffentliche Exchange-Info sowie exakte Gebühren-, Slippage-, Rundungs- und Simulatorverträge;
-- permanenten Trial-Ledger-Head und den ehrlichen Status der historischen Trial-Inventur;
-- Task-2-Plan mit zwölf Origins, je 730 Entwicklungstagen und exakt 365 OOS-Tagen;
-- globales Suchbudget, Seeds und nur verkürzende Stopregeln;
-- Task-32-Akzeptanznachweis und weiterhin gesperrte Paper-/Testtrade-/Live-/Orderpfade.
+- keine Gate-, Ranking-, Feature-, Kosten- oder Suchraumlockerung
+- keine erfundenen Trial-Identitäten oder Tagesreihen
+- keine Umdeutung des verbrauchten historischen OOS in frische/finale Evidenz
+- kein echter `sealed_final_holdout`
+- keine Orders, Trading-API, privaten Endpunkte oder API-Keys
+- kein Paper, Testtrade, Live, Adoption oder Botstart
 
-Fehlende reale Daten, Warmup, Exchange-Info oder Trial-Evidenz niemals durch Fixtures, Defaults oder erfundene Digests ersetzen. Öffentliche Marktdaten dürfen nur über die vorhandenen Datenwerkzeuge ergänzt und anschließend vollständig auditiert werden. Keine privaten Endpunkte oder API-Keys.
+## Reproduzierbarer Startnachweis
 
-## Laufanforderungen
-
-- vorhandene Protocol-v3-Kette wiederverwenden; keinen zweiten Researchrunner bauen, sofern ein bestehender Einstieg erweitert werden kann;
-- dieselbe eingefrorene Pipeline an exakt zwölf Origins jeweils auf den unmittelbar vorherigen 730 Tagen vollständig refitten;
-- 365 OOS-Tage lückenlos und genau einmal ausführen;
-- neue Entries erst `T+24h`; alte Position ausschließlich exit-only bis flat;
-- No-Trade-Tage mit exakt null MTM erhalten;
-- Kontext ETHUSDC/BTCUSDC/ETHBTC exakt geschlossen und ausgerichtet;
-- Outer-Ergebnisse bis zum vollständigen Ende nicht in spätere Fits, Parameter, Gates oder menschliche Entscheidungen zurückführen;
-- Trial-Ledger, Task-13-Checkpoints, Resume und Cache transaktional verwenden;
-- Baseline-, Joint- und Slippage-Stress, Monthly Gate, Hindsight, Capture-Ratios und 10.000er Bootstrap ausführen;
-- historischer Lauf bleibt `monthly_process_oos`, `NOT_FRESH`, `diagnostic_only` und nicht adoption-/finalfähig;
-- kein echtes `sealed_final_holdout` registrieren oder verbrauchen.
-
-## Ehrlicher Endstatus
-
-Der Abschlussbericht muss genau einen fachlich belegten Status ausweisen:
-
-- `TARGET_REACHED`, wenn der historische Monatsprozess nach allen Kosten und Gates mindestens 3 USDC pro Kalendertag erreicht;
-- `TARGET_NOT_REACHED`, wenn der Lauf vollständig ist, aber das Ziel verfehlt;
-- `NO_EDGE_FOUND`, wenn die unveränderte Pipeline regelkonform Cash/`NO_TRADE` wählt oder keine robuste Edge besteht;
-- einen expliziten `BLOCKED_*`-Status nur dann, wenn der vollständige Lauf aufgrund real fehlender Pflichtdaten oder unvervollständigbarer Evidenz nicht rechtmäßig begonnen beziehungsweise beendet werden kann.
-
-Ein Blocker ist kein Erfolg und darf nicht als 100-Prozent-Projektergebnis, Backtest-Pass oder Botstart bezeichnet werden. Er muss Quelle, betroffenen Zeitraum, reproduzierbaren Nachweis und den kleinsten zulässigen Folgeschritt enthalten.
-
-## Pflichtbericht
-
-Mindestens ausweisen:
-
-- Run-ID und Status;
-- exakten Daten-, Trainings- und OOS-Zeitraum;
-- Datenquellen und unreife/fehlende Quellen;
-- getestete und valide Kandidaten;
-- Router-Setups, Signale, Entry-Versuche und echte simulierte Trades;
-- Netto-USDC/Tag, Gesamtprofit, Fees, Slippage, Drawdown, Winrate und Profit-Factor;
-- aktive/No-Trade-Tage und wichtigste Ablehnungsgründe;
-- Deployment-, Kalender-, Konzentrations-, Regime- und Stressmetriken;
-- DSR, PBO, Hindsight-Capture und Bootstrap-Untergrenzen;
-- `historically_hit`, `freshness`, `statistically_supported` und Adoptionstatus;
-- eindeutige Aussage, ob der Bot gestartet werden darf.
-
-## Harte Grenzen
-
-- keine Gate-, Ranking-, Feature-, Kosten-, Suchraum- oder Parameteränderung nach Betrachtung von Outer-Ergebnissen;
-- keine Fake-Trades, Fake-Fills, Fake-Reports oder perfekte Fills;
-- keine Blindtestdaten als Ergebnisfeedback in spätere Fits;
-- keine Umbenennung historischer Evidenz in frisch oder final;
-- keine Orders, Trading-API, privaten Endpunkte oder API-Keys;
-- kein Paper, Testtrade, Live, `active_config.json`, kanonische Adoption oder Botstart;
-- Aufgabe 33 erst `DONE_100`, wenn der vollständige Lauf oder ein vertraglich zulässiger belegter Blocker, vollständige Tests, Handoff, Push und abschließender grüner GitHub-CI vorliegen.
+- Task-33-Report: `C:\TradingBot\data\ETHUSDC_BotV3_Hermes\runtime\protocol_v3\task33\task33-preflight-713ccbaa3b11-ea4cb7750cea-f1782ba70088.json`
+- Reportdigest: `846778919948f80019efc19ae131b17604a35f269c3481a07030da08d26cc616`
+- Trial-Ledger-Head: `f1782ba7008880e70dd18ffdb48c3c033e732a232f7ccacdbeb72083e337b476`
+- technischer Task-33-Commit: `713ccbaa3b11e3ed9d2b5e92325e7c070e3aad6a`
+- technische GitHub-CI: `29928845971`, grün
