@@ -499,9 +499,11 @@ Research, Replay, Cache, Resume und Challenger müssen bitgleich sein; Fehler-In
 
 ### Aufgabe 33 – Erster vollständiger Protocol-v3-Research-Lauf und Abschlussbericht
 
-**Status:** `NOT_STARTED`
+**Status:** `IN_PROGRESS`
 
 Erst nach Aufgaben 1–32 werden zwölf Origins und 365 OOS-Tage einmalig ausgeführt; Ergebnis ist ehrlich `TARGET_REACHED`, `TARGET_NOT_REACHED` oder `NO_EDGE_FOUND`.
+
+**Startnachweis:** `handoff/PROTOCOL_V3_TASK_33_IN_PROGRESS_2026-07-22.md`
 
 ## Fortschrittsführung
 

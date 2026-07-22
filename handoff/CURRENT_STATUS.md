@@ -8,7 +8,7 @@ Stand: 2026-07-22
 
 Abgeschlossene Aufgaben: `1 bis 32`.
 
-Nächste Aufgabe: `33 – Erster vollständiger Protocol-v3-Research-Lauf und Abschlussbericht` – `NOT_STARTED`.
+Aktive Aufgabe: `33 – Erster vollständiger Protocol-v3-Research-Lauf und Abschlussbericht` – `IN_PROGRESS`.
 
 Aufgabe 33 darf erst nach grünem GitHub-CI des Task-32-Dokumentations-Heads beginnen.
 
@@ -53,9 +53,9 @@ Der technische Task-32-Head `3290ddea022400e2a03462621c214d23454722ba` wurde im 
 
 Der Dry-Run blieb strikt `FIXTURE_ONLY`, außerhalb der kanonischen Reportroots und ohne echte Final-, Adoption- oder Botstart-Evidenz.
 
-## Nächste Aufgabe – 33 NOT_STARTED
+## Aktive Aufgabe – 33 IN_PROGRESS
 
-Nach grünem Dokumentations-CI ausschließlich `handoff/NEXT_ACTION.md` ausführen. Aufgabe 33 führt den ersten vollständigen Protocol-v3-Research-Lauf aus und berichtet ehrlich `TARGET_REACHED`, `TARGET_NOT_REACHED` oder `NO_EDGE_FOUND` beziehungsweise einen belegten fail-closed Daten-/Evidenzblocker.
+Der Task-32-Dokumentations-CI Run `29925381805` ist vollständig grün. Aufgabe 33 ist mit GitHub-Issue `#19` eröffnet. Der Pflicht-Preflight prüft jetzt den echten Drei-Markt-Datenbestand, Warmup, Runner, Exchange-Info, Trial-Ledger und alle eingefrorenen Identitäten, bevor irgendein rechenintensiver Research-Lauf beginnt.
 
 ## Übergabegrenze dieser Sitzung
 
