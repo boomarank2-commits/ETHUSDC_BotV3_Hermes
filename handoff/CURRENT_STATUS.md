@@ -8,7 +8,7 @@ Stand: 2026-07-22
 
 Abgeschlossene Aufgaben: `1 bis 31`.
 
-Nächste Aufgabe: `32 – End-to-End-Parität, Fehler-Injektion und vollständige Abnahme` – `NOT_STARTED`.
+Aktive Aufgabe: `32 – End-to-End-Parität, Fehler-Injektion und vollständige Abnahme` – `IN_PROGRESS`.
 
 Aufgabe 33 bleibt strikt `NOT_STARTED`.
 
@@ -47,9 +47,9 @@ Technisch bewiesen sind:
 
 Es wurde kein echtes Finalfenster registriert, geclaimt, gelesen, ausgeführt oder geöffnet.
 
-## Nächste Aufgabe – 32 NOT_STARTED
+## Aktive Aufgabe – 32 IN_PROGRESS
 
-Die Startbedingung für Aufgabe 32 ist erfüllt.
+Die Startbedingung für Aufgabe 32 ist erfüllt. Der unabhängige Wiedereinstiegs-Audit bestätigte Aufgabe 31 mit 41/41 gezielten Tests und der vollständigen Suite mit 1.305/1.305 erfolgreichen Tests. GitHub-Issue `#18` führt den Task-32-Arbeitsnachweis.
 
 Codex soll ausschließlich `handoff/NEXT_ACTION.md` ausführen und vor der ersten Codeänderung alle dort genannten Verträge und Handovers erneut lesen.
 

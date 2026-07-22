@@ -2,7 +2,7 @@
 
 Stand: 2026-07-22
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 31/33 abgeschlossen
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 31/33 abgeschlossen; Aufgabe 32 aktiv
 
 ## Arbeitsregel
 
@@ -481,7 +481,7 @@ Die monatlich refittende Pipeline besitzt nun eine getrennt versionierte, genau-
 
 ### Aufgabe 32 – End-to-End-Parität, Fehler-Injektion und vollständige Abnahme
 
-**Status:** `NOT_STARTED`
+**Status:** `IN_PROGRESS`
 
 Research, Replay, Cache, Resume und Challenger müssen bitgleich sein; Fehler-Injektionen und fixture-basierter 12-Origin-Dry-Run müssen vollständig grün sein.
 
