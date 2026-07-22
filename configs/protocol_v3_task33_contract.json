@@ -1,0 +1,58 @@
+{
+  "schema_version": "protocol_v3_task33_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_real_research_preflight_and_blocker_report_v1",
+  "allowed_statuses": [
+    "READY_FOR_FULL_RESEARCH_RUN",
+    "BLOCKED_INSUFFICIENT_TRIAL_HISTORY",
+    "BLOCKED_MISSING_FROZEN_RUNTIME_INPUTS"
+  ],
+  "required_runtime_inputs": [
+    "active_lookbacks",
+    "horizon_policy",
+    "production_outer_origin_adapter"
+  ],
+  "required_result_fields": [
+    "tested_candidates",
+    "valid_candidates",
+    "router_setups",
+    "router_trade_signals",
+    "engine_entry_attempts",
+    "trades",
+    "net_usdc_per_calendar_day",
+    "total_profit_usdc",
+    "fees_usdc",
+    "slippage_usdc",
+    "max_drawdown_usdc",
+    "win_rate",
+    "profit_factor",
+    "active_days",
+    "no_trade_days",
+    "monthly_gate",
+    "stress_gate",
+    "dsr",
+    "pbo",
+    "hindsight_capture",
+    "bootstrap_support"
+  ],
+  "blocker_precedence": [
+    "INSUFFICIENT_TRIAL_HISTORY",
+    "MISSING_FROZEN_RUNTIME_INPUTS"
+  ],
+  "blocked_result_policy": {
+    "full_research_run_started": false,
+    "not_executed_metrics_are_null": true,
+    "release_decision": "NO_TRADE",
+    "adoption_eligible": false,
+    "bot_start_allowed": false
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "canonical_adoption": "locked",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}

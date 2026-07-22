@@ -1,0 +1,84 @@
+"""Task-33 real-run preflight and blocker-report tests."""
+from __future__ import annotations
+
+from copy import deepcopy
+import json
+from pathlib import Path
+
+import pytest
+
+from ethusdc_bot.protocol_v3 import task33_preflight as preflight
+from ethusdc_bot.protocol_v3 import task33_preflight_api
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _kwargs() -> dict[str, object]:
+    return {
+        "repo_root": REPO_ROOT,
+        "run_id": "task33-real-preflight-test",
+        "created_at_utc": "2026-07-22T15:00:00Z",
+        "code_commit": "a" * 40,
+        "pipeline_generation_id": "protocol_v3_pipeline_sha256:" + "b" * 64,
+        "data_snapshot": {"snapshot_sha256": "c" * 64, "quality_status": "usable_for_protocol_v3_snapshot"},
+        "exchange_info_snapshot": {"snapshot_sha256": "d" * 64, "symbol": "ETHUSDC"},
+        "trial_ledger_status": {"head_sha256": "e" * 64, "development_dsr_status": "INSUFFICIENT_TRIAL_HISTORY", "only_release_decision_allowed": "NO_TRADE", "historical_trial_count_is_lower_bound": True},
+        "runtime_inputs": {"active_lookbacks": [], "horizon_policy": None, "production_outer_origin_adapter": False},
+    }
+
+
+def test_contract_api_and_pipeline_binding_are_exact() -> None:
+    contract = preflight.load_task33_contract(REPO_ROOT)
+    assert contract["contract_version"] == preflight.CONTRACT_VERSION
+    assert task33_preflight_api.__all__ == preflight.__all__
+    pipeline = json.loads((REPO_ROOT / "configs/protocol_v3_pipeline_contract.json").read_text())
+    assert preflight.CONTRACT_VERSION in pipeline["component_contracts"]["quality_gates"]
+    for path in ("configs/protocol_v3_task33_contract.json", "src/ethusdc_bot/protocol_v3/task33_preflight.py", "src/ethusdc_bot/protocol_v3/task33_preflight_api.py"):
+        assert path in pipeline["source_bindings"]["quality_gates"]
+
+
+def test_incomplete_real_history_blocks_without_fake_results() -> None:
+    report = preflight.build_task33_preflight_report(**_kwargs())
+    payload = report.to_dict()
+    assert payload["status"] == preflight.BLOCKED_HISTORY
+    assert payload["blockers"][0] == "INSUFFICIENT_TRIAL_HISTORY"
+    assert payload["research_execution"]["full_research_run_started"] is False
+    assert payload["research_execution"]["result_status"] == "not_executed_due_blocker"
+    assert all(value is None for value in payload["results"].values())
+    assert payload["release_decision"] == "NO_TRADE"
+    assert payload["adoption_eligible"] is False
+    assert payload["bot_start_allowed"] is False
+
+
+def test_ready_preflight_still_cannot_claim_execution_or_adoption() -> None:
+    kwargs = _kwargs()
+    kwargs["trial_ledger_status"] = {"head_sha256": "e" * 64, "development_dsr_status": "READY_FOR_DSR_IMPLEMENTATION", "only_release_decision_allowed": None, "historical_trial_count_is_lower_bound": False}
+    kwargs["runtime_inputs"] = {"active_lookbacks": [{"name": "eth_20d"}], "horizon_policy": {"max_label_horizon_minutes": 120, "max_holding_period_minutes": 180, "pending_order_latency_minutes": 2}, "production_outer_origin_adapter": True}
+    payload = preflight.build_task33_preflight_report(**kwargs).to_dict()
+    assert payload["status"] == preflight.READY
+    assert payload["research_execution"]["result_status"] == "awaiting_explicit_execution"
+    assert payload["bot_start_allowed"] is False
+
+
+def test_tampering_and_create_only_overwrite_fail_closed(tmp_path: Path) -> None:
+    report = preflight.build_task33_preflight_report(**_kwargs())
+    forged = deepcopy(report.to_dict())
+    forged["results"]["trades"] = 1
+    with pytest.raises(preflight.Task33PreflightError, match="complete and null"):
+        preflight.validate_task33_preflight_report(forged)
+    target = tmp_path / "task33.json"
+    preflight.write_task33_preflight_report(report, target)
+    assert target.read_bytes() == (report.canonical_json + "\n").encode()
+    with pytest.raises(preflight.Task33PreflightError, match="create-only"):
+        preflight.write_task33_preflight_report(report, target)
+
+
+def test_missing_identity_and_rehashed_unsafe_claims_fail_closed() -> None:
+    kwargs = _kwargs()
+    kwargs["code_commit"] = "short"
+    with pytest.raises(preflight.Task33PreflightError, match="git SHA"):
+        preflight.build_task33_preflight_report(**kwargs)
+    report = preflight.build_task33_preflight_report(**_kwargs()).to_dict()
+    report["bot_start_allowed"] = True
+    with pytest.raises(preflight.Task33PreflightError, match="safety claim"):
+        preflight.validate_task33_preflight_report(report)
