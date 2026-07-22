@@ -1,107 +1,101 @@
-# Next Action – Protocol v3 Aufgabe 31
+# Next Action – Protocol v3 Aufgabe 32
 
-Stand: 2026-07-20
+Stand: 2026-07-22
 
 ## Startbedingung
 
-Aufgabe 31 darf erst begonnen werden, wenn der Task-30-Dokumentations-Head mit Abschluss-Handoff, `CURRENT_STATUS.md`, dieser Datei und `docs/41_PROTOCOL_V3_IMPLEMENTATION_SEQUENCE.md` vollständig gepusht und in GitHub CI grün ist.
+Aufgabe 32 darf erst begonnen werden, wenn der Task-31-Dokumentations-Head mit Abschluss-Handoff, `CURRENT_STATUS.md`, dieser Datei und `docs/41_PROTOCOL_V3_IMPLEMENTATION_SEQUENCE.md` vollständig gepusht und im abschließenden GitHub-CI grün ist.
 
 Vor der ersten Codeänderung erneut vollständig lesen:
 
 1. `AGENTS.md`
 2. `handoff/CURRENT_STATUS.md`
 3. `handoff/NEXT_ACTION.md`
-4. `handoff/PROTOCOL_V3_TASK_30_2026-07-20.md`
+4. `handoff/PROTOCOL_V3_TASK_31_2026-07-22.md`
 5. `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
 6. `docs/41_PROTOCOL_V3_IMPLEMENTATION_SEQUENCE.md`
 7. `docs/42_PROTOCOL_V3_EXECUTABLE_CONTRACT.md`
 8. `configs/protocol_v3_contract.json`
-9. `configs/protocol_v3_report_contract.json`
+9. `configs/protocol_v3_pipeline_final_contract.json`
+10. `configs/protocol_v3_report_contract.json`
 
 ## Exakter nächster Auftrag
 
-Ausschließlich Aufgabe 31 umsetzen:
+Ausschließlich Aufgabe 32 umsetzen:
 
-`Pipeline-Final-Evaluator für ein frisches versiegeltes Jahr`.
+`End-to-End-Parität, Fehler-Injektion und vollständige Abnahme`.
 
 ## Bestehende Architektur zuerst prüfen
 
-Vor neuen Dateien oder Evaluatoren vollständig prüfen und bevorzugt erweitern:
+Keine zweite Pipeline, keinen zweiten Runner und keine zweite Report-/Checkpoint-Wahrheit bauen.
 
-- Task-2-Monatskalender und Boundaryplan;
-- Task-5-Drei-Markt-Snapshot/Warmup;
-- Task-6-Run-Fingerprint und öffentliche Exchange Info;
-- Task-7-/8-Execution-, Kosten- und Intrabarparität;
-- Task-9-/10-Outer-State und Kontextparität;
-- Task-11-Reportart `protocol_v3_pipeline_final` und Evidence-Window-Registrierung;
-- Task-12-Artefakte und feste Storage-Roots;
-- Task-13-Checkpoint/HEAD/Resume;
-- Task-15-Auswahlpipeline sowie Task 22 bis 28;
-- bestehende Sealed-Holdout- und Final-Evaluation-Pfade nur als technische Referenz, niemals als Protocol-v3-Freigabe.
+Direkt wiederverwenden und gemeinsam prüfen:
 
-Keine zweite Pipeline-, Report-, Window-, Checkpoint-, Bootstrap-, Adoption- oder Runtime-Wahrheit bauen.
+- Task 2 bis 10 für Boundaries, Snapshot, Run-Identity, Execution, Kosten, State und Kontext;
+- Task 11 bis 13 für Reports, Artefakte und atomaren HEAD-/Resume-Pfad;
+- Task 14 bis 22 für Folds, Kandidaten, Ranking, DSR/PBO und Frozen Bundles;
+- Task 23 bis 27 für zwölf Origins, Rotation, Daily MTM, Monthly Gate und Bootstrap;
+- Task 28 bis 30 für aktuellen Refit, orderfreien Challenger und UI-Zustände;
+- Task 31 für Vorregistrierung, Einmal-Claim, result-blinden Fortschritt, Attestation und genau-einmaliges Report-Opening.
 
-## Pflichtumfang Aufgabe 31
+## Pflichtumfang Aufgabe 32
 
-Der Final-Evaluator muss:
+Aufgabe 32 muss fixture-basiert und ohne echtes Finalfenster beweisen:
 
-- ein vollständig neues 365-Tage-Fenster vor dessen Start registrieren;
-- Registrierung, Pipelinegeneration, Code, Daten-, Feature-, Kontext-, Exchange-, Execution-, Kosten-, Gate-, Seed-, Trial- und Boundaryidentitäten unveränderlich binden;
-- jede Überschneidung mit bereits sichtbaren Forward-Monaten oder verbrauchter historischer Evidenz vor dem ersten Datenlesen blockieren;
-- das Fenster bis zum vollständigen Ende versiegelt halten;
-- die unveränderte monatlich refittende Pipeline mit exakt zwölf Origins, 730 Entwicklungstagen je Origin, T+24h, Exit-only-/Flat-Handoff und lückenlosen 365 OOS-Tagen genau einmal ausführen;
-- während des Laufs keine Outer-PnL, Rankings, Strategiewechsel oder Zwischenresultate öffnen;
-- nach Abschluss dieselben Task-25-/26-/27-Metriken, Stressläufe und den 10.000er Stationary Bootstrap reproduzierbar auswerten;
-- genau einen `protocol_v3_pipeline_final`-Report mit einer neuen, transitiv validierten Task-31-Attestation erzeugen;
-- klar zwischen `historically_hit`, `fresh_pre_registered_sealed_365`, `sealed_bootstrap_target_supported` und `statistically_supported` unterscheiden;
-- eine zweite Auswertung, nachträgliche Registrierung, Ergebnisfeedback oder Gate-/Pipelineänderung fail-closed verhindern.
+- einen vollständigen 12-Origin-/365-Tage-Dry-Run über die echte unveränderte Protocol-v3-Kette;
+- bitgleiche Ergebnisse bei Erstlauf, Task-13-Resume, Cache-Reuse und deterministischem Replay;
+- identische Execution-, Gebühren-, Slippage-, Rundungs-, Kontext-, Boundary-, Seed-, Gate-, Bootstrap- und Reportidentitäten über alle Pfade;
+- vollständige Task-31-Vorregistrierungs-, Claim-, Progress-, Checkpoint-, Attestation- und Open-Receipt-Kette auf ausschließlich synthetischen/fixture-basierten Daten;
+- keine Outer-Ergebnisrückwirkung in spätere Fits;
+- keine Mutation durch UI-Refresh, wiederholte Reads, Restart oder Diagnoseanzeigen;
+- eindeutige Fehlerklassifikation und unveränderten letzten atomaren HEAD nach jeder injizierten Störung;
+- dass kein Testfixture, Dry-Run oder Fehler-Injektionsobjekt als frischer realer Finalreport, Adoption oder Botstart missverstanden werden kann.
+
+## Pflicht-Fehler-Injektionen
+
+Mindestens systematisch injizieren und fail-closed prüfen:
+
+- Prozessabbruch vor und nach jedem atomaren Write/HEAD-Schritt;
+- Teilwrite, fehlendes fsync, fehlendes oder verwaistes Receipt, fremder Temp-Pfad;
+- Crash zwischen Finalreport und Open-Receipt sowie zweiter Open-Versuch;
+- geänderte Pipelinegeneration, Code-, Snapshot-, Feature-, Kontext-, Exchange-, Execution-, Kosten-, Gate-, Bootstrap-, Seed-, Trial- oder Boundaryidentität;
+- fehlender, doppelter, umsortierter oder falscher Origin;
+- Datenlücke, Kontextlücke, stale/future/misaligned Watermark und unvollständiger Warmup;
+- fremder oder weitergelaufener Trial-Ledger-Head;
+- Cache-/Resume-Reuse mit geänderter Registration, Claim, Progress, Checkpoint oder Final-Attestation;
+- manipulierte PnL-, Ranking-, Freshness-, Bootstrap-, Support-, Final-, Adoption- oder Sicherheitsclaims;
+- Symlink-, Root-Escape-, Duplicate-Key-, NaN-/Infinity- und nichtkanonische-Byte-Angriffe;
+- parallele Claim-, Checkpoint-, Attestation- und Open-Races.
 
 ## Harte Grenzen
 
-Aufgabe 31 darf nicht:
+Aufgabe 32 darf nicht:
 
-- das bereits verbrauchte 3-Jahres-Fenster oder Task-27-/28-/29-Evidenz als frischen Final-Holdout umetikettieren;
-- sichtbare Forward-Monate nachträglich in das Finalfenster aufnehmen;
-- den bestehenden Legacy- oder Single-Candidate-`final_evaluation`-Pfad als Protocol-v3-Finalreport akzeptieren;
-- die Pipeline, Features, Familien, Ranking-, Gate-, Kosten-, Bootstrap- oder Boundaryregeln anhand irgendeines Finalergebnisses verändern;
-- ein teilweise abgeschlossenes oder vorzeitig geöffnetes Fenster bewerten;
-- mehr als eine Finalauswertung zulassen;
-- Orders, API-Keys, private Endpunkte, Paper, Testtrade, Live, `active_config.json` oder kanonische Adoption öffnen;
-- statistische Unterstützung oder Finalstatus aus nackten Bool-Claims ableiten.
-
-## Pflicht-Negativtests
-
-Mindestens testen:
-
-- Registrierung nach Fensterstart, fehlende Registrierung oder manipulierte Registrierungszeit blockiert;
-- Fenster ist nicht exakt 365 vollständige UTC-Tage oder überlappt sichtbare Forward-/historische Evidenz;
-- Pipeline-, Code-, Gate-, Kosten-, Bootstrap-, Seed-, Trial-, Snapshot-, Exchange- oder Boundaryhash ändert sich;
-- ein Origin fehlt, ist doppelt, umsortiert oder sieht frühere Outer-Ergebnisse;
-- Daten-/Kontextlücke, stale/future/misaligned Watermark oder unvollständiger Warmup blockiert;
-- Zwischenreport, UI-Refresh oder Teilwrite öffnet keine Outer-PnL und verändert keinen State;
-- Prozessabbruch kann nur aus dem letzten atomaren HEAD reproduzierbar fortsetzen;
-- zweiter Evaluationsversuch, Replay nach geöffnetem Ergebnis oder nachträgliches Gate-Tuning blockiert;
-- Legacy-, Protocol-v2-, Task-27-, Task-28-, Task-29- oder sichtbarer Forward-Report erzeugt keine Task-31-Attestation;
-- manipulierte Freshness-, Bootstrap-, Support-, Final- oder Adoptionclaims werden neu abgeleitet und abgewiesen.
+- ein echtes zukünftiges Finalfenster registrieren oder claimen;
+- reale neue 365-Tage-Evidenz verbrauchen;
+- den ersten vollständigen Protocol-v3-Research-Lauf starten;
+- Task-31-Ergebnisse zur Anpassung von Pipeline, Features, Familien, Ranking, Gates, Kosten, Bootstrap oder Boundaries verwenden;
+- Legacy-, Protocol-v2-, Task-27-, Task-28-, Task-29- oder fixture-basierte Evidenz als realen Finalstatus umetikettieren;
+- Orders, API-Keys, private Endpunkte, Paper, Testtrade, Live, `active_config.json`, kanonische Adoption oder Botstart öffnen.
 
 ## Abnahme
 
-Aufgabe 31 ist erst `DONE_100`, wenn:
+Aufgabe 32 ist erst `DONE_100`, wenn:
 
-1. der getrennt versionierte Pipeline-Final-Evaluator und die Task-31-Attestation vollständig implementiert sind;
-2. Vorregistrierung, Versiegelung, Einmaligkeit, zwölf Origins, 365 Tage und kein Outer-Feedback technisch bewiesen sind;
-3. Report-/Artefakt-/Checkpoint-/Bootstrap-Provenienz transitiv revalidiert wird;
-4. vollständige Unit-, Integrations-, Resume-, Leakage-, Race-, Teilwrite- und Safety-Negativtests grün sind;
+1. der fixture-basierte vollständige 12-Origin-/365-Tage-Dry-Run grün ist;
+2. Erstlauf, Resume, Cache und Replay bitgleich sind;
+3. alle vorgesehenen Fehler-Injektionen fail-closed und reproduzierbar sind;
+4. Race-, Teilwrite-, Leakage-, Pfad-, Safety- und Claim-Manipulationen vollständig abgedeckt sind;
 5. vollständige Pytest-Suite, Python-Compile, PowerShell-Syntax und Whitespace grün sind;
 6. Handoff, `CURRENT_STATUS.md`, `NEXT_ACTION.md` und `docs/41` aktualisiert und gepusht sind;
 7. der abschließende GitHub-CI-Lauf des Dokumentations-Heads grün ist.
 
-Aufgabe 32 darf vorher nicht begonnen werden.
+Aufgabe 33 darf vorher nicht begonnen werden.
 
 ## Sicherheitsstatus beim Einstieg
 
 - kein Backtest-, Paper-, Testtrade-, Live- oder Order-Start;
 - keine API-Keys, privaten Endpunkte oder Secrets;
-- kein Finalfenster tatsächlich ausführen oder öffnen;
+- kein echtes Finalfenster registrieren, claimen, ausführen oder öffnen;
 - keine kanonische Adoption;
 - der Bot darf nicht gestartet werden.
