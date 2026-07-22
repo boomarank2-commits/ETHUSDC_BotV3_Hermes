@@ -11,6 +11,11 @@ from pathlib import Path
 import re
 from typing import Any, Final
 
+from .production_runtime import (
+    ProductionRuntimeError,
+    build_task33_runtime_inputs,
+)
+
 PROTOCOL_VERSION: Final = "3.0.0"
 CONTRACT_PATH: Final = Path("configs/protocol_v3_task33_contract.json")
 CONTRACT_SCHEMA_VERSION: Final = "protocol_v3_task33_contract_v1"
@@ -95,7 +100,7 @@ def build_task33_preflight_report(
     _require_digest(exchange.get("snapshot_sha256"), "exchange-info snapshot")
     _require_digest(ledger.get("head_sha256"), "trial-ledger head")
 
-    missing = _missing_runtime_inputs(inputs)
+    missing = _missing_runtime_inputs(inputs, repo_root=repo_root)
     history_blocked = (
         ledger.get("development_dsr_status") == "INSUFFICIENT_TRIAL_HISTORY"
         or ledger.get("only_release_decision_allowed") == "NO_TRADE"
@@ -216,14 +221,24 @@ def write_task33_preflight_report(report: Task33PreflightReport, path: str | Pat
     return target
 
 
-def _missing_runtime_inputs(value: Mapping[str, Any]) -> list[str]:
+def _missing_runtime_inputs(
+    value: Mapping[str, Any], *, repo_root: str | Path
+) -> list[str]:
     missing: list[str] = []
     lookbacks = value.get("active_lookbacks")
-    if not isinstance(lookbacks, list) or not lookbacks:
-        missing.append("MISSING_FROZEN_ACTIVE_LOOKBACKS")
     horizon = value.get("horizon_policy")
-    required_horizon = {"max_label_horizon_minutes", "max_holding_period_minutes", "pending_order_latency_minutes"}
-    if not isinstance(horizon, Mapping) or set(horizon) != required_horizon or any(isinstance(horizon.get(key), bool) or not isinstance(horizon.get(key), int) or horizon[key] <= 0 for key in required_horizon):
+    try:
+        expected = build_task33_runtime_inputs(
+            repo_root,
+            production_outer_origin_adapter=(
+                value.get("production_outer_origin_adapter") is True
+            ),
+        )
+    except ProductionRuntimeError:
+        expected = None
+    if expected is None or lookbacks != expected["active_lookbacks"]:
+        missing.append("MISSING_FROZEN_ACTIVE_LOOKBACKS")
+    if expected is None or horizon != expected["horizon_policy"]:
         missing.append("MISSING_FROZEN_HORIZON_POLICY")
     if value.get("production_outer_origin_adapter") is not True:
         missing.append("MISSING_PRODUCTION_OUTER_ORIGIN_ADAPTER")

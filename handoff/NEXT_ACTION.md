@@ -27,8 +27,8 @@ Die Remediation muss in dieser Reihenfolge erfolgen:
 
 1. Historische Trial-Evidenz ist untersucht: Kandidatenparameter sind rekonstruierbar, aber Seeds und `daily_net_mtm_usdc` fehlen. Den Lower-Bound-Status nicht entfernen und 180 beobachtete Zeilen niemals automatisch als 180 unabhängige Trials zählen.
 2. Nur auf Basis des belegten Ergebnisses eine separate Architekturentscheidung vorbereiten. Keine Änderung der Trial-Multiplicity- oder DSR-Regeln ohne Nutzerfreigabe und neue Vertragsgeneration.
-3. Den produktiven aktiven Lookback-Satz und die exakte `HorizonPolicy` für Labelhorizont, maximale Haltedauer und Pending-Latenz versioniert einfrieren; sie muss mit den zulässigen Specialist-Haltedauern widerspruchsfrei sein.
-4. Den realen Produktionsadapter vom Drei-Markt-Rohdatenbestand durch Task 15 bis 27, zwölf Origins und Task-13-Resume implementieren. Keine Testfixtures als reale Evidenz verwenden.
+3. Erledigt: Der produktive aktive Lookback-Satz und die exakte `HorizonPolicy` sind versioniert, pipelinegebunden und mit den Specialist-Haltedauern widerspruchsfrei eingefroren. Bericht: `handoff/PROTOCOL_V3_RUNTIME_INPUT_FREEZE_2026-07-22.md`.
+4. Offen: Den realen Produktionsadapter vom Drei-Markt-Rohdatenbestand durch Task 15 bis 27, zwölf Origins und Task-13-Resume implementieren. Keine Testfixtures als reale Evidenz verwenden.
 5. Vollständige Tests, Handoff, Push und grüne GitHub-CI verlangen.
 6. Erst danach den create-only Task-33-Preflight erneut ausführen. Nur `READY_FOR_FULL_RESEARCH_RUN` darf den rechenintensiven historischen Monatsprozess öffnen.
 

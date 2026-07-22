@@ -9,6 +9,7 @@ import pytest
 
 from ethusdc_bot.protocol_v3 import task33_preflight as preflight
 from ethusdc_bot.protocol_v3 import task33_preflight_api
+from ethusdc_bot.protocol_v3.production_runtime import build_task33_runtime_inputs
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -53,11 +54,38 @@ def test_incomplete_real_history_blocks_without_fake_results() -> None:
 def test_ready_preflight_still_cannot_claim_execution_or_adoption() -> None:
     kwargs = _kwargs()
     kwargs["trial_ledger_status"] = {"head_sha256": "e" * 64, "development_dsr_status": "READY_FOR_DSR_IMPLEMENTATION", "only_release_decision_allowed": None, "historical_trial_count_is_lower_bound": False}
-    kwargs["runtime_inputs"] = {"active_lookbacks": [{"name": "eth_20d"}], "horizon_policy": {"max_label_horizon_minutes": 120, "max_holding_period_minutes": 180, "pending_order_latency_minutes": 2}, "production_outer_origin_adapter": True}
+    kwargs["runtime_inputs"] = build_task33_runtime_inputs(
+        REPO_ROOT, production_outer_origin_adapter=True
+    )
     payload = preflight.build_task33_preflight_report(**kwargs).to_dict()
     assert payload["status"] == preflight.READY
     assert payload["research_execution"]["result_status"] == "awaiting_explicit_execution"
     assert payload["bot_start_allowed"] is False
+
+
+def test_unfrozen_positive_runtime_values_do_not_clear_preflight() -> None:
+    kwargs = _kwargs()
+    kwargs["trial_ledger_status"] = {
+        "head_sha256": "e" * 64,
+        "development_dsr_status": "READY_FOR_DSR_IMPLEMENTATION",
+        "only_release_decision_allowed": None,
+        "historical_trial_count_is_lower_bound": False,
+    }
+    kwargs["runtime_inputs"] = {
+        "active_lookbacks": [{"name": "plausible_but_unbound"}],
+        "horizon_policy": {
+            "max_label_horizon_minutes": 120,
+            "max_holding_period_minutes": 180,
+            "pending_order_latency_minutes": 2,
+        },
+        "production_outer_origin_adapter": True,
+    }
+
+    payload = preflight.build_task33_preflight_report(**kwargs).to_dict()
+
+    assert payload["status"] == preflight.BLOCKED_INPUTS
+    assert "MISSING_FROZEN_ACTIVE_LOOKBACKS" in payload["blockers"]
+    assert "MISSING_FROZEN_HORIZON_POLICY" in payload["blockers"]
 
 
 def test_tampering_and_create_only_overwrite_fail_closed(tmp_path: Path) -> None:

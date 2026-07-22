@@ -17,7 +17,7 @@ Alle Aufgaben 1 bis 33 der Implementierungssequenz sind formal abgeschlossen. Au
 - Draft-PR: `#17`
 - Task-33-Issue: `#19`
 - Task-33-Technik-Head: `713ccbaa3b11e3ed9d2b5e92325e7c070e3aad6a`
-- vollständige lokale Suite: 1.326/1.326 Tests erfolgreich
+- vollständige lokale Suite nach UI- und Runtime-Remediation: 1.336/1.336 Tests erfolgreich
 - Task-33-Technik-CI: Run `29928845971` vollständig grün
 - Task-33-Abschluss: `handoff/PROTOCOL_V3_TASK_33_2026-07-22.md`
 
@@ -39,7 +39,8 @@ Der reale Preflight hat den externen Drei-Markt-Datenbestand, das vollständige 
 - historischer Prozess: `2025-07-08..2026-07-07`, 365 Tage, dauerhaft `NOT_FRESH`
 - Ledger: 180 bekannte Auswertungszeilen, aber 0 beweisbare unabhängige Trials
 - Ledger-Status: `INSUFFICIENT_TRIAL_HISTORY`, einzig zulässig `NO_TRADE`
-- weitere Lücken: produktiv eingefrorene Lookbacks, exakte HorizonPolicy und realer Outer-Origin-Produktionsadapter
+- Runtime-Remediation: produktive Lookbacks und exakte HorizonPolicy sind jetzt pipelinegebunden eingefroren
+- verbleibende Lücke: realer Task-15-bis-27-/Outer-Origin-Produktionsadapter
 - voller Research-Lauf gestartet: nein
 - sämtliche Ergebnis- und Handelsmetriken: `null`, `not_executed_due_blocker`
 - Adoption: nein; Botstart: nein
@@ -59,5 +60,7 @@ Der create-only Bericht liegt ausschließlich im externen Runtime-Root unter `C:
 ## Nächster Einstieg
 
 Die reale UI-Backtest-Integrationsdiagnose ist in `handoff/PROTOCOL_V3_UI_BACKTEST_INTEGRATION_2026-07-22.md` dokumentiert. Die UI verwendet jetzt den validierten Task-33-Preflight statt den alten Protocol-v2-Runner als Protocol-v3-Test auszugeben.
+
+Der anschließende Runtime-Input-Freeze ist in `handoff/PROTOCOL_V3_RUNTIME_INPUT_FREEZE_2026-07-22.md` dokumentiert. `+3 USDC/Tag` ist weiterhin nicht ausgewertet oder erreicht, weil der echte v3-Research-Lauf vor der Kandidatenberechnung blockiert.
 
 `handoff/NEXT_ACTION.md` beschreibt die verbleibende Produktionsrunner- und Vertrags-Remediation. Der Bot bleibt gesperrt.

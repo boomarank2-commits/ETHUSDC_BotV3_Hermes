@@ -1,0 +1,49 @@
+{
+  "schema_version": "protocol_v3_production_runtime_inputs_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_frozen_production_runtime_inputs_v1",
+  "active_lookbacks": [
+    {
+      "name": "btc_return_168h",
+      "market": "BTCUSDC",
+      "bars": 168,
+      "bar_seconds": 3600,
+      "duration_seconds": 604800
+    },
+    {
+      "name": "ethbtc_return_72h",
+      "market": "ETHBTC",
+      "bars": 72,
+      "bar_seconds": 3600,
+      "duration_seconds": 259200
+    },
+    {
+      "name": "eth_range_20d",
+      "market": "ETHUSDC",
+      "bars": 20,
+      "bar_seconds": 86400,
+      "duration_seconds": 1728000
+    }
+  ],
+  "horizon_policy": {
+    "max_label_horizon_minutes": 10080,
+    "max_holding_period_minutes": 10080,
+    "pending_entry_latency_minutes": 2,
+    "execution_bar_minutes": 1
+  },
+  "derivation": {
+    "lookbacks": "exact_task5_three_market_audited_warmup_set",
+    "max_label_horizon": "conservative_upper_bound_equal_to_longest_forward_candidate_outcome",
+    "max_holding_period": "protocol_v3_specialists_contract.multiday_swing_trend_max_hold_minutes.upper",
+    "pending_entry_latency": "task8_task9_shared_horizon_policy",
+    "extension_creates_new_pipeline_generation": true
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}
