@@ -2,7 +2,7 @@
 
 Stand: 2026-07-22
 Quelle: `docs/40_MONTHLY_ETHUSDC_RESEARCH_BLUEPRINT.md`
-Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 31/33 abgeschlossen; Aufgabe 32 aktiv
+Status: Protocol-v3-Vertragsgeneration 3.0.0 aktiv; Umsetzung 32/33 abgeschlossen
 
 ## Arbeitsregel
 
@@ -481,9 +481,21 @@ Die monatlich refittende Pipeline besitzt nun eine getrennt versionierte, genau-
 
 ### Aufgabe 32 – End-to-End-Parität, Fehler-Injektion und vollständige Abnahme
 
-**Status:** `IN_PROGRESS`
+**Status:** `DONE_100`
 
 Research, Replay, Cache, Resume und Challenger müssen bitgleich sein; Fehler-Injektionen und fixture-basierter 12-Origin-Dry-Run müssen vollständig grün sein.
+
+**Abnahme:**
+
+- Der Task-32-Vertrag `protocol_v3_fixture_isolated_e2e_parity_and_fault_acceptance_v1` bindet Erstlauf, Task-13-Resume, Cache-Reuse und deterministisches Replay an exakt dieselben 30 semantischen Identitäten.
+- Der vollständige synthetische Task-23-bis-31-Pfad umfasst zwölf Origins, 365 lückenlose OOS-Tage, MTM, Monthly Gate, Hindsight/Bootstrap, result-blinden Checkpoint, transitive Attestation und genau-einmaliges Report-Opening.
+- Finalreport und Open-Receipt des Dry-Runs dürfen ausschließlich in einem realen temporären Fixture-Root außerhalb des kanonischen Repository-Roots liegen. Der Akzeptanzstatus bleibt `FIXTURE_ONLY`, `diagnostic_only=true`, nicht final, nicht adoptionfähig und nicht startfähig.
+- Task-13-Abbrüche vor dem atomaren HEAD behalten den vorherigen gültigen HEAD; ein Abbruch nach dem atomaren HEAD hinterlässt den vollständig validen neuen HEAD. Parallele Attestation- und Open-Versuche liefern jeweils exakt einen Gewinner.
+- Die vollständige Fault-Matrix bindet Atomic-Write, Report/Receipt, Identitäten, Origin-Topologie, Daten/Kontext/Warmup, Resume/Cache, Ergebnisclaims, Pfade/Encoding und create-only Races.
+- UI-Refresh und wiederholte Reads sind bitgleich und zustandsneutral. Fixture-, Freshness-, Final-, Adoption-, Safety- und Task-33-Claims können nicht umetikettiert werden.
+- Vollständige Suite: 1.321 Tests erfolgreich; Python-Compile, PowerShell-Syntax, Ruff und Whitespace erfolgreich. Technischer GitHub-CI-Run `29924203612` vollständig grün.
+
+**Bericht:** `handoff/PROTOCOL_V3_TASK_32_2026-07-22.md`
 
 ### Aufgabe 33 – Erster vollständiger Protocol-v3-Research-Lauf und Abschlussbericht
 
@@ -499,7 +511,8 @@ Protocol v3: Aufgabe 28/33 – Aktueller 730-Tage-Refit und Champion/Challenger/
 Protocol v3: Aufgabe 29/33 – Orderfreier Research-Challenger-Shadow – DONE_100
 Protocol v3: Aufgabe 30/33 – UI und Bedienzustände vollständig anschließen – DONE_100
 Protocol v3: Aufgabe 31/33 – Pipeline-Final-Evaluator für ein frisches versiegeltes Jahr – DONE_100
-Gesamt: 31/33 DONE_100 = 93,94 %
+Protocol v3: Aufgabe 32/33 – End-to-End-Parität, Fehler-Injektion und vollständige Abnahme – DONE_100
+Gesamt: 32/33 DONE_100 = 96,97 %
 ```
 
 Fortschritt wird ausschließlich als `DONE_100 / 33` ausgewiesen, nicht nach Zeit oder Token geschätzt.
