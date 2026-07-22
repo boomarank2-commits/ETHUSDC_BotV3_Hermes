@@ -43,8 +43,9 @@ Die Remediation muss in dieser Reihenfolge erfolgen:
 
 ## Reproduzierbarer Startnachweis
 
-- Task-33-Report: `C:\TradingBot\data\ETHUSDC_BotV3_Hermes\runtime\protocol_v3\task33\task33-preflight-713ccbaa3b11-ea4cb7750cea-f1782ba70088.json`
-- Reportdigest: `846778919948f80019efc19ae131b17604a35f269c3481a07030da08d26cc616`
+- aktueller Task-33-Report: `C:\TradingBot\data\ETHUSDC_BotV3_Hermes\runtime\protocol_v3\task33\task33-preflight-92920a4796ab-ea4cb7750cea-f1782ba70088.json`
+- aktueller Reportdigest: `80b7b298b44534131458b493a5fcfd0f3d475addf0a12e90a9553cfab0a27f1d`
+- aktuelle Pipelinegeneration: `protocol_v3_pipeline_sha256:a41ff53ed01f3dc6b58c2de61f62013131c883c89bac23c3cba7ac1745b8618e`
 - Trial-Ledger-Head: `f1782ba7008880e70dd18ffdb48c3c033e732a232f7ccacdbeb72083e337b476`
 - technischer Task-33-Commit: `713ccbaa3b11e3ed9d2b5e92325e7c070e3aad6a`
 - technische GitHub-CI: `29928845971`, grün

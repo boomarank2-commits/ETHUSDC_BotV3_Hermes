@@ -63,4 +63,6 @@ Die reale UI-Backtest-Integrationsdiagnose ist in `handoff/PROTOCOL_V3_UI_BACKTE
 
 Der anschließende Runtime-Input-Freeze ist in `handoff/PROTOCOL_V3_RUNTIME_INPUT_FREEZE_2026-07-22.md` dokumentiert. `+3 USDC/Tag` ist weiterhin nicht ausgewertet oder erreicht, weil der echte v3-Research-Lauf vor der Kandidatenberechnung blockiert.
 
+Der neu erzeugte create-only Preflight `task33-preflight-92920a4796ab-ea4cb7750cea-f1782ba70088` bestätigt, dass Lookback- und Horizon-Blocker behoben sind. Offen bleiben ausschließlich `INSUFFICIENT_TRIAL_HISTORY` und `MISSING_PRODUCTION_OUTER_ORIGIN_ADAPTER`.
+
 `handoff/NEXT_ACTION.md` beschreibt die verbleibende Produktionsrunner- und Vertrags-Remediation. Der Bot bleibt gesperrt.

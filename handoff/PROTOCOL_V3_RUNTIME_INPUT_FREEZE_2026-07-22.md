@@ -57,3 +57,15 @@ Vertragsgeneration; es wurden keine Werte erfunden und keine Gates gelockert.
 - Ruff für alle geänderten Python-Dateien: grün;
 - `git diff --check`: grün.
 
+## Neuer create-only Preflight
+
+- Run-ID: `task33-preflight-92920a4796ab-ea4cb7750cea-f1782ba70088`;
+- Report: `C:\TradingBot\data\ETHUSDC_BotV3_Hermes\runtime\protocol_v3\task33\task33-preflight-92920a4796ab-ea4cb7750cea-f1782ba70088.json`;
+- Reportdigest: `80b7b298b44534131458b493a5fcfd0f3d475addf0a12e90a9553cfab0a27f1d`;
+- Pipelinegeneration: `protocol_v3_pipeline_sha256:a41ff53ed01f3dc6b58c2de61f62013131c883c89bac23c3cba7ac1745b8618e`;
+- Status: `BLOCKED_INSUFFICIENT_TRIAL_HISTORY`;
+- verbleibende Blocker: `INSUFFICIENT_TRIAL_HISTORY` und
+  `MISSING_PRODUCTION_OUTER_ORIGIN_ADAPTER`.
+
+`MISSING_FROZEN_ACTIVE_LOOKBACKS` und `MISSING_FROZEN_HORIZON_POLICY` sind im
+neuen Report nicht mehr vorhanden.
