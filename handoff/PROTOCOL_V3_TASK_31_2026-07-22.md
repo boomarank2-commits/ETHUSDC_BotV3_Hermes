@@ -121,7 +121,10 @@ Zusätzlich abgedeckt:
 
 ## Abschlussnachweis
 
-- dokumentierter Task-31-Head vor Abschlussnachweis: `bfc379226e1eb69f194790d2fb4e1e2cd210fae9`;
-- normaler GitHub-PR-CI: Run `29896580613`;
-- Checkout, vollständige Pytest-Suite, Diagnoseartefakt, Python-Compile, PowerShell-Syntax, Whitespace und abschließendes Fail-Gate: vollständig grün;
-- der nachfolgende reine Nachweis-Head wird erneut mit demselben normalen PR-CI geprüft.
+- technischer Source-Head: `49eac9959f8e01e33d78966b13351cb16c0eb70d`;
+- Task-31-Dokumentations-Head: `bfc379226e1eb69f194790d2fb4e1e2cd210fae9`;
+- normaler GitHub-PR-CI für den Dokumentations-Head: Run `29896580613`, vollständig grün;
+- reiner Nachweis-Head: `1ae2a8124924c1a46694e6347c59446f18eae3e9`;
+- normale GitHub-PR-CI-Runs für den Nachweis-Head: `29897307921` und `29897330070`, beide vollständig grün;
+- Checkout, vollständige Pytest-Suite, Diagnoseartefakt, Python-Compile, PowerShell-Syntax, Whitespace und abschließendes Fail-Gate waren grün;
+- damit ist die Startbedingung für Aufgabe 32 erfüllt.
