@@ -21,7 +21,8 @@ Aufgabe 33 bleibt strikt `NOT_STARTED`.
 - technischer Volltest-Source-Head: `49eac9959f8e01e33d78966b13351cb16c0eb70d`;
 - vollständige Suite: `1.305 Tests erfolgreich`;
 - Python-Compile, PowerShell-Syntax und Whitespace: erfolgreich;
-- abschließender Task-31-Dokumentations-CI: wird nach dem finalen Lauf ergänzt.
+- Task-31-Dokumentations-Head `bfc379226e1eb69f194790d2fb4e1e2cd210fae9` wurde im normalen GitHub-PR-CI Run `29896580613` vollständig grün geprüft;
+- der reine Nachweis-Head mit eingetragenem Run wird anschließend erneut im normalen PR-CI geprüft.
 
 ## Aufgabe 31 – DONE_100
 
