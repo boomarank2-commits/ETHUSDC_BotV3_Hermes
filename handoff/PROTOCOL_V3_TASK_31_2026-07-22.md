@@ -6,7 +6,7 @@ Stand: 2026-07-22
 
 Aufgabe 31 – `Pipeline-Final-Evaluator für ein frisches versiegeltes Jahr` – ist technisch vollständig umgesetzt.
 
-Der Abschlussstatus wird erst nach dem abschließenden grünen Dokumentations-CI als `DONE_100` geführt.
+Aufgabe 31 ist nach vollständigem technischen und dokumentarischen GitHub-CI `DONE_100`.
 
 ## Umgesetzte Architektur
 
@@ -121,4 +121,7 @@ Zusätzlich abgedeckt:
 
 ## Abschlussnachweis
 
-Der finale Dokumentations-Head und dessen grüner CI-Lauf werden nach dem Abschlusslauf hier ergänzt.
+- dokumentierter Task-31-Head vor Abschlussnachweis: `bfc379226e1eb69f194790d2fb4e1e2cd210fae9`;
+- normaler GitHub-PR-CI: Run `29896580613`;
+- Checkout, vollständige Pytest-Suite, Diagnoseartefakt, Python-Compile, PowerShell-Syntax, Whitespace und abschließendes Fail-Gate: vollständig grün;
+- der nachfolgende reine Nachweis-Head wird erneut mit demselben normalen PR-CI geprüft.
