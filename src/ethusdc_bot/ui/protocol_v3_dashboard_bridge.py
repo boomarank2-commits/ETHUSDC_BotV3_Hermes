@@ -20,6 +20,7 @@ from ethusdc_bot.protocol_v3.research_challenger_checkpoint import (
     ResearchChallengerCheckpointReceipt,
 )
 from ethusdc_bot.protocol_v3.run_identity import FrozenExchangeInfoSnapshot
+from ethusdc_bot.protocol_v3.task33_preflight import Task33PreflightReport
 from ethusdc_bot.ui.protocol_v3_lifecycle_status import (
     ProtocolV3LifecycleStatus,
     build_protocol_v3_lifecycle_status,
@@ -51,6 +52,7 @@ class ProtocolV3UiEvidence:
     )
     resume_worker: ChallengerResumeWorker | None = None
     challenger_report_opener: Callable[[], None] | None = None
+    task33_preflight: Task33PreflightReport | None = None
 
 
 ProtocolV3EvidenceProvider: TypeAlias = Callable[[], ProtocolV3UiEvidence]
@@ -97,6 +99,7 @@ def resolve_protocol_v3_operator_state(
         report_open_available=evidence.challenger_report_opener is not None,
         ui_runtime_blockers=ui_runtime_blockers,
         worker_status=worker_status,
+        task33_preflight=evidence.task33_preflight,
     )
 
 
@@ -116,6 +119,7 @@ def format_protocol_v3_operator_view(state: ProtocolV3OperatorState) -> str:
     buttons = root["buttons"]
     meaning = root["result_meaning"]
     safety = root["safety"]
+    preflight = root["task33_preflight"]
 
     lines = [
         "PROTOCOL V3 – FORSCHUNG UND ORDERFREIE DIAGNOSE",
@@ -127,6 +131,14 @@ def format_protocol_v3_operator_view(state: ProtocolV3OperatorState) -> str:
             f"{tasks['active_task_status']}"
         ),
         f"Aktuelle Ansicht: {root['operator_mode']}",
+        "",
+        "TASK-33-PREFLIGHT",
+        f"- Status: {_text(preflight.get('status'))}",
+        f"- Run-ID: {_text(preflight.get('run_id'))}",
+        f"- Bericht: {_text(preflight.get('report_sha256'))}",
+        f"- Blocker: {_blockers(preflight.get('blockers'))}",
+        f"- Voller Research-Lauf gestartet: {preflight.get('full_research_run_started')}",
+        f"- Release / Bot-Start: {_text(preflight.get('release_decision'))} / {preflight.get('bot_start_allowed')}",
         "",
         "PROTOCOL-V3-LEBENSZYKLUS",
         f"- Historisches Prozess-OOS: {lifecycle['process_oos']}",

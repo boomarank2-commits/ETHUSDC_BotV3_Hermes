@@ -9,7 +9,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 import tkinter as tk
 from tkinter import messagebox, ttk
-from typing import Any
 
 from ethusdc_bot.ui.protocol_v3_dashboard_bridge import (
     ProtocolV3EvidenceProvider,

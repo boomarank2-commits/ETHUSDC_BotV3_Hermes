@@ -58,4 +58,6 @@ Der create-only Bericht liegt ausschließlich im externen Runtime-Root unter `C:
 
 ## Nächster Einstieg
 
-`handoff/NEXT_ACTION.md` beschreibt ausschließlich die Blocker-Remediation. Sie ist eine neue, separat freizugebende Arbeit nach der abgeschlossenen 33-Punkte-Sequenz.
+Die reale UI-Backtest-Integrationsdiagnose ist in `handoff/PROTOCOL_V3_UI_BACKTEST_INTEGRATION_2026-07-22.md` dokumentiert. Die UI verwendet jetzt den validierten Task-33-Preflight statt den alten Protocol-v2-Runner als Protocol-v3-Test auszugeben.
+
+`handoff/NEXT_ACTION.md` beschreibt die verbleibende Produktionsrunner- und Vertrags-Remediation. Der Bot bleibt gesperrt.

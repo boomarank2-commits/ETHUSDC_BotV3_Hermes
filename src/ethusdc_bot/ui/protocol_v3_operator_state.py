@@ -33,6 +33,10 @@ from ethusdc_bot.protocol_v3.research_challenger_checkpoint import (
     ResearchChallengerCheckpointReceipt,
     validate_research_challenger_checkpoint_receipt,
 )
+from ethusdc_bot.protocol_v3.task33_preflight import (
+    Task33PreflightReport,
+    validate_task33_preflight_report,
+)
 from ethusdc_bot.protocol_v3.run_identity import (
     FrozenExchangeInfoSnapshot,
     validate_exchange_info_snapshot,
@@ -217,6 +221,7 @@ def build_protocol_v3_operator_state(
     report_open_available: bool = False,
     ui_runtime_blockers: Sequence[str] = (),
     worker_status: Mapping[str, Any] | None = None,
+    task33_preflight: Task33PreflightReport | None = None,
 ) -> ProtocolV3OperatorState:
     """Derive one fail-closed dashboard state from typed canonical inputs."""
 
@@ -299,6 +304,7 @@ def build_protocol_v3_operator_state(
         progress = research_progress.to_dict()
 
     worker = _worker_status(worker_status)
+    preflight = _task33_summary(task33_preflight)
     refit_summary = _refit_summary(refit, now, lifecycle["current_refit"])
     challenger_summary = _challenger_summary(
         challenger=challenger,
@@ -350,12 +356,13 @@ def build_protocol_v3_operator_state(
         "protocol_version": "3.0.0",
         "operator_mode": operator_mode,
         "task_progress": {
-            "done_tasks": PROTOCOL_V3_DONE_TASKS,
+            "done_tasks": 33 if preflight["validated"] else PROTOCOL_V3_DONE_TASKS,
             "total_tasks": PROTOCOL_V3_TOTAL_TASKS,
-            "progress_pct": PROTOCOL_V3_PROGRESS_PCT,
-            "active_task": 31,
-            "active_task_status": "NOT_STARTED",
+            "progress_pct": 100.0 if preflight["validated"] else PROTOCOL_V3_PROGRESS_PCT,
+            "active_task": 33 if preflight["validated"] else 31,
+            "active_task_status": preflight["status"] if preflight["validated"] else "NOT_STARTED",
         },
+        "task33_preflight": preflight,
         "data_status": data,
         "lifecycle_status": lifecycle,
         "research_progress": progress,
@@ -400,6 +407,32 @@ def build_protocol_v3_operator_state(
         "ui_may_write_active_config": False,
     }
     return ProtocolV3OperatorState(_canonical(basis), _digest(basis))
+
+
+def _task33_summary(value: Task33PreflightReport | None) -> dict[str, Any]:
+    if value is None:
+        return {
+            "validated": False,
+            "status": None,
+            "run_id": None,
+            "report_sha256": None,
+            "blockers": [],
+            "full_research_run_started": False,
+            "release_decision": "NO_TRADE",
+            "bot_start_allowed": False,
+        }
+    report = validate_task33_preflight_report(value)
+    root = report.to_dict()
+    return {
+        "validated": True,
+        "status": root["status"],
+        "run_id": root["run_id"],
+        "report_sha256": report.report_sha256,
+        "blockers": list(root["blockers"]),
+        "full_research_run_started": root["research_execution"]["full_research_run_started"],
+        "release_decision": root["release_decision"],
+        "bot_start_allowed": root["bot_start_allowed"],
+    }
 
 
 def _refit_summary(

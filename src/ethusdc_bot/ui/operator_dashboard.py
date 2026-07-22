@@ -23,6 +23,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 import threading
 import tkinter as tk
+from tkinter import messagebox
 from typing import Any, Mapping
 
 from ethusdc_bot.ui import backtest_controller as _backtest_controller
@@ -32,6 +33,9 @@ from ethusdc_bot.ui import final_evaluation_controller as _final_evaluation_cont
 from ethusdc_bot.ui import protocol_v3_dashboard_bridge as _protocol_v3_bridge
 from ethusdc_bot.ui.protocol_v3_dashboard_mixin import ProtocolV3DashboardMixin
 from ethusdc_bot.ui.protocol_v3_operator_state import ProtocolV3OperatorState
+from ethusdc_bot.ui.protocol_v3_local_evidence import (
+    build_local_task33_evidence_provider,
+)
 
 
 _ACTIVE_DATA_PHASES = {
@@ -465,6 +469,12 @@ class OperatorDashboardApp(ProtocolV3DashboardMixin, _base_dashboard.DashboardAp
         protocol_v3_evidence_provider: _protocol_v3_bridge.ProtocolV3EvidenceProvider | None = None,
     ) -> None:
         _install_runtime_guards()
+        if protocol_v3_evidence_provider is None:
+            resolved_repo = repository_root or _base_dashboard.default_repository_root()
+            resolved_local = local_root or _base_dashboard.default_local_root()
+            protocol_v3_evidence_provider = build_local_task33_evidence_provider(
+                resolved_repo, resolved_local
+            )
         self._initialize_protocol_v3_ui(protocol_v3_evidence_provider)
         self._refresh_gate = RefreshGate()
         self._refresh_requested = False
@@ -473,6 +483,7 @@ class OperatorDashboardApp(ProtocolV3DashboardMixin, _base_dashboard.DashboardAp
 
     def _build_widgets(self) -> None:
         super()._build_widgets()
+        self.training_button.configure(text="Protocol v3 Backtest prüfen / starten")
         self._build_protocol_v3_widgets()
         self._data_toolbar = self.load_button.master
         self._backtest_action_bar = self.training_button.master
@@ -676,6 +687,7 @@ class OperatorDashboardApp(ProtocolV3DashboardMixin, _base_dashboard.DashboardAp
                 self._apply_last_run_status(snapshot["data_prep_last_run_status"])
                 self._set_progress_visible(True)
             self._set_context_layout(view_mode)
+            self._apply_protocol_v3_primary_button_state(view_mode)
             text = str(payload.get("text", ""))
 
         self.status_text.configure(state=tk.NORMAL)
@@ -700,6 +712,23 @@ class OperatorDashboardApp(ProtocolV3DashboardMixin, _base_dashboard.DashboardAp
         if self._protocol_v3_action_bar is not None:
             self._show_before_overview(self._protocol_v3_action_bar)
 
+    def _apply_protocol_v3_primary_button_state(self, view_mode: str) -> None:
+        """Keep the safe preflight action clickable outside active runtimes."""
+
+        blocked = view_mode == "protocol_v3"
+        data_thread = getattr(self, "active_data_thread", None)
+        if data_thread is not None and data_thread.is_alive():
+            blocked = True
+        for controller_name in (
+            "training_research_controller",
+            "final_evaluation_controller",
+            "shadow_controller",
+        ):
+            controller = getattr(self, controller_name, None)
+            if controller is not None and controller.is_running:
+                blocked = True
+        self.training_button.configure(state=tk.DISABLED if blocked else tk.NORMAL)
+
     def _heartbeat_active_run(self) -> None:
         self._refresh_protocol_v3_worker_status()
         super()._heartbeat_active_run()
@@ -715,8 +744,33 @@ class OperatorDashboardApp(ProtocolV3DashboardMixin, _base_dashboard.DashboardAp
         self.refresh_status(log_refresh=False)
 
     def start_training_research(self) -> None:
-        self._requested_view = "backtest_running"
-        super().start_training_research()
+        """Route the primary backtest action to validated Protocol-v3 evidence."""
+
+        self._requested_view = "protocol_v3"
+        evidence = self._protocol_v3_evidence_snapshot()
+        preflight = evidence.task33_preflight
+        if preflight is None:
+            messagebox.showwarning(
+                "Protocol-v3-Backtest gesperrt",
+                "Kein validierter Task-33-Preflight verfügbar. Protocol v2 wird nicht gestartet.",
+            )
+            self.refresh_status(log_refresh=False)
+            return
+        payload = preflight.to_dict()
+        blockers = payload["blockers"]
+        if payload["status"] != "READY_FOR_FULL_RESEARCH_RUN":
+            messagebox.showwarning(
+                "Protocol-v3-Backtest gesperrt",
+                "Preflight-Status: "
+                f"{payload['status']}\n\nBlocker: {', '.join(blockers)}\n\n"
+                "Der alte Protocol-v2-Runner wird nicht als Protocol-v3-Test gestartet.",
+            )
+            self.refresh_status(log_refresh=False)
+            return
+        messagebox.showwarning(
+            "Protocol-v3-Runner fehlt",
+            "Der Preflight ist bereit, aber der reale Task-15-bis-27-Produktionsrunner ist noch nicht an die UI angeschlossen.",
+        )
         self.refresh_status(log_refresh=False)
 
     def _show_before_overview(self, frame: tk.Misc) -> None:

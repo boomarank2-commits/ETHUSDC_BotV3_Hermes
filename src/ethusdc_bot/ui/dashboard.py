@@ -36,7 +36,7 @@ from ethusdc_bot.ui.shadow_controller import (
     build_initial_shadow_status,
 )
 from ethusdc_bot.ui.dashboard_state import (
-    BACKTEST_DISABLED_HINT,
+    BACKTEST_DISABLED_HINT,  # noqa: F401 - public compatibility export
     build_dashboard_snapshot,
     default_local_root,
     default_repository_root,

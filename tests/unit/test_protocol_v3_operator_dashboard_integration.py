@@ -145,6 +145,21 @@ def test_protocol_v3_overview_navigation_is_read_only() -> None:
     assert calls == [{"log_refresh": False}]
 
 
+def test_primary_protocol_v3_preflight_button_is_clickable_but_runtime_safe() -> None:
+    app = _fake_app()
+    app.active_data_thread = None
+    app.training_research_controller = type("Controller", (), {"is_running": False})()
+    app.final_evaluation_controller = type("Controller", (), {"is_running": False})()
+    app.shadow_controller = type("Controller", (), {"is_running": False})()
+
+    app._apply_protocol_v3_primary_button_state("backtest_result")
+    assert app.training_button.state == "normal"
+
+    app.training_research_controller = type("Controller", (), {"is_running": True})()
+    app._apply_protocol_v3_primary_button_state("backtest_result")
+    assert app.training_button.state == "disabled"
+
+
 def test_parallel_runtime_blocker_disables_start_with_exact_reason(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

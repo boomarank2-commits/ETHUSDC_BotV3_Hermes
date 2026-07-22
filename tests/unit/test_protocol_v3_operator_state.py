@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from ethusdc_bot.protocol_v3 import pipeline
+from ethusdc_bot.protocol_v3.task33_preflight import build_task33_preflight_report
 from ethusdc_bot.ui import protocol_v3_operator_state as ui_state
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -50,6 +51,47 @@ def test_task_progress_is_only_done_100_over_33() -> None:
     }
     assert state["outer_pnl_visible"] is False
     assert state["research_progress"] is None
+
+
+def test_validated_task33_preflight_is_the_only_33_of_33_progress_source() -> None:
+    generation = pipeline.build_pipeline_generation(REPO_ROOT)
+    preflight = build_task33_preflight_report(
+        repo_root=REPO_ROOT,
+        run_id="task33-ui-progress",
+        created_at_utc="2026-07-22T14:31:02Z",
+        code_commit="a" * 40,
+        pipeline_generation_id=generation.generation_id,
+        data_snapshot={"snapshot_sha256": "b" * 64},
+        exchange_info_snapshot={"snapshot_sha256": "c" * 64},
+        trial_ledger_status={
+            "head_sha256": "d" * 64,
+            "development_dsr_status": "INSUFFICIENT_TRIAL_HISTORY",
+            "only_release_decision_allowed": "NO_TRADE",
+            "historical_trial_count_is_lower_bound": True,
+        },
+        runtime_inputs={
+            "active_lookbacks": [],
+            "horizon_policy": None,
+            "production_outer_origin_adapter": False,
+        },
+    )
+    state = ui_state.build_protocol_v3_operator_state(
+        now_utc=datetime(2026, 7, 22, tzinfo=UTC),
+        data_status=ui_state.build_protocol_v3_data_status(
+            state="MISSING", blockers=["three_market_data_missing"]
+        ),
+        task33_preflight=preflight,
+    ).to_dict()
+
+    assert state["task_progress"] == {
+        "done_tasks": 33,
+        "total_tasks": 33,
+        "progress_pct": 100.0,
+        "active_task": 33,
+        "active_task_status": "BLOCKED_INSUFFICIENT_TRIAL_HISTORY",
+    }
+    assert state["task33_preflight"]["report_sha256"] == preflight.report_sha256
+    assert state["task33_preflight"]["bot_start_allowed"] is False
 
 
 def test_missing_evidence_disables_every_trading_related_action() -> None:

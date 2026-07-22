@@ -6,6 +6,8 @@ Stand: 2026-07-22
 
 Die Implementierungssequenz 1 bis 33 ist vollständig abgearbeitet. Aufgabe 33 endete rechtmäßig mit `BLOCKED_INSUFFICIENT_TRIAL_HISTORY`; dies ist kein Backtest-Pass und keine Bot-Freigabe.
 
+Die UI-Integrationsdiagnose ist ebenfalls abgeschlossen: Der Hauptbutton liest den echten Task-33-Preflight, zeigt 33/33 und startet bei Blockern keinen Protocol-v2-Ersatzlauf. Bericht: `handoff/PROTOCOL_V3_UI_BACKTEST_INTEGRATION_2026-07-22.md`.
+
 Vor neuer Arbeit vollständig lesen:
 
 1. `AGENTS.md`
@@ -23,7 +25,7 @@ Nur nach ausdrücklicher Nutzerfreigabe ein neues Remediation-Issue anlegen. Nic
 
 Die Remediation muss in dieser Reihenfolge erfolgen:
 
-1. Historische Trial-Evidenz untersuchen: aus den unveränderlichen lokalen Protocol-v2-Artefakten Seeds, vollständige Kandidaten-/Versionsidentitäten, Beobachtungszuordnungen und tägliche MTM-Reihen rekonstruieren und attestieren. Nicht rekonstruierbare Felder ausdrücklich als unbeweisbar dokumentieren; 180 beobachtete Zeilen niemals automatisch als 180 unabhängige Trials zählen.
+1. Historische Trial-Evidenz ist untersucht: Kandidatenparameter sind rekonstruierbar, aber Seeds und `daily_net_mtm_usdc` fehlen. Den Lower-Bound-Status nicht entfernen und 180 beobachtete Zeilen niemals automatisch als 180 unabhängige Trials zählen.
 2. Nur auf Basis des belegten Ergebnisses eine separate Architekturentscheidung vorbereiten. Keine Änderung der Trial-Multiplicity- oder DSR-Regeln ohne Nutzerfreigabe und neue Vertragsgeneration.
 3. Den produktiven aktiven Lookback-Satz und die exakte `HorizonPolicy` für Labelhorizont, maximale Haltedauer und Pending-Latenz versioniert einfrieren; sie muss mit den zulässigen Specialist-Haltedauern widerspruchsfrei sein.
 4. Den realen Produktionsadapter vom Drei-Markt-Rohdatenbestand durch Task 15 bis 27, zwölf Origins und Task-13-Resume implementieren. Keine Testfixtures als reale Evidenz verwenden.
