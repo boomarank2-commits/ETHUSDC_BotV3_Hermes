@@ -4,7 +4,9 @@ Stand: 2026-07-22
 
 ## Startbedingung
 
-Aufgabe 32 darf erst begonnen werden, wenn der Task-31-Dokumentations-Head mit Abschluss-Handoff, `CURRENT_STATUS.md`, dieser Datei und `docs/41_PROTOCOL_V3_IMPLEMENTATION_SEQUENCE.md` vollständig gepusht und im abschließenden GitHub-CI grün ist.
+Die Startbedingung ist erfüllt.
+
+Der Task-31-Dokumentations-Head `bfc379226e1eb69f194790d2fb4e1e2cd210fae9` wurde im normalen GitHub-PR-CI Run `29896580613` vollständig grün geprüft. Der reine Nachweis-Head `1ae2a8124924c1a46694e6347c59446f18eae3e9` wurde zusätzlich in den normalen PR-CI-Runs `29897307921` und `29897330070` vollständig grün geprüft.
 
 Vor der ersten Codeänderung erneut vollständig lesen:
 
