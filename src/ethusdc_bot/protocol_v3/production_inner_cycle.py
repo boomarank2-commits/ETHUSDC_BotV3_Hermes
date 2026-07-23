@@ -35,6 +35,7 @@ from .trial_ledger import (
     append_trial,
     build_trial_record,
     read_trial_ledger,
+    record_cache_reuse,
 )
 
 PROTOCOL_VERSION: Final = "3.0.0"
@@ -146,7 +147,17 @@ def execute_production_inner_cycle(
             result_summary={},
         )
         existing = ledger.trials.get(identity_probe.trial_id)
-        if existing is None:
+        reusable = (
+            None
+            if existing is not None
+            else _reusable_trial(
+                ledger,
+                candidate_id=candidate_id,
+                versions=versions,
+                code_commit=commit,
+            )
+        )
+        if existing is None and reusable is None:
             evaluation = evaluate_candidate_on_inner_folds(
                 context=context,
                 candidate=candidate,
@@ -184,23 +195,34 @@ def execute_production_inner_cycle(
             ledger = append_trial(ledger_root, record)
             trial_id = record.trial_id
             resumed = False
+            cache_reuse = False
             evaluation_sha256 = evaluation.evaluation_sha256
         else:
-            daily = existing["daily_net_mtm_usdc"]
+            source = existing if existing is not None else reusable
+            if source is None:
+                raise AssertionError("existing or reusable trial required")
+            daily = source["daily_net_mtm_usdc"]
             if not isinstance(daily, list) or len(daily) != 360:
                 raise ProductionInnerCycleError(
                     "existing production trial lacks complete daily evidence"
                 )
             folds = _matrix_folds(plan, daily)
-            aggregate = dict(existing["result_summary"])
-            trial_id = identity_probe.trial_id
-            resumed = True
+            aggregate = dict(source["result_summary"])
+            trial_id = str(source["trial_id"])
+            resumed = existing is not None
+            cache_reuse = reusable is not None
+            if cache_reuse:
+                ledger = record_cache_reuse(
+                    ledger_root,
+                    trial_id=trial_id,
+                    reuse_scope=scope,
+                )
             evaluation_sha256 = aggregate.get("evaluation_sha256")
         profiles.append(
             {
                 "candidate_id": candidate_id,
                 "trial_id": trial_id,
-                "cache_reuse": False,
+                "cache_reuse": cache_reuse,
                 "folds": folds,
             }
         )
@@ -217,6 +239,7 @@ def execute_production_inner_cycle(
                 "trade_count": int(aggregate["trade_count"]),
                 "evaluation_sha256": evaluation_sha256,
                 "resumed_from_permanent_trial": resumed,
+                "cache_reuse": cache_reuse,
             }
         )
     ledger = read_trial_ledger(ledger_root)
@@ -394,6 +417,32 @@ def _matrix_folds(
         }
         for index, fold in enumerate(plan.folds)
     ]
+
+
+def _reusable_trial(
+    ledger,
+    *,
+    candidate_id: str,
+    versions: Mapping[str, str],
+    code_commit: str,
+) -> dict[str, Any] | None:
+    matches = []
+    for trial in ledger.trials.values():
+        identity = trial.get("identity_basis", {})
+        candidate = identity.get("candidate", {})
+        if (
+            candidate.get("candidate_id") == candidate_id
+            and identity.get("versions") == dict(versions)
+            and identity.get("code_commit") == code_commit
+            and identity.get("feature_variant")
+            == "protocol_v3_three_market_context_available_v1"
+        ):
+            matches.append(trial)
+    if len(matches) > 1:
+        raise ProductionInnerCycleError(
+            "multiple independent trials exist for one reusable candidate/window"
+        )
+    return matches[0] if matches else None
 
 
 def _positive(value: Any, path: str) -> int:

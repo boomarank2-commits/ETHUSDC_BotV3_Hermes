@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from ethusdc_bot.backtest.data_loader import AlignedMarketCandles, Candle
+from ethusdc_bot.backtest.simulator import StrategyCandidate
 from ethusdc_bot.protocol_v3 import boundaries, inner_folds
 from ethusdc_bot.protocol_v3 import production_inner_cycle as cycle_executor
 from ethusdc_bot.protocol_v3 import production_inner_cycle_api
@@ -132,6 +133,20 @@ def _run(state):
     )
 
 
+def _run_cycle(state, cycle_index: int):
+    return cycle_executor.execute_production_inner_cycle(
+        repo_root=REPO_ROOT,
+        context=state["context"],
+        fold_plan=state["plan"],
+        exchange_info_snapshot={},
+        horizon_policy=HORIZON,
+        trial_ledger_root=state["ledger_root"],
+        origin_index=1,
+        cycle_index=cycle_index,
+        code_commit=COMMIT,
+    )
+
+
 def test_public_api_and_real_cycle_evidence_chain(state) -> None:
     assert production_inner_cycle_api.__all__ == cycle_executor.__all__
     result = _run(state)
@@ -167,6 +182,50 @@ def test_cycle_resume_uses_immutable_trials_without_reevaluation(
     assert (
         resumed.to_dict()["matrix"]["content_sha256"]
         == first.to_dict()["matrix"]["content_sha256"]
+    )
+
+
+def test_cross_cycle_identical_attempts_are_cache_reuse(
+    state, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = _run_cycle(state, 1)
+    monkeypatch.setattr(
+        cycle_executor,
+        "generate_search_space",
+        lambda state, **kwargs: [
+            StrategyCandidate(
+                row["family"], row["parameters"]
+            )
+            for row in first.to_dict()["candidate_summaries"]
+        ]
+        + [
+            StrategyCandidate(
+                "breakout_volatility_filter",
+                {"symbol": "ETHUSDC", "lookback": 10_000 + index},
+            )
+            for index in range(28)
+        ],
+    )
+    monkeypatch.setattr(
+        cycle_executor,
+        "select_candidates_for_testing",
+        lambda candidates, limit, **kwargs: candidates[:12],
+    )
+    monkeypatch.setattr(
+        cycle_executor,
+        "evaluate_candidate_on_inner_folds",
+        lambda **kwargs: (_ for _ in ()).throw(
+            AssertionError("cache reuse must not reevaluate")
+        ),
+    )
+    reused = _run_cycle(state, 2)
+    assert all(
+        row["cache_reuse"]
+        for row in reused.to_dict()["candidate_summaries"]
+    )
+    assert all(
+        row["cache_reuse"]
+        for row in reused.to_dict()["matrix"]["cycles"][0]["profiles"]
     )
 
 
