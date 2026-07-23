@@ -1,6 +1,6 @@
 # Current Status – Protocol v3
 
-Stand: 2026-07-22
+Stand: 2026-07-23
 
 ## Verbindlicher Gesamtstand
 
@@ -66,3 +66,31 @@ Der anschließende Runtime-Input-Freeze ist in `handoff/PROTOCOL_V3_RUNTIME_INPU
 Der neu erzeugte create-only Preflight `task33-preflight-92920a4796ab-ea4cb7750cea-f1782ba70088` bestätigt, dass Lookback- und Horizon-Blocker behoben sind. Offen bleiben ausschließlich `INSUFFICIENT_TRIAL_HISTORY` und `MISSING_PRODUCTION_OUTER_ORIGIN_ADAPTER`.
 
 `handoff/NEXT_ACTION.md` beschreibt die verbleibende Produktionsrunner- und Vertrags-Remediation. Der Bot bleibt gesperrt.
+
+## Vertragsremediation vom 2026-07-23
+
+Mit ausdrücklicher Nutzerfreigabe ist
+`protocol_v3_conservative_legacy_multiplicity_floor_v1` implementiert. Die 180
+belegten Legacy-Auswertungszeilen zählen ausschließlich als konservative
+Multiple-Testing-Untergrenze; es wurden keine Identitäten, Seeds, PnL-Werte,
+Rankings, Gate-Ergebnisse oder Tagesreihen erfunden.
+
+Der neue create-only Preflight
+`task33-preflight-58290b6870a9-ea4cb7750cea-f1782ba70088` validiert mit der
+aktuellen UI-Evidence-Pipeline. Status:
+`BLOCKED_MISSING_FROZEN_RUNTIME_INPUTS`. Einziger verbleibender Blocker:
+`MISSING_PRODUCTION_OUTER_ORIGIN_ADAPTER`.
+
+- Reportdigest:
+  `298d265436dcd61741e87c36938a5e86dfa335f722d9daf7da116dc2fd445cbf`
+- Pipelinegeneration:
+  `protocol_v3_pipeline_sha256:2ac531ca85d5dd3b3bb83f070b0c4bb4dbab2cfec5c7d9b0d8803626ce2f27d1`
+- technischer Commit:
+  `58290b6870a9272d25d8641b12dd5dc0df165f7e`
+- vollständige Suite: 1.347/1.347 grün
+- voller Research-Lauf: nicht gestartet
+- Ergebnisfelder: vollständig `null`
+- Release: `NO_TRADE`; Botstart: gesperrt
+
+Bericht:
+`handoff/PROTOCOL_V3_LEGACY_MULTIPLICITY_REMEDIATION_2026-07-23.md`.

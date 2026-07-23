@@ -66,6 +66,28 @@ blockiert weiterhin `INSUFFICIENT_TRIAL_HISTORY`.
 
 ## Verbleibender Blocker
 
-Nach einem neuen create-only Task-33-Preflight muss ausschließlich
-`MISSING_PRODUCTION_OUTER_ORIGIN_ADAPTER` verbleiben. Erst nach grünem Commit
-und neuem Report darf Issue `#21` als nächste getrennte Remediation beginnen.
+Der neue create-only Task-33-Preflight bestätigt ausschließlich
+`MISSING_PRODUCTION_OUTER_ORIGIN_ADAPTER`. Nach grünem Push und GitHub-CI darf
+Issue `#21` als nächste getrennte Remediation beginnen.
+
+## Neuer create-only Preflight
+
+- Run-ID:
+  `task33-preflight-58290b6870a9-ea4cb7750cea-f1782ba70088`
+- externer Report:
+  `C:\TradingBot\data\ETHUSDC_BotV3_Hermes\runtime\protocol_v3\task33\task33-preflight-58290b6870a9-ea4cb7750cea-f1782ba70088.json`
+- Reportdigest:
+  `298d265436dcd61741e87c36938a5e86dfa335f722d9daf7da116dc2fd445cbf`
+- Pipelinegeneration:
+  `protocol_v3_pipeline_sha256:2ac531ca85d5dd3b3bb83f070b0c4bb4dbab2cfec5c7d9b0d8803626ce2f27d1`
+- technischer Commit:
+  `58290b6870a9272d25d8641b12dd5dc0df165f7e`
+- Status:
+  `BLOCKED_MISSING_FROZEN_RUNTIME_INPUTS`
+- einziger Blocker:
+  `MISSING_PRODUCTION_OUTER_ORIGIN_ADAPTER`
+- voller Research-Lauf gestartet: nein
+- alle Ergebnisfelder: `null`
+- Release: `NO_TRADE`; Botstart: gesperrt
+
+Die reale UI-Evidence-Ladung wählt und validiert diesen Report erfolgreich.

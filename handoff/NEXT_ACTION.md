@@ -1,6 +1,6 @@
 # Next Action – Protocol-v3-Blocker-Remediation
 
-Stand: 2026-07-22
+Stand: 2026-07-23
 
 ## Ausgangslage
 
@@ -25,8 +25,8 @@ Nur nach ausdrücklicher Nutzerfreigabe ein neues Remediation-Issue anlegen. Nic
 
 Die Remediation muss in dieser Reihenfolge erfolgen:
 
-1. Historische Trial-Evidenz ist untersucht: Kandidatenparameter sind rekonstruierbar, aber Seeds und `daily_net_mtm_usdc` fehlen. Den Lower-Bound-Status nicht entfernen und 180 beobachtete Zeilen niemals automatisch als 180 unabhängige Trials zählen.
-2. Nur auf Basis des belegten Ergebnisses eine separate Architekturentscheidung vorbereiten. Keine Änderung der Trial-Multiplicity- oder DSR-Regeln ohne Nutzerfreigabe und neue Vertragsgeneration.
+1. Erledigt: Die historische Trial-Evidenz ist untersucht. Kandidatenparameter sind rekonstruierbar, Seeds und `daily_net_mtm_usdc` fehlen.
+2. Erledigt mit ausdrücklicher Nutzerfreigabe und neuer Vertragsgeneration: Die 180 beobachteten Zeilen zählen konservativ ausschließlich für die Multiple-Testing-Strafe. Keine Identitäten, Seeds, PnL-Werte oder Tagesreihen wurden erfunden.
 3. Erledigt: Der produktive aktive Lookback-Satz und die exakte `HorizonPolicy` sind versioniert, pipelinegebunden und mit den Specialist-Haltedauern widerspruchsfrei eingefroren. Bericht: `handoff/PROTOCOL_V3_RUNTIME_INPUT_FREEZE_2026-07-22.md`.
 4. Offen: Den realen Produktionsadapter vom Drei-Markt-Rohdatenbestand durch Task 15 bis 27, zwölf Origins und Task-13-Resume implementieren. Keine Testfixtures als reale Evidenz verwenden.
 5. Vollständige Tests, Handoff, Push und grüne GitHub-CI verlangen.
@@ -43,9 +43,11 @@ Die Remediation muss in dieser Reihenfolge erfolgen:
 
 ## Reproduzierbarer Startnachweis
 
-- aktueller Task-33-Report: `C:\TradingBot\data\ETHUSDC_BotV3_Hermes\runtime\protocol_v3\task33\task33-preflight-92920a4796ab-ea4cb7750cea-f1782ba70088.json`
-- aktueller Reportdigest: `80b7b298b44534131458b493a5fcfd0f3d475addf0a12e90a9553cfab0a27f1d`
-- aktuelle Pipelinegeneration: `protocol_v3_pipeline_sha256:a41ff53ed01f3dc6b58c2de61f62013131c883c89bac23c3cba7ac1745b8618e`
+- aktueller Task-33-Report: `C:\TradingBot\data\ETHUSDC_BotV3_Hermes\runtime\protocol_v3\task33\task33-preflight-58290b6870a9-ea4cb7750cea-f1782ba70088.json`
+- aktueller Reportdigest: `298d265436dcd61741e87c36938a5e86dfa335f722d9daf7da116dc2fd445cbf`
+- aktuelle Pipelinegeneration: `protocol_v3_pipeline_sha256:2ac531ca85d5dd3b3bb83f070b0c4bb4dbab2cfec5c7d9b0d8803626ce2f27d1`
 - Trial-Ledger-Head: `f1782ba7008880e70dd18ffdb48c3c033e732a232f7ccacdbeb72083e337b476`
-- technischer Task-33-Commit: `713ccbaa3b11e3ed9d2b5e92325e7c070e3aad6a`
-- technische GitHub-CI: `29928845971`, grün
+- technischer Multiplicity-Commit: `58290b6870a9272d25d8641b12dd5dc0df165f7e`
+- aktueller Status: `BLOCKED_MISSING_FROZEN_RUNTIME_INPUTS`
+- einziger Blocker: `MISSING_PRODUCTION_OUTER_ORIGIN_ADAPTER`
+- technische GitHub-CI: nach Push abzuwarten
