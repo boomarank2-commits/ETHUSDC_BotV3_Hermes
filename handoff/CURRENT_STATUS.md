@@ -95,3 +95,31 @@ aktuellen UI-Evidence-Pipeline. Status:
 
 Bericht:
 `handoff/PROTOCOL_V3_LEGACY_MULTIPLICITY_REMEDIATION_2026-07-23.md`.
+
+## Produktionsadapter-Zwischenstand vom 2026-07-23
+
+Issue `#21` ist weiterhin aktiv. Der echte Rohdatenpfad ist jetzt bis zu einem
+vollständigen Inner-Origin-Research-Lauf implementiert:
+
+- reale Drei-Markt-Minuten;
+- exakte 6x60-Folds;
+- permanenter nativer Trial-Ledger mit Cache-Reuse;
+- Task-16-Matrix;
+- Task-17-PBO;
+- Task-18-DSR.
+
+Origin 1 wurde unter der aktuellen Generation über alle acht erlaubten Zyklen
+ausgeführt. 96 Profile ergaben 95 unabhängige Trials plus eine
+Cache-Wiederverwendung. Der beste Entwicklungswert war
+`+0,017724789686 USDC/Tag` bei 33 Trades und bestand DSR/Quality-Gates nicht.
+Das Ziel `+3 USDC/Tag` ist nicht erreicht.
+
+Die vollständige lokale Suite ist mit `1.365/1.365` Tests grün. GitHub Review
+CI `29993051021` ist für Implementierungs-Head `950c763` ebenfalls grün.
+
+Der vollständige Adapter bleibt blockiert, weil eine versionierte
+Cross-Cycle-Origin-Champion-Regel, Task-13-Work-Unit-Resume, Tasks 19 bis 27
+und Origins 2 bis 12 noch fehlen. Task 33 darf noch nicht READY melden.
+
+Vollständiger Bericht:
+`handoff/PROTOCOL_V3_PRODUCTION_ADAPTER_IN_PROGRESS_2026-07-23.md`.

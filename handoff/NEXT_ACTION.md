@@ -28,9 +28,20 @@ Die Remediation muss in dieser Reihenfolge erfolgen:
 1. Erledigt: Die historische Trial-Evidenz ist untersucht. Kandidatenparameter sind rekonstruierbar, Seeds und `daily_net_mtm_usdc` fehlen.
 2. Erledigt mit ausdrücklicher Nutzerfreigabe und neuer Vertragsgeneration: Die 180 beobachteten Zeilen zählen konservativ ausschließlich für die Multiple-Testing-Strafe. Keine Identitäten, Seeds, PnL-Werte oder Tagesreihen wurden erfunden.
 3. Erledigt: Der produktive aktive Lookback-Satz und die exakte `HorizonPolicy` sind versioniert, pipelinegebunden und mit den Specialist-Haltedauern widerspruchsfrei eingefroren. Bericht: `handoff/PROTOCOL_V3_RUNTIME_INPUT_FREEZE_2026-07-22.md`.
-4. Offen: Den realen Produktionsadapter vom Drei-Markt-Rohdatenbestand durch Task 15 bis 27, zwölf Origins und Task-13-Resume implementieren. Keine Testfixtures als reale Evidenz verwenden.
-5. Vollständige Tests, Handoff, Push und grüne GitHub-CI verlangen.
-6. Erst danach den create-only Task-33-Preflight erneut ausführen. Nur `READY_FOR_FULL_RESEARCH_RUN` darf den rechenintensiven historischen Monatsprozess öffnen.
+4. Teilweise erledigt: realer Drei-Markt-Pfad, exakte 6x60-Folds,
+   permanenter Trial-Ledger, Task-16-Matrix, PBO und DSR laufen produktiv.
+   Origin 1 ist über acht Zyklen ausgeführt.
+5. Offen: eine versionierte, result-unabhängige Cross-Cycle-Origin-Champion-
+   Regel ergänzen. Der vorhandene Vertrag definiert nur die Auswahl innerhalb
+   eines Cycles; weder letzter Cycle noch bestes Netto darf stillschweigend als
+   Origin-Champion verwendet werden.
+6. Offen: Task-13-Transaktionscheckpoint für den vollständigen
+   Origin-Work-Unit sowie echte Tasks 19 bis 27 und Origins 2 bis 12 anbinden.
+   Keine Testfixtures als reale Evidenz verwenden.
+7. Vollständige Tests, Handoff, Push und grüne GitHub-CI verlangen.
+8. Erst danach den create-only Task-33-Preflight erneut ausführen. Nur
+   `READY_FOR_FULL_RESEARCH_RUN` darf den restlichen historischen
+   Monatsprozess öffnen.
 
 ## Unveränderliche Grenzen
 
@@ -51,3 +62,19 @@ Die Remediation muss in dieser Reihenfolge erfolgen:
 - aktueller Status: `BLOCKED_MISSING_FROZEN_RUNTIME_INPUTS`
 - einziger Blocker: `MISSING_PRODUCTION_OUTER_ORIGIN_ADAPTER`
 - technische GitHub-CI: Run `29987377105`, grün
+
+## Neuer reproduzierbarer Zwischenstand
+
+- Implementierungs-Head: `950c7633745bbd0583e8b495499df4352eb9d708`
+- vollständige lokale Suite: `1.365/1.365` grün
+- GitHub Review CI: Run `29993051021`, grün
+- Adapterplan:
+  `C:\TradingBot\data\ETHUSDC_BotV3_Hermes\runtime\protocol_v3\production_outer_adapter\adapter-plan-54a63a5.json`
+- aktuelle Origin-1-Cycles:
+  `cycle-o01-c01-950c763.json` bis `cycle-o01-c08-950c763.json`
+- permanente native Trials: `107`
+- beste Entwicklung: `+0,017724789686 USDC/Tag`, 33 Trades,
+  DSR nicht bestanden
+- Ziel `+3 USDC/Tag`: nicht erreicht
+- vollständiger Bericht:
+  `handoff/PROTOCOL_V3_PRODUCTION_ADAPTER_IN_PROGRESS_2026-07-23.md`
