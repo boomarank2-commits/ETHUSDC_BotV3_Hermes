@@ -59,6 +59,7 @@ _TASK_BINDING_FILES: Final = {
     "14": (
         "configs/protocol_v3_inner_fold_contract.json",
         "src/ethusdc_bot/protocol_v3/inner_folds.py",
+        "src/ethusdc_bot/protocol_v3/production_fold_evaluator.py",
     ),
     "15": (
         "configs/protocol_v3_inner_selection_contract.json",

@@ -204,6 +204,7 @@
       "src/ethusdc_bot/protocol_v3/execution_parity.py",
       "src/ethusdc_bot/protocol_v3/intrabar_execution.py",
       "src/ethusdc_bot/protocol_v3/intrabar_runtime.py",
+      "src/ethusdc_bot/protocol_v3/production_fold_evaluator.py",
       "src/ethusdc_bot/protocol_v3/runtime_state.py"
     ]
   },
