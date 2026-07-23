@@ -162,3 +162,18 @@ Nächste zulässige Reihenfolge:
 
 Alte Cycle-Artefakte niemals umetikettieren. Keine Gate-Lockerung, keine
 Fake-Evidenz und keine Paper-/Testtrade-/Live-Freigabe.
+
+## Exakter Wiederanlauf am nächsten Arbeitstag
+
+1. Nicht sofort denselben CLI starten: Die Initial-Ledger-Prüfung würde
+   korrekt am alten Preflight-Head blockieren.
+2. Die Pre-Intent-Crash-Recovery im Origin-Work-Unit implementieren und testen.
+   Zulässig sind ausschließlich die 12 bereits vorhandenen, deterministisch
+   erwarteten Cycle-1-Trials als exakter Ledger-Prefix seit Event 109.
+3. Unverwandte Events, falsche Candidate-IDs, Seeds, Scopes, Code-/Pipeline-,
+   Fold- oder Tagesevidenz weiterhin fail-closed blockieren.
+4. Vollständige Suite, Handoff, Commit, Push und grüne Review-CI ausführen.
+5. Danach Origin 1 mit demselben Daten-/Codepfad fortsetzen. Erwarteter
+   Startzustand: Event `121`, Head
+   `ef0a8c7e2dc76e40a820a1aa3b18a1e66daefeaf848989f860d90a5375857d15`,
+   noch kein Cycle-1-Artefakt/Intent/Checkpoint und kein Lock.

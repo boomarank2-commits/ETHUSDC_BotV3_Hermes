@@ -220,3 +220,19 @@ Generation noch nicht real ausgewertet.
 
 Bericht:
 `handoff/PROTOCOL_V3_ORIGIN_WORK_UNIT_2026-07-23.md`.
+
+## Kontrollierter Origin-1-Stopp vor PC-Abschaltung
+
+Der reale Run wurde auf Nutzerwunsch beendet. PID `18824` ist gestoppt.
+Cycle 1 hat 12 deterministische Basis-Trials append-only persistiert, aber noch
+kein Cycle-Artefakt, Intent oder Checkpoint erzeugt. Ledger beim Stopp:
+`121` Events, `119` native Trials, `1` Cache-Reuse, Head
+`ef0a8c7e2dc76e40a820a1aa3b18a1e66daefeaf848989f860d90a5375857d15`.
+Kein Transaction-Lock blieb zurück.
+
+Der nächste technische Punkt ist eine echte Pre-Intent-Crash-Recovery:
+Die vorhandenen 12 Cycle-1-Trials müssen als exakter, idempotenter
+Fortschritt seit dem Preflight-Head bewiesen werden. Die derzeitige
+Initial-Ledger-Prüfung blockiert diesen Zustand noch. Details und exakter
+Preflight-Pfad stehen in
+`handoff/PROTOCOL_V3_ORIGIN_WORK_UNIT_2026-07-23.md`.

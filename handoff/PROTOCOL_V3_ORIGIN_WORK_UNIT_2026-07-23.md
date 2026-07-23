@@ -95,3 +95,36 @@ noch nicht real ausgewertet. Die bisherigen Origin-1-Artefakte gehören zu
    die realen Tasks 19 bis 27 einbinden.
 5. Erst nach vollständigem Monatsprozess den UI-Startpfad und Task 33 erneut
    abnehmen.
+
+## Kontrollierter Stopp vor PC-Abschaltung
+
+Der reale Origin-1-Lauf unter Commit
+`c846b9a36227b9f00c98ba1275072733ffa07fc5` und Pipelinegeneration
+`protocol_v3_pipeline_sha256:ed966a90c73750a6316d011f239e713d0dcd00669520166bbae8f37275285ebf`
+wurde auf Nutzerwunsch gestoppt.
+
+Zustand beim Stopp:
+
+- Prozess PID `18824` ist beendet;
+- Cycle 1 hatte alle 12 Basisprofile append-only geschrieben;
+- Ledger: `121` Events, `119` native Trials, `1` Cache-Reuse;
+- Ledger-Head:
+  `ef0a8c7e2dc76e40a820a1aa3b18a1e66daefeaf848989f860d90a5375857d15`;
+- es existiert noch kein Cycle-1-Artefakt, Intent oder Checkpoint;
+- es existiert kein zurückgelassener Transaction-Lock;
+- die Finalisten-Quality-Evidenz war noch in Berechnung;
+- keine Orders, Paper-, Testtrade- oder Live-Aktion wurde ausgelöst.
+
+Der create-only Start-Preflight bindet noch den Head vor Cycle 1:
+
+`C:\TradingBot\data\ETHUSDC_BotV3_Hermes\runtime\protocol_v3\task33\task33-preflight-c846b9a36227-ed966a90c737-64bec96c1ac5.json`
+
+Dabei wurde eine verbleibende Crash-Recovery-Lücke sichtbar: Ohne bereits
+geschriebenes Cycle-Intent blockiert die aktuelle Initial-Ledger-Prüfung den
+Wiederanlauf nach partiell appendierten, aber deterministischen Cycle-Trials.
+Morgen zuerst diese Lücke fail-closed schließen: Die 12 vorhandenen
+Cycle-1-Trials müssen anhand Code, Pipeline, Origin, Cycle, Candidate-ID,
+Seed, Fold und Tagesevidenz exakt als erwartete idempotente Prefix-Ereignisse
+bewiesen werden. Unverwandte Ledger-Fortschritte müssen weiterhin blockieren.
+Erst danach den Run fortsetzen. Die 12 Trials dürfen weder gelöscht noch
+dupliziert oder umetikettiert werden.
