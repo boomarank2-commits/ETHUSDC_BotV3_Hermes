@@ -34,6 +34,7 @@
       "protocol_v3_preregistered_transitively_attested_exactly_once_pipeline_final_v2",
       "protocol_v3_exactly_once_pipeline_final_report_open_v2",
       "protocol_v3_fixture_isolated_e2e_parity_and_fault_acceptance_v1",
+      "protocol_v3_real_outer_origin_production_adapter_v1",
       "protocol_v3_real_research_preflight_with_legacy_floor_v2"
     ],
     "ranking": [
@@ -148,6 +149,10 @@
       "configs/protocol_v3_acceptance_contract.json",
       "src/ethusdc_bot/protocol_v3/acceptance.py",
       "src/ethusdc_bot/protocol_v3/acceptance_api.py",
+      "configs/protocol_v3_production_outer_adapter_contract.json",
+      "src/ethusdc_bot/protocol_v3/production_outer_adapter.py",
+      "src/ethusdc_bot/protocol_v3/production_outer_adapter_api.py",
+      "scripts/build_protocol_v3_production_outer_adapter_plan.py",
       "configs/protocol_v3_task33_contract.json",
       "src/ethusdc_bot/protocol_v3/task33_preflight.py",
       "src/ethusdc_bot/protocol_v3/task33_preflight_api.py"
