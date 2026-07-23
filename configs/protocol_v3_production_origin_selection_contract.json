@@ -1,0 +1,57 @@
+{
+  "schema_version": "protocol_v3_production_origin_selection_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_full_cross_cycle_origin_selection_v1",
+  "input_policy": {
+    "origin_count": 1,
+    "required_cycle_indexes": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "terminal_stop_reason": "max_cycles_reached",
+    "same_code_commit_required": true,
+    "same_pipeline_generation_required": true,
+    "same_fold_plan_required": true,
+    "current_permanent_trial_ledger_required": true,
+    "every_cycle_artifact_digest_validated": true
+  },
+  "recomputation_policy": {
+    "all_tested_profiles_from_all_cycles_retained": true,
+    "candidate_matrix_rebuilt_at_current_ledger_head": true,
+    "pbo_recomputed_from_full_origin_matrix": true,
+    "dsr_recomputed_for_every_profile": true,
+    "cache_reuse_is_not_independent_trial": true,
+    "stored_per_cycle_pbo_or_dsr_may_select": false
+  },
+  "selection_policy": {
+    "task15_decision_required_for_every_cycle": true,
+    "task15_decision_must_bind_recomputed_matrix_pbo_dsr": true,
+    "only_candidate_outcomes_may_compete": true,
+    "ranking_source": "protocol_v3_lexicographic_inner_ranking_v1",
+    "target_usdc_per_day_used": false,
+    "missing_or_invalid_decision_result": "NO_TRADE",
+    "no_gate_passing_candidate_result": "NO_TRADE"
+  },
+  "artifact_policy": {
+    "full_source_cycle_results_embedded": false,
+    "source_result_digests_retained": true,
+    "dsr_summaries_embedded": true,
+    "full_dsr_identity_repetition_forbidden": true,
+    "write_is_create_only": true
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "outer_results": "forbidden",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}

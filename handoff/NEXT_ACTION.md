@@ -49,17 +49,24 @@ Die Remediation muss in dieser Reihenfolge erfolgen:
 4. Teilweise erledigt: realer Drei-Markt-Pfad, exakte 6x60-Folds,
    permanenter Trial-Ledger, Task-16-Matrix, PBO und DSR laufen produktiv.
    Origin 1 ist über acht Zyklen ausgeführt.
-5. Offen: eine versionierte, result-unabhängige Cross-Cycle-Origin-Champion-
-   Regel ergänzen. Der vorhandene Vertrag definiert nur die Auswahl innerhalb
-   eines Cycles; weder letzter Cycle noch bestes Netto darf stillschweigend als
-   Origin-Champion verwendet werden.
-6. Offen: Task-13-Transaktionscheckpoint für den vollständigen
+5. Erledigt: Die versionierte, result-unabhängige
+   Cross-Cycle-Origin-Auswahl verlangt exakt acht Cycles, vereinigt alle 96
+   Profile und berechnet PBO sowie DSR auf der vollständigen Matrix neu.
+6. Nächster Engpass: Den Production-Finalistenpfad um die vollständige
+   Quality-Evidenz für zwei Finalisten erweitern. Benötigt werden insbesondere
+   WFV-Fold-Metriken und Equity, Full-Training/Validation, Joint- und
+   Slippage-Stress, Parameterstabilität sowie rollende, zeitliche und
+   Regime-Evidenz. Daraus pro Cycle echte Task-15-Entscheidungen erzeugen.
+7. Danach Origin 1 genau einmal über alle acht Cycles unter der dann finalen
+   Pipelinegeneration neu ausführen und den Cross-Cycle-Selector ausführen.
+   Die alten `950c763`-Artefakte nicht umetikettieren oder wiederverwenden.
+8. Offen: Task-13-Transaktionscheckpoint für den vollständigen
    Origin-Work-Unit sowie echte Tasks 19 bis 27 und Origins 2 bis 12 anbinden.
    Keine Testfixtures als reale Evidenz verwenden.
-7. Vollständige Tests, Handoff, Push und grüne GitHub-CI verlangen.
-8. Erst danach den create-only Task-33-Preflight erneut ausführen. Nur
-   `READY_FOR_FULL_RESEARCH_RUN` darf den restlichen historischen
-   Monatsprozess öffnen.
+9. Vollständige Tests, Handoff, Push und grüne GitHub-CI verlangen.
+10. Erst danach den create-only Task-33-Preflight erneut ausführen. Nur
+    `READY_FOR_FULL_RESEARCH_RUN` darf den restlichen historischen
+    Monatsprozess öffnen.
 
 ## Unveränderliche Grenzen
 
@@ -96,3 +103,14 @@ Die Remediation muss in dieser Reihenfolge erfolgen:
 - Ziel `+3 USDC/Tag`: nicht erreicht
 - vollständiger Bericht:
   `handoff/PROTOCOL_V3_PRODUCTION_ADAPTER_IN_PROGRESS_2026-07-23.md`
+
+## Cross-Cycle-Zwischenstand
+
+- result-unabhängiger Production-Origin-Selector: implementiert
+- vollständige lokale Suite: `1.367/1.367` grün
+- alte Origin-1-Cycles: wegen alter Code-/Pipelineidentität absichtlich
+  unbrauchbar für die neue Generation
+- aktueller kleinster Engpass: vollständige Production-Quality-Evidenz und
+  daraus gebundene Task-15-Entscheidungen
+- Bericht:
+  `handoff/PROTOCOL_V3_CROSS_CYCLE_ORIGIN_SELECTION_2026-07-23.md`

@@ -12,9 +12,12 @@ from ethusdc_bot.backtest.simulator import StrategyCandidate
 from ethusdc_bot.protocol_v3 import boundaries, inner_folds
 from ethusdc_bot.protocol_v3 import production_inner_cycle as cycle_executor
 from ethusdc_bot.protocol_v3 import production_inner_cycle_api
+from ethusdc_bot.protocol_v3 import production_origin_selection
+from ethusdc_bot.protocol_v3 import production_origin_selection_api
 from ethusdc_bot.protocol_v3.runtime_state import HorizonPolicy
 from ethusdc_bot.protocol_v3.trial_ledger import (
     import_canonical_historical_lower_bound,
+    read_trial_ledger,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -239,3 +242,139 @@ def test_result_write_is_create_only(state, tmp_path: Path) -> None:
         cycle_executor.ProductionInnerCycleError, match="create-only"
     ):
         cycle_executor.write_production_inner_cycle_result(result, target)
+
+
+def test_full_cross_cycle_origin_recomputes_96_profiles_and_blocks_without_task15(
+    state,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    results = [_run_cycle(state, index) for index in range(1, 9)]
+
+    def fake_full_matrix_dsr(
+        *,
+        pbo_evidence,
+        selected_profile_id,
+        trial_ledger,
+    ):
+        pbo = pbo_evidence.to_dict()
+        digest = hashlib.sha256(selected_profile_id.encode()).hexdigest()
+        profiles = [
+            profile
+            for cycle in pbo["matrix_identity"]["matrix"]["cycles"]
+            for profile in cycle["profiles"]
+        ]
+        selected = next(
+            row for row in profiles if row["profile_id"] == selected_profile_id
+        )
+        return SimpleNamespace(
+            to_dict=lambda: {
+                "state": "COMPLETE",
+                "reason": "fixture_complete",
+                "selected_candidate_id": selected["candidate_id"],
+                "development_dsr": 0.0,
+                "passed_minimum_dsr": False,
+                "n_raw": 180,
+                "complete_native_trial_count": 96,
+                "evidence_sha256": digest,
+            }
+        )
+
+    def fake_cycle_support(evidence, *, cycle_index, trial_ledger):
+        digest = hashlib.sha256(f"support:{cycle_index}".encode()).hexdigest()
+        return SimpleNamespace(
+            to_dict=lambda: {
+                "matrix": {"state": "COMPLETE"},
+                "pbo": {"state": "COMPLETE"},
+                "dsr": {"state": "COMPLETE"},
+                "support_sha256": digest,
+            }
+        )
+
+    monkeypatch.setattr(
+        production_origin_selection,
+        "calculate_dsr",
+        fake_full_matrix_dsr,
+    )
+    monkeypatch.setattr(
+        production_origin_selection,
+        "build_dsr_development_support",
+        fake_cycle_support,
+    )
+    result = production_origin_selection.build_production_origin_selection(
+        repo_root=REPO_ROOT,
+        fold_plan=state["plan"],
+        trial_ledger=read_trial_ledger(state["ledger_root"]),
+        cycle_results=results,
+        code_commit=COMMIT,
+    )
+    payload = result.to_dict()
+    assert production_origin_selection_api.__all__ == (
+        production_origin_selection.__all__
+    )
+    assert payload["matrix"]["profile_count"] == 96
+    assert [row["cycle_index"] for row in payload["matrix"]["cycles"]] == list(
+        range(1, 9)
+    )
+    assert len(payload["dsr_summaries"]) == 96
+    assert payload["pbo_summary"]["matrix_sha256"] == payload["matrix"][
+        "matrix_sha256"
+    ]
+    assert payload["state"] == (
+        production_origin_selection.BLOCKED_MISSING_TASK15_DECISIONS
+    )
+    assert payload["outcome"] == production_origin_selection.NO_TRADE
+    assert payload["selected_candidate"] is None
+    assert payload["target_usdc_per_day_used_for_selection"] is False
+    assert production_origin_selection.validate_production_origin_selection(
+        result
+    ) == result
+
+    target = tmp_path / "origin-selection.json"
+    assert production_origin_selection.write_production_origin_selection(
+        result, target
+    ) == target
+    with pytest.raises(
+        production_origin_selection.ProductionOriginSelectionError,
+        match="create-only",
+    ):
+        production_origin_selection.write_production_origin_selection(
+            result, target
+        )
+
+    mixed = list(results)
+    changed = mixed[-1].to_dict()
+    changed.pop("result_sha256")
+    changed["code_commit"] = "b" * 40
+    mixed[-1] = cycle_executor.ProductionInnerCycleResult(
+        cycle_executor._canonical(changed),
+        cycle_executor._digest(changed),
+    )
+    with pytest.raises(
+        production_origin_selection.ProductionOriginSelectionError,
+        match="mix identity",
+    ):
+        production_origin_selection.build_production_origin_selection(
+            repo_root=REPO_ROOT,
+            fold_plan=state["plan"],
+            trial_ledger=read_trial_ledger(state["ledger_root"]),
+            cycle_results=mixed,
+            code_commit=COMMIT,
+        )
+
+
+def test_cross_cycle_origin_rejects_duplicate_or_missing_cycles(
+    state,
+) -> None:
+    result = _run_cycle(state, 1)
+    with pytest.raises(
+        production_origin_selection.ProductionOriginSelectionError,
+        match="indexes must be exactly 1..8",
+    ):
+        production_origin_selection.build_production_origin_selection(
+            repo_root=REPO_ROOT,
+            fold_plan=state["plan"],
+            trial_ledger=read_trial_ledger(state["ledger_root"]),
+            cycle_results=[result] * 8,
+            code_commit=COMMIT,
+        )

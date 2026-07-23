@@ -143,3 +143,31 @@ und Origins 2 bis 12 noch fehlen. Task 33 darf noch nicht READY melden.
 
 Vollständiger Bericht:
 `handoff/PROTOCOL_V3_PRODUCTION_ADAPTER_IN_PROGRESS_2026-07-23.md`.
+
+## Cross-Cycle-Origin-Auswahl vom 2026-07-23
+
+Die versionierte, result-unabhängige Cross-Cycle-Auswahl ist implementiert.
+Sie verlangt exakt acht Cycles, vereinigt 96 Profile, berechnet PBO und DSR
+auf der vollständigen Matrix neu und verwendet denselben lexikographischen
+Rank-Key wie die Inner-Cycle-Auswahl. Das Ziel `+3 USDC/Tag` beeinflusst die
+Auswahl nicht. Fehlende oder nicht exakt gebundene Task-15-Entscheidungen
+enden fail-closed mit `NO_TRADE`.
+
+Die vorhandenen Origin-1-Artefakte unter Commit `950c763` gehören zu einer
+älteren Pipelinegeneration und werden korrekt abgelehnt. Sie werden nicht als
+neue Evidenz umetikettiert.
+
+Verifikation:
+
+- fokussierte Suite: `25/25` grün;
+- zusätzliche Protocol-v3-Suite: `63/63` grün;
+- vollständige lokale Suite: `1.367/1.367` grün;
+- Compile, Scoped Ruff und `git diff --check`: grün.
+
+Der nächste belegte Blocker ist die im Production-Fold-Evaluator noch nicht
+persistierte vollständige Quality-Evidenz für rechtmäßige
+Task-15-Finalistenentscheidungen. Erst nach ihrer Implementierung wird Origin
+1 unter der dann finalen Pipelinegeneration erneut ausgeführt.
+
+Vollständiger Bericht:
+`handoff/PROTOCOL_V3_CROSS_CYCLE_ORIGIN_SELECTION_2026-07-23.md`.

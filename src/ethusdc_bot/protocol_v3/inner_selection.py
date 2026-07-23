@@ -16,7 +16,7 @@ from pathlib import Path
 import re
 from typing import Any, Final, Mapping, Sequence
 
-from ethusdc_bot.backtest.quality_gates import QUALITY_GATE_V1, evaluate_quality_gates
+from ethusdc_bot.backtest.quality_gates import evaluate_quality_gates
 from ethusdc_bot.backtest.search_space import canonical_candidate_signature
 from ethusdc_bot.backtest.simulator import StrategyCandidate
 from ethusdc_bot.protocol_v3.inner_folds_api import (
@@ -1013,7 +1013,9 @@ def _selection_basis(
                 f"DEVELOPMENT_CASH_BASELINE_NOT_BEATEN:{candidate_id}"
             )
         if gate_passed and rank is not None and dsr_passed and beats_cash is True:
-            eligible.append((_rank_key(rank), row["candidate"], gate))
+            eligible.append(
+                (lexicographic_candidate_rank_key(rank), row["candidate"], gate)
+            )
 
     ranking_rows.sort(key=lambda row: row["canonical_candidate_id"])
     selected: dict[str, Any] | None = None
@@ -1062,16 +1064,38 @@ def _ranking_row(row: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _rank_key(row: Mapping[str, Any]) -> tuple[Any, ...]:
+def lexicographic_candidate_rank_key(
+    row: Mapping[str, Any],
+) -> tuple[Any, ...]:
+    """Return the one canonical Task-15 ranking key.
+
+    The production cross-cycle selector reuses this function so that the
+    within-cycle and across-cycle decisions cannot silently diverge.
+    """
+
     return (
-        -row["worst_fold_net_usdc_per_day"],
-        -row["median_fold_net_usdc_per_day"],
-        -row["aggregate_wfv_net_usdc_per_day"],
-        -row["joint_stress_net_usdc_per_day"],
-        row["max_drawdown_usdc"],
-        row["friction_share"],
-        row["free_parameter_count"],
-        row["canonical_candidate_id"],
+        -_finite_number(
+            row["worst_fold_net_usdc_per_day"],
+            "worst_fold_net_usdc_per_day",
+        ),
+        -_finite_number(
+            row["median_fold_net_usdc_per_day"],
+            "median_fold_net_usdc_per_day",
+        ),
+        -_finite_number(
+            row["aggregate_wfv_net_usdc_per_day"],
+            "aggregate_wfv_net_usdc_per_day",
+        ),
+        -_finite_number(
+            row["joint_stress_net_usdc_per_day"],
+            "joint_stress_net_usdc_per_day",
+        ),
+        _finite_number(row["max_drawdown_usdc"], "max_drawdown_usdc"),
+        _finite_number(row["friction_share"], "friction_share"),
+        _nonnegative_int(
+            row["free_parameter_count"], "free_parameter_count"
+        ),
+        _candidate_id(row["canonical_candidate_id"]),
     )
 
 
@@ -1521,6 +1545,7 @@ __all__ = [
     "build_pbo_development_support",
     "build_selection_training_window",
     "build_synthetic_complete_development_support",
+    "lexicographic_candidate_rank_key",
     "load_inner_selection_contract",
     "select_candidate",
     "validate_candidate_selection_evidence",
