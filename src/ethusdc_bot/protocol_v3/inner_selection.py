@@ -573,6 +573,95 @@ def build_dsr_development_support(
     return validate_development_support({**basis, "support_sha256": _digest(basis)})
 
 
+def build_dsr_batch_development_support(
+    batch_evidence: Any,
+    *,
+    trial_ledger: Any,
+) -> DevelopmentSupport:
+    """Bind one compact, shared-statistics DSR batch to Task-15."""
+
+    from .dsr_batch import (
+        COMPLETE as BATCH_COMPLETE,
+        validate_dsr_batch_for_ledger,
+    )
+
+    batch = validate_dsr_batch_for_ledger(
+        batch_evidence,
+        trial_ledger,
+    )
+    payload = batch.to_dict()
+    pbo_identity = payload["pbo_identity"]
+    pbo_payload = pbo_identity["evidence"]
+    matrix_identity = pbo_payload["matrix_identity"]
+    matrix = matrix_identity["matrix"]
+    cycle = payload["cycle_index"]
+    cycles = [
+        row for row in matrix["cycles"] if row["cycle_index"] == cycle
+    ]
+    if len(cycles) != 1:
+        raise InnerSelectionError(
+            "batch DSR matrix does not contain its selected cycle"
+        )
+    tested = cycles[0]["tested_candidate_ids"]
+    if [row["candidate_id"] for row in payload["profiles"]] != tested:
+        raise InnerSelectionError(
+            "batch DSR candidate inventory differs from Task-16"
+        )
+    matrix_row = {
+        "state": COMPLETE,
+        "schema_version": "protocol_v3_candidate_daily_matrix_v1",
+        "candidate_ids": tested,
+        "day_count": _REQUIRED_MATRIX_DAYS,
+        "value": matrix_identity,
+        "evidence_sha256": matrix_identity["matrix_sha256"],
+        "reason": "task16_complete_candidate_daily_matrix",
+    }
+    pbo_row = {
+        "state": COMPLETE,
+        "schema_version": "protocol_v3_pbo_evidence_v1",
+        "candidate_ids": tested,
+        "day_count": _REQUIRED_MATRIX_DAYS,
+        "value": pbo_identity,
+        "evidence_sha256": pbo_identity["evidence_sha256"],
+        "reason": "task17_complete_exact_cscv",
+    }
+    if pbo_payload["state"] != COMPLETE:
+        pbo_row = _incomplete_support_row(
+            "protocol_v3_pbo_evidence_v1",
+            "task17_insufficient_evidence",
+        )
+    if all(
+        row["result"]["state"] == BATCH_COMPLETE
+        for row in payload["profiles"]
+    ):
+        dsr_row = {
+            "state": COMPLETE,
+            "schema_version": "protocol_v3_dsr_batch_evidence_v1",
+            "candidate_ids": tested,
+            "day_count": _REQUIRED_MATRIX_DAYS,
+            "value": batch.identity_payload,
+            "evidence_sha256": batch.evidence_sha256,
+            "reason": "task18_complete_shared_statistics_batch_dsr",
+        }
+    else:
+        dsr_row = _incomplete_support_row(
+            "protocol_v3_dsr_batch_evidence_v1",
+            "task18_insufficient_trial_history_or_statistics",
+        )
+    basis = {
+        "schema_version": DEVELOPMENT_EVIDENCE_SCHEMA,
+        "protocol_version": PROTOCOL_VERSION,
+        "mode": PRODUCTION,
+        "matrix": matrix_row,
+        "pbo": pbo_row,
+        "dsr": dsr_row,
+        "safety": _SAFETY,
+    }
+    return validate_development_support(
+        {**basis, "support_sha256": _digest(basis)}
+    )
+
+
 def build_synthetic_complete_development_support(
     *,
     tested_candidate_ids: Sequence[str],
@@ -1269,6 +1358,26 @@ def _cross_validate_task18_dsr_support(
     row = support["dsr"]
     if row["state"] != COMPLETE or support["mode"] != PRODUCTION:
         return
+    if row["schema_version"] == "protocol_v3_dsr_batch_evidence_v1":
+        from .dsr_batch import validate_dsr_batch_identity_payload
+
+        identity = validate_dsr_batch_identity_payload(row["value"])
+        evidence = identity["evidence"]
+        if evidence["pbo_identity"] != support["pbo"]["value"]:
+            raise InnerSelectionError(
+                "Task-18 batch DSR and Task-17 PBO identities differ"
+            )
+        if evidence["cycle_index"] != cycle_index:
+            raise InnerSelectionError(
+                "Task-18 batch DSR belongs to another cycle"
+            )
+        if [item["candidate_id"] for item in evidence["profiles"]] != list(
+            tested_candidate_ids
+        ):
+            raise InnerSelectionError(
+                "Task-18 batch DSR inventory differs from selected cycle"
+            )
+        return
     identities = row["value"]
     if set(identities) != set(tested_candidate_ids):
         raise InnerSelectionError("Task-18 DSR inventory differs from selected cycle")
@@ -1295,6 +1404,18 @@ def _dsr_selection_values(support: Mapping[str, Any]) -> dict[str, float]:
         return {}
     if support["mode"] == SYNTHETIC_TEST_FIXTURE:
         return {key: float(value) for key, value in row["value"].items()}
+    if row["schema_version"] == "protocol_v3_dsr_batch_evidence_v1":
+        from .dsr_batch import validate_dsr_batch_identity_payload
+
+        evidence = validate_dsr_batch_identity_payload(row["value"])[
+            "evidence"
+        ]
+        return {
+            item["candidate_id"]: float(
+                item["result"]["development_dsr"]
+            )
+            for item in evidence["profiles"]
+        }
     return {
         candidate_id: float(identity["evidence"]["development_dsr"])
         for candidate_id, identity in row["value"].items()
@@ -1350,6 +1471,35 @@ def _validate_support_row(value: Any, name: str, mode: str) -> dict[str, Any]:
                 raise InnerSelectionError("dsr.value must be a candidate-score mapping")
             if mode == SYNTHETIC_TEST_FIXTURE:
                 row["value"] = dict(sorted((_candidate_id(key), _finite_number(score, f"dsr.{key}")) for key, score in row["value"].items()))
+            elif (
+                row["schema_version"]
+                == "protocol_v3_dsr_batch_evidence_v1"
+            ):
+                from .dsr_batch import (
+                    COMPLETE as DSR_BATCH_COMPLETE,
+                    validate_dsr_batch_identity_payload,
+                )
+
+                identity = validate_dsr_batch_identity_payload(row["value"])
+                evidence = identity["evidence"]
+                if any(
+                    item["result"]["state"] != DSR_BATCH_COMPLETE
+                    for item in evidence["profiles"]
+                ):
+                    raise InnerSelectionError(
+                        "complete batch DSR support contains insufficient evidence"
+                    )
+                if [
+                    item["candidate_id"] for item in evidence["profiles"]
+                ] != row["candidate_ids"]:
+                    raise InnerSelectionError(
+                        "batch DSR support inventory differs"
+                    )
+                if row["evidence_sha256"] != identity["evidence_sha256"]:
+                    raise InnerSelectionError(
+                        "batch DSR support digest differs from Task-18"
+                    )
+                row["value"] = identity
             else:
                 from .dsr import COMPLETE as DSR_COMPLETE, validate_dsr_identity_payload
                 identities = {
@@ -1541,6 +1691,7 @@ __all__ = [
     "build_frozen_selection_config",
     "build_incomplete_development_support",
     "build_dsr_development_support",
+    "build_dsr_batch_development_support",
     "build_matrix_development_support",
     "build_pbo_development_support",
     "build_selection_training_window",

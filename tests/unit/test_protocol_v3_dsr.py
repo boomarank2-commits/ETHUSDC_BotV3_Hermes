@@ -10,7 +10,14 @@ from pathlib import Path
 
 import pytest
 
-from ethusdc_bot.protocol_v3 import dsr, dsr_api, inner_selection, pbo
+from ethusdc_bot.protocol_v3 import (
+    dsr,
+    dsr_api,
+    dsr_batch,
+    dsr_batch_api,
+    inner_selection,
+    pbo,
+)
 from ethusdc_bot.protocol_v3.trial_ledger import DEVELOPMENT_DSR_READY, read_trial_ledger
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -78,12 +85,15 @@ def test_contract_public_api_and_pipeline_binding_are_exact() -> None:
     assert contract["series_policy"]["lag_count_at_360"] == 5
     assert contract["trial_policy"]["n_eff_trials_is_diagnostic_only"] is True
     assert dsr_api.__all__ == dsr.__all__
+    assert dsr_batch_api.__all__ == dsr_batch.__all__
     pipeline = json.loads((REPO_ROOT / "configs/protocol_v3_pipeline_contract.json").read_text())
     assert dsr.CONTRACT_VERSION in pipeline["component_contracts"]["ranking"]
     for path in (
         "configs/protocol_v3_dsr_contract.json",
         "src/ethusdc_bot/protocol_v3/dsr.py",
         "src/ethusdc_bot/protocol_v3/dsr_api.py",
+        "src/ethusdc_bot/protocol_v3/dsr_batch.py",
+        "src/ethusdc_bot/protocol_v3/dsr_batch_api.py",
     ):
         assert path in pipeline["source_bindings"]["ranking"]
 
@@ -134,6 +144,11 @@ def test_complete_inventory_reproduces_exact_dsr_and_diagnostics(state, monkeypa
     candidate_a, candidate_b, matrix, pbo_evidence = _matrix_and_pbo(state)
     snapshot = _complete_snapshot(state, matrix)
     monkeypatch.setattr(dsr, "_current_ledger", lambda value: snapshot)
+    monkeypatch.setattr(
+        dsr_batch,
+        "_current_ledger",
+        lambda value: snapshot,
+    )
     profiles = matrix.to_dict()["cycles"][0]["profiles"]
     evidence = {
         row["candidate_id"]: dsr.calculate_dsr(
@@ -141,6 +156,47 @@ def test_complete_inventory_reproduces_exact_dsr_and_diagnostics(state, monkeypa
             selected_profile_id=row["profile_id"],
             trial_ledger=snapshot,
         )
+        for row in profiles
+    }
+    batch = dsr.calculate_dsr_batch(
+        pbo_evidence=pbo_evidence,
+        selected_profile_ids=[row["profile_id"] for row in profiles],
+        trial_ledger=snapshot,
+    )
+    assert {
+        profile_id: value.to_dict()
+        for profile_id, value in batch.items()
+    } == {
+        row["profile_id"]: evidence[row["candidate_id"]].to_dict()
+        for row in profiles
+    }
+    compact = dsr_batch.calculate_dsr_batch_evidence(
+        pbo_evidence=pbo_evidence,
+        cycle_index=1,
+        trial_ledger=snapshot,
+    )
+    compact_payload = compact.to_dict()
+    assert [
+        row["result"]["development_dsr"]
+        for row in compact_payload["profiles"]
+    ] == [
+        evidence[row["candidate_id"]].to_dict()["development_dsr"]
+        for row in profiles
+    ]
+    assert dsr_batch.validate_dsr_batch_evidence(compact) == compact
+    support_from_batch = (
+        inner_selection.build_dsr_batch_development_support(
+            compact,
+            trial_ledger=snapshot,
+        ).to_dict()
+    )
+    assert support_from_batch["dsr"]["state"] == inner_selection.COMPLETE
+    assert inner_selection._dsr_selection_values(
+        support_from_batch
+    ) == {
+        row["candidate_id"]: evidence[row["candidate_id"]].to_dict()[
+            "development_dsr"
+        ]
         for row in profiles
     }
     payload = evidence[candidate_a].to_dict()

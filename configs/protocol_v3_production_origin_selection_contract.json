@@ -30,12 +30,12 @@
     "stored_per_cycle_pbo_or_dsr_may_select": false
   },
   "selection_policy": {
-    "task15_decision_required_for_every_cycle": true,
+    "task15_decision_recomputed_for_every_cycle": true,
     "task15_decision_must_bind_recomputed_matrix_pbo_dsr": true,
+    "caller_supplied_task15_decisions_allowed": false,
     "only_candidate_outcomes_may_compete": true,
     "ranking_source": "protocol_v3_lexicographic_inner_ranking_v1",
     "target_usdc_per_day_used": false,
-    "missing_or_invalid_decision_result": "NO_TRADE",
     "no_gate_passing_candidate_result": "NO_TRADE"
   },
   "artifact_policy": {

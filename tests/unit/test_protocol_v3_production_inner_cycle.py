@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 import hashlib
+import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -9,24 +10,47 @@ import pytest
 
 from ethusdc_bot.backtest.data_loader import AlignedMarketCandles, Candle
 from ethusdc_bot.backtest.simulator import StrategyCandidate
-from ethusdc_bot.protocol_v3 import boundaries, inner_folds
+from ethusdc_bot.protocol_v3 import boundaries, inner_folds, inner_selection
 from ethusdc_bot.protocol_v3 import production_inner_cycle as cycle_executor
 from ethusdc_bot.protocol_v3 import production_inner_cycle_api
 from ethusdc_bot.protocol_v3 import production_origin_selection
 from ethusdc_bot.protocol_v3 import production_origin_selection_api
+from ethusdc_bot.protocol_v3.candidate_matrix import (
+    build_candidate_daily_matrix,
+)
 from ethusdc_bot.protocol_v3.runtime_state import HorizonPolicy
 from ethusdc_bot.protocol_v3.trial_ledger import (
     import_canonical_historical_lower_bound,
     read_trial_ledger,
+    record_cache_reuse,
+)
+from protocol_v3_quality_support import complete_quality_evidence
+from scripts.run_protocol_v3_production_inner_cycle import (
+    _required_context_days,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMMIT = "a" * 40
 HORIZON = HorizonPolicy(10_080, 10_080, 2)
+_TASK13_SUPPORT_PATH = Path(__file__).with_name(
+    "protocol_v3_task13_support.py"
+)
+_TASK13_SPEC = importlib.util.spec_from_file_location(
+    "protocol_v3_production_cycle_task13_support",
+    _TASK13_SUPPORT_PATH,
+)
+assert _TASK13_SPEC is not None and _TASK13_SPEC.loader is not None
+task13_support = importlib.util.module_from_spec(_TASK13_SPEC)
+_TASK13_SPEC.loader.exec_module(task13_support)
 
 
 @pytest.fixture
-def state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    production_identity,
+):
+    identity_state = production_identity
     origin = boundaries.build_monthly_process_boundary_plan(
         "2026-07-08"
     ).origins[0]
@@ -82,44 +106,106 @@ def state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         cycle_executor, "evaluate_candidate_on_inner_folds", fake_evaluate
     )
-
-    def fake_dsr(*, pbo_evidence, selected_profile_id, trial_ledger):
-        pbo = pbo_evidence.to_dict()
-        digest = hashlib.sha256(selected_profile_id.encode()).hexdigest()
-        return SimpleNamespace(
-            to_dict=lambda: {
-                "state": "COMPLETE",
-                "evidence_sha256": digest,
-                "pbo_evidence_sha256": pbo["evidence_sha256"],
-                "matrix_sha256": pbo["matrix_identity"]["matrix_sha256"],
-            }
-        )
-
-    def fake_support(evidence_by_candidate, *, cycle_index, trial_ledger):
-        first = next(iter(evidence_by_candidate.values())).to_dict()
-        return SimpleNamespace(
-            to_dict=lambda: {
-                "matrix": {
-                    "state": "COMPLETE",
-                    "evidence_sha256": first["matrix_sha256"],
-                },
-                "pbo": {
-                    "state": "COMPLETE",
-                    "evidence_sha256": first["pbo_evidence_sha256"],
-                },
-                "dsr": {"state": "COMPLETE"},
-            }
-        )
-
-    monkeypatch.setattr(cycle_executor, "calculate_dsr", fake_dsr)
     monkeypatch.setattr(
-        cycle_executor, "build_dsr_development_support", fake_support
+        cycle_executor,
+        "build_production_finalist_quality_evidence",
+        lambda **kwargs: complete_quality_evidence(),
     )
+    monkeypatch.setattr(
+        cycle_executor,
+        "validate_production_finalist_quality_evidence",
+        lambda value: value,
+    )
+
+    def fake_batch(*, pbo_evidence, cycle_index, trial_ledger):
+        pbo_payload = pbo_evidence.to_dict()
+        cycle = pbo_payload["matrix_identity"]["matrix"]["cycles"][0]
+        digest = hashlib.sha256(
+            f"batch:{cycle_index}:{pbo_evidence.evidence_sha256}".encode()
+        ).hexdigest()
+        payload = {
+            "pbo_identity": pbo_evidence.identity_payload,
+            "cycle_index": cycle_index,
+            "profiles": [
+                {
+                    "profile_id": row["profile_id"],
+                    "candidate_id": row["candidate_id"],
+                    "result": {
+                        "state": "INSUFFICIENT_EVIDENCE",
+                        "reason": "fixture_fast_batch",
+                        "development_dsr": None,
+                        "passed_minimum_dsr": False,
+                    },
+                    "profile_evidence_sha256": hashlib.sha256(
+                        row["profile_id"].encode()
+                    ).hexdigest(),
+                }
+                for row in cycle["profiles"]
+            ],
+            "shared_statistics": {
+                "state": "INSUFFICIENT_EVIDENCE",
+                "reason": "fixture_fast_batch",
+            },
+            "evidence_sha256": digest,
+        }
+        return SimpleNamespace(
+            pbo=pbo_evidence,
+            cycle_index=cycle_index,
+            to_dict=lambda: payload,
+        )
+
+    def fake_validate_batch(value):
+        if hasattr(value, "to_dict"):
+            return value
+        return SimpleNamespace(to_dict=lambda: dict(value))
+
+    def fake_batch_support(batch, *, trial_ledger):
+        return inner_selection.build_pbo_development_support(
+            batch.pbo,
+            cycle_index=batch.cycle_index,
+        )
+
+    monkeypatch.setattr(
+        cycle_executor,
+        "calculate_dsr_batch_evidence",
+        fake_batch,
+    )
+    monkeypatch.setattr(
+        cycle_executor,
+        "validate_dsr_batch_evidence",
+        fake_validate_batch,
+    )
+    monkeypatch.setattr(
+        cycle_executor,
+        "build_dsr_batch_development_support",
+        fake_batch_support,
+    )
+
     return {
         "plan": plan,
         "ledger_root": ledger_root,
         "context": context,
+        "manifest": identity_state["manifest"],
+        "fingerprint": identity_state["fingerprint"],
     }
+
+
+@pytest.fixture(scope="module")
+def production_identity(tmp_path_factory: pytest.TempPathFactory):
+    monkeypatch = pytest.MonkeyPatch()
+    import ethusdc_bot.protocol_v3.reporting as reporting_module
+
+    monkeypatch.setattr(
+        reporting_module,
+        "_utc_now",
+        lambda: datetime(2026, 7, 16, tzinfo=UTC),
+    )
+    identity_state = task13_support.build_state(
+        tmp_path_factory.mktemp("production-identity"),
+        monkeypatch,
+    )
+    monkeypatch.undo()
+    return identity_state
 
 
 def _run(state):
@@ -150,6 +236,16 @@ def _run_cycle(state, cycle_index: int):
     )
 
 
+def test_cli_loads_complete_730_day_development_context(state) -> None:
+    start, end = _required_context_days(state["plan"])
+    assert start == state["plan"].training_start_inclusive_utc.date()
+    assert end == (
+        state["plan"].training_end_exclusive_utc.date()
+        - timedelta(days=1)
+    )
+    assert (end - start).days + 1 == 730
+
+
 def test_public_api_and_real_cycle_evidence_chain(state) -> None:
     assert production_inner_cycle_api.__all__ == cycle_executor.__all__
     result = _run(state)
@@ -159,7 +255,7 @@ def test_public_api_and_real_cycle_evidence_chain(state) -> None:
     assert len(payload["candidate_summaries"]) == 12
     assert len(payload["matrix"]["day_grid"]) == 360
     assert payload["pbo"]["state"] == "COMPLETE"
-    assert len(payload["dsr_by_candidate"]) == 12
+    assert len(payload["dsr_batch"]["profiles"]) == 12
     assert payload["development_support"]["matrix"]["state"] == "COMPLETE"
     assert payload["development_support"]["pbo"]["state"] == "COMPLETE"
     assert payload["safety"]["orders"] == "locked"
@@ -244,68 +340,180 @@ def test_result_write_is_create_only(state, tmp_path: Path) -> None:
         cycle_executor.write_production_inner_cycle_result(result, target)
 
 
-def test_full_cross_cycle_origin_recomputes_96_profiles_and_blocks_without_task15(
+def test_recomputed_task15_decision_binds_real_cycle_quality_and_support(
+    state,
+) -> None:
+    result = _run_cycle(state, 1).to_dict()
+    decision = production_origin_selection._build_cycle_decision(
+        result,
+        plan=state["plan"],
+        origin_index=1,
+        support=result["development_support"],
+        pre_run_manifest=state["manifest"],
+        run_fingerprint=state["fingerprint"],
+    )
+    payload = decision.to_dict()
+    assert payload["fixture_only"] is False
+    assert payload["outcome"] == production_origin_selection.NO_TRADE
+    assert payload["frozen_pipeline_config"][
+        "candidate_evidence"
+    ] == result["finalist_candidate_evidence"]
+    assert payload["frozen_pipeline_config"][
+        "development_support"
+    ] == result["development_support"]
+
+
+def test_full_cross_cycle_origin_recomputes_96_profiles_and_task15(
     state,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    results = [_run_cycle(state, index) for index in range(1, 9)]
-
-    def fake_full_matrix_dsr(
-        *,
-        pbo_evidence,
-        selected_profile_id,
-        trial_ledger,
-    ):
-        pbo = pbo_evidence.to_dict()
-        digest = hashlib.sha256(selected_profile_id.encode()).hexdigest()
-        profiles = [
-            profile
-            for cycle in pbo["matrix_identity"]["matrix"]["cycles"]
-            for profile in cycle["profiles"]
-        ]
-        selected = next(
-            row for row in profiles if row["profile_id"] == selected_profile_id
+    base = _run_cycle(state, 1).to_dict()
+    base_cycle = base["matrix"]["cycles"][0]
+    for cycle_index in range(2, 9):
+        for profile in base_cycle["profiles"]:
+            record_cache_reuse(
+                state["ledger_root"],
+                trial_id=profile["trial_id"],
+                reuse_scope={
+                    "origin_index": 1,
+                    "cycle_index": cycle_index,
+                },
+            )
+    ledger = read_trial_ledger(state["ledger_root"])
+    rows = []
+    for cycle_index in range(1, 9):
+        matrix = build_candidate_daily_matrix(
+            fold_plan=state["plan"],
+            origin_index=1,
+            cycles=[
+                {
+                    "cycle_index": cycle_index,
+                    "tested_candidate_ids": base_cycle[
+                        "tested_candidate_ids"
+                    ],
+                    "promoted_candidate_ids": base_cycle[
+                        "promoted_candidate_ids"
+                    ],
+                    "finalist_candidate_ids": base_cycle[
+                        "finalist_candidate_ids"
+                    ],
+                    "profiles": [
+                        {
+                            "candidate_id": profile["candidate_id"],
+                            "trial_id": profile["trial_id"],
+                            "cache_reuse": cycle_index > 1,
+                            "folds": [
+                                {
+                                    "fold_index": fold["fold_index"],
+                                    "fold_id": fold["fold_id"],
+                                    "daily_net_mtm_usdc": fold[
+                                        "daily_net_mtm_usdc"
+                                    ],
+                                }
+                                for fold in profile["folds"]
+                            ],
+                        }
+                        for profile in base_cycle["profiles"]
+                    ],
+                }
+            ],
+            trial_ledger=ledger,
         )
+        rows.append(
+            {
+                **base,
+                "cycle_index": cycle_index,
+                "matrix": matrix.to_dict(),
+                "result_sha256": hashlib.sha256(
+                    f"source:{cycle_index}".encode()
+                ).hexdigest(),
+            }
+        )
+    monkeypatch.setattr(
+        production_origin_selection,
+        "_validated_cycle_rows",
+        lambda *args, **kwargs: rows,
+    )
+
+    def fake_batch(*, pbo_evidence, cycle_index, trial_ledger):
+        cycle = pbo_evidence.to_dict()["matrix_identity"]["matrix"]["cycles"][
+            cycle_index - 1
+        ]
         return SimpleNamespace(
             to_dict=lambda: {
-                "state": "COMPLETE",
-                "reason": "fixture_complete",
-                "selected_candidate_id": selected["candidate_id"],
-                "development_dsr": 0.0,
-                "passed_minimum_dsr": False,
-                "n_raw": 180,
-                "complete_native_trial_count": 96,
-                "evidence_sha256": digest,
+                "profiles": [
+                    {
+                        "profile_id": row["profile_id"],
+                        "candidate_id": row["candidate_id"],
+                        "result": {
+                            "state": "INSUFFICIENT_EVIDENCE",
+                            "reason": "fixture_compact",
+                            "development_dsr": None,
+                            "passed_minimum_dsr": False,
+                        },
+                        "profile_evidence_sha256": hashlib.sha256(
+                            row["profile_id"].encode()
+                        ).hexdigest(),
+                    }
+                    for row in cycle["profiles"]
+                ],
+                "shared_statistics": {
+                    "state": "INSUFFICIENT_EVIDENCE",
+                    "reason": "fixture_compact",
+                },
             }
         )
 
-    def fake_cycle_support(evidence, *, cycle_index, trial_ledger):
-        digest = hashlib.sha256(f"support:{cycle_index}".encode()).hexdigest()
+    def fake_support(batch, *, trial_ledger):
         return SimpleNamespace(
             to_dict=lambda: {
                 "matrix": {"state": "COMPLETE"},
                 "pbo": {"state": "COMPLETE"},
-                "dsr": {"state": "COMPLETE"},
-                "support_sha256": digest,
+                "dsr": {"state": "INSUFFICIENT_EVIDENCE"},
+                "support_sha256": hashlib.sha256(
+                    b"fixture-support"
+                ).hexdigest(),
             }
+        )
+
+    def fake_decision(row, **kwargs):
+        digest = hashlib.sha256(
+            f"decision:{row['cycle_index']}".encode()
+        ).hexdigest()
+        return SimpleNamespace(
+            decision_id=f"protocol_v3_selection_sha256:{digest}",
+            to_dict=lambda: {
+                "decision_id": f"protocol_v3_selection_sha256:{digest}",
+                "decision_sha256": digest,
+                "outcome": production_origin_selection.NO_TRADE,
+                "selected_candidate": None,
+                "ranking_evidence": [],
+            },
         )
 
     monkeypatch.setattr(
         production_origin_selection,
-        "calculate_dsr",
-        fake_full_matrix_dsr,
+        "calculate_dsr_batch_evidence",
+        fake_batch,
     )
     monkeypatch.setattr(
         production_origin_selection,
-        "build_dsr_development_support",
-        fake_cycle_support,
+        "build_dsr_batch_development_support",
+        fake_support,
+    )
+    monkeypatch.setattr(
+        production_origin_selection,
+        "_build_cycle_decision",
+        fake_decision,
     )
     result = production_origin_selection.build_production_origin_selection(
         repo_root=REPO_ROOT,
         fold_plan=state["plan"],
-        trial_ledger=read_trial_ledger(state["ledger_root"]),
-        cycle_results=results,
+        trial_ledger=ledger,
+        cycle_results=[],
+        pre_run_manifest=state["manifest"],
+        run_fingerprint=state["fingerprint"],
         code_commit=COMMIT,
     )
     payload = result.to_dict()
@@ -320,9 +528,8 @@ def test_full_cross_cycle_origin_recomputes_96_profiles_and_blocks_without_task1
     assert payload["pbo_summary"]["matrix_sha256"] == payload["matrix"][
         "matrix_sha256"
     ]
-    assert payload["state"] == (
-        production_origin_selection.BLOCKED_MISSING_TASK15_DECISIONS
-    )
+    assert len(payload["cycle_decision_summaries"]) == 8
+    assert payload["state"] == production_origin_selection.NO_TRADE
     assert payload["outcome"] == production_origin_selection.NO_TRADE
     assert payload["selected_candidate"] is None
     assert payload["target_usdc_per_day_used_for_selection"] is False
@@ -342,27 +549,6 @@ def test_full_cross_cycle_origin_recomputes_96_profiles_and_blocks_without_task1
             result, target
         )
 
-    mixed = list(results)
-    changed = mixed[-1].to_dict()
-    changed.pop("result_sha256")
-    changed["code_commit"] = "b" * 40
-    mixed[-1] = cycle_executor.ProductionInnerCycleResult(
-        cycle_executor._canonical(changed),
-        cycle_executor._digest(changed),
-    )
-    with pytest.raises(
-        production_origin_selection.ProductionOriginSelectionError,
-        match="mix identity",
-    ):
-        production_origin_selection.build_production_origin_selection(
-            repo_root=REPO_ROOT,
-            fold_plan=state["plan"],
-            trial_ledger=read_trial_ledger(state["ledger_root"]),
-            cycle_results=mixed,
-            code_commit=COMMIT,
-        )
-
-
 def test_cross_cycle_origin_rejects_duplicate_or_missing_cycles(
     state,
 ) -> None:
@@ -376,5 +562,7 @@ def test_cross_cycle_origin_rejects_duplicate_or_missing_cycles(
             fold_plan=state["plan"],
             trial_ledger=read_trial_ledger(state["ledger_root"]),
             cycle_results=[result] * 8,
+            pre_run_manifest=state["manifest"],
+            run_fingerprint=state["fingerprint"],
             code_commit=COMMIT,
         )

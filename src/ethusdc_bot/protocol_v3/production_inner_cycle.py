@@ -18,16 +18,24 @@ from ethusdc_bot.backtest.search_space import (
 )
 
 from .candidate_matrix import build_candidate_daily_matrix
-from .dsr import calculate_dsr
+from .dsr_batch import (
+    calculate_dsr_batch_evidence,
+    validate_dsr_batch_evidence,
+)
 from .inner_folds import InnerFoldPlan, validate_inner_fold_plan
 from .inner_selection import (
     build_candidate_selection_evidence,
-    build_dsr_development_support,
+    build_dsr_batch_development_support,
     build_selection_training_window,
+    validate_candidate_selection_evidence,
 )
 from .intrabar_execution import BASELINE_COST_PROFILE
 from .pbo import calculate_pbo
 from .pipeline import build_pipeline_generation
+from .production_finalist_quality import (
+    build_production_finalist_quality_evidence,
+    validate_production_finalist_quality_evidence,
+)
 from .production_fold_evaluator import evaluate_candidate_on_inner_folds
 from .run_identity import FrozenExchangeInfoSnapshot
 from .runtime_state import HorizonPolicy
@@ -109,6 +117,12 @@ def execute_production_inner_cycle(
         raise ProductionInnerCycleError(
             "production candidate budget must remain exactly 40/12"
         )
+    generated_ids = sorted(
+        build_candidate_selection_evidence(
+            candidate, {}, window
+        ).canonical_candidate_id
+        for candidate in generated
+    )
     ledger_root = Path(trial_ledger_root).resolve(strict=True)
     ledger = read_trial_ledger(ledger_root)
     profiles = []
@@ -253,6 +267,27 @@ def execute_production_inner_cycle(
     tested_ids = sorted(row["candidate_id"] for row in summaries)
     promoted_ids = sorted(row["candidate_id"] for row in ranked[:3])
     finalist_ids = sorted(row["candidate_id"] for row in ranked[:2])
+    candidates_by_id = {
+        build_candidate_selection_evidence(
+            candidate, {}, window
+        ).canonical_candidate_id: candidate
+        for candidate in tested
+    }
+    finalist_evidence = [
+        build_candidate_selection_evidence(
+            candidates_by_id[candidate_id],
+            build_production_finalist_quality_evidence(
+                repo_root=repo,
+                context=context,
+                candidate=candidates_by_id[candidate_id],
+                fold_plan=plan,
+                exchange_info_snapshot=exchange_info_snapshot,
+                horizon_policy=horizon_policy,
+            ),
+            window,
+        ).to_dict()
+        for candidate_id in finalist_ids
+    ]
     matrix = build_candidate_daily_matrix(
         fold_plan=plan,
         origin_index=origin,
@@ -268,18 +303,13 @@ def execute_production_inner_cycle(
         trial_ledger=ledger,
     )
     pbo = calculate_pbo(matrix)
-    matrix_cycle = matrix.to_dict()["cycles"][0]
-    dsr_by_candidate = {
-        profile["candidate_id"]: calculate_dsr(
-            pbo_evidence=pbo,
-            selected_profile_id=profile["profile_id"],
-            trial_ledger=ledger,
-        )
-        for profile in matrix_cycle["profiles"]
-    }
-    support = build_dsr_development_support(
-        dsr_by_candidate,
+    dsr_batch = calculate_dsr_batch_evidence(
+        pbo_evidence=pbo,
         cycle_index=cycle,
+        trial_ledger=ledger,
+    )
+    support = build_dsr_batch_development_support(
+        dsr_batch,
         trial_ledger=ledger,
     )
     basis = {
@@ -291,18 +321,17 @@ def execute_production_inner_cycle(
         "cycle_index": cycle,
         "fold_plan_sha256": plan.plan_sha256,
         "generated_candidate_count": len(generated),
+        "generated_candidate_ids": generated_ids,
         "tested_candidate_count": len(tested),
         "candidate_summaries": sorted(
             summaries, key=lambda row: row["candidate_id"]
         ),
         "promoted_candidate_ids": promoted_ids,
         "finalist_candidate_ids": finalist_ids,
+        "finalist_candidate_evidence": finalist_evidence,
         "matrix": matrix.to_dict(),
         "pbo": pbo.to_dict(),
-        "dsr_by_candidate": {
-            key: value.to_dict()
-            for key, value in sorted(dsr_by_candidate.items())
-        },
+        "dsr_batch": dsr_batch.to_dict(),
         "development_support": support.to_dict(),
         "trial_ledger_head_sha256": ledger.status.head_sha256,
         "safety": dict(_SAFETY),
@@ -329,13 +358,15 @@ def validate_production_inner_cycle_result(
         "cycle_index",
         "fold_plan_sha256",
         "generated_candidate_count",
+        "generated_candidate_ids",
         "tested_candidate_count",
         "candidate_summaries",
         "promoted_candidate_ids",
         "finalist_candidate_ids",
+        "finalist_candidate_evidence",
         "matrix",
         "pbo",
-        "dsr_by_candidate",
+        "dsr_batch",
         "development_support",
         "trial_ledger_head_sha256",
         "safety",
@@ -348,6 +379,10 @@ def validate_production_inner_cycle_result(
         or root["safety"] != _SAFETY
         or not _COMMIT.fullmatch(str(root["code_commit"]))
         or root["generated_candidate_count"] != 40
+        or not isinstance(root["generated_candidate_ids"], list)
+        or len(root["generated_candidate_ids"]) != 40
+        or root["generated_candidate_ids"]
+        != sorted(set(root["generated_candidate_ids"]))
         or root["tested_candidate_count"] != 12
         or not isinstance(root["candidate_summaries"], list)
         or not isinstance(root["promoted_candidate_ids"], list)
@@ -355,12 +390,59 @@ def validate_production_inner_cycle_result(
         or len(root["candidate_summaries"]) != 12
         or len(root["promoted_candidate_ids"]) != 3
         or len(root["finalist_candidate_ids"]) != 2
+        or not isinstance(root["finalist_candidate_evidence"], list)
+        or len(root["finalist_candidate_evidence"]) != 2
     ):
         raise ProductionInnerCycleError(
             "production inner-cycle fields or budgets are invalid"
         )
+    finalist_evidence = sorted(
+        (
+            validate_candidate_selection_evidence(row).to_dict()
+            for row in root["finalist_candidate_evidence"]
+        ),
+        key=lambda row: row["candidate"]["canonical_candidate_id"],
+    )
+    if (
+        [
+            row["candidate"]["canonical_candidate_id"]
+            for row in finalist_evidence
+        ]
+        != root["finalist_candidate_ids"]
+        or root["finalist_candidate_evidence"] != finalist_evidence
+    ):
+        raise ProductionInnerCycleError(
+            "production finalist evidence inventory is invalid"
+        )
+    for row in finalist_evidence:
+        if (
+            validate_production_finalist_quality_evidence(
+                row["quality_evidence"]
+            )
+            != row["quality_evidence"]
+        ):
+            raise ProductionInnerCycleError(
+                "production finalist quality evidence is not canonical"
+            )
     matrix = _mapping(root["matrix"], "matrix")
+    summary_ids = sorted(
+        row["candidate_id"] for row in root["candidate_summaries"]
+    )
+    matrix_cycle = matrix.get("cycles", [None])[0]
+    if (
+        not isinstance(matrix_cycle, Mapping)
+        or summary_ids != matrix_cycle.get("tested_candidate_ids")
+        or not set(summary_ids) <= set(root["generated_candidate_ids"])
+        or root["promoted_candidate_ids"]
+        != matrix_cycle.get("promoted_candidate_ids")
+        or root["finalist_candidate_ids"]
+        != matrix_cycle.get("finalist_candidate_ids")
+    ):
+        raise ProductionInnerCycleError(
+            "production candidate stage inventories are inconsistent"
+        )
     pbo = _mapping(root["pbo"], "pbo")
+    dsr_batch = validate_dsr_batch_evidence(root["dsr_batch"]).to_dict()
     support = _mapping(root["development_support"], "development_support")
     if (
         matrix.get("matrix_sha256")
@@ -369,6 +451,9 @@ def validate_production_inner_cycle_result(
         != matrix.get("matrix_sha256")
         or support.get("pbo", {}).get("evidence_sha256")
         != pbo.get("evidence_sha256")
+        or dsr_batch["pbo_identity"]["evidence_sha256"]
+        != pbo.get("evidence_sha256")
+        or dsr_batch["cycle_index"] != root["cycle_index"]
         or matrix.get("trial_ledger_head_sha256")
         != root["trial_ledger_head_sha256"]
     ):

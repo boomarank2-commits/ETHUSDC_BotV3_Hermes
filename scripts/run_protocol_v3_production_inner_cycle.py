@@ -27,6 +27,15 @@ from ethusdc_bot.protocol_v3.task33_preflight import (
 )
 
 
+def _required_context_days(plan):
+    """Return the complete development window required by finalist quality."""
+
+    return (
+        plan.training_start_inclusive_utc.date(),
+        plan.training_end_exclusive_utc.date() - timedelta(days=1),
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo-root", type=Path, required=True)
@@ -52,10 +61,7 @@ def main() -> int:
     plan = build_inner_fold_plan_for_origin(
         origin, policy, repo_root=args.repo_root
     )
-    start = plan.folds[0].validation_start_inclusive_utc.date()
-    end = plan.folds[-1].validation_end_exclusive_utc.date() - timedelta(
-        days=1
-    )
+    start, end = _required_context_days(plan)
     context = load_aligned_market_candles(
         args.raw_root,
         start_day=start,

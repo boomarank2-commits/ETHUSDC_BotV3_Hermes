@@ -63,8 +63,10 @@ _TASK_BINDING_FILES: Final = {
     ),
     "15": (
         "configs/protocol_v3_inner_selection_contract.json",
+        "configs/protocol_v3_production_finalist_quality_contract.json",
         "configs/protocol_v3_production_origin_selection_contract.json",
         "src/ethusdc_bot/protocol_v3/inner_selection.py",
+        "src/ethusdc_bot/protocol_v3/production_finalist_quality.py",
         "src/ethusdc_bot/protocol_v3/production_origin_selection.py",
     ),
     "16": (
@@ -79,6 +81,7 @@ _TASK_BINDING_FILES: Final = {
     "18": (
         "configs/protocol_v3_dsr_contract.json",
         "src/ethusdc_bot/protocol_v3/dsr.py",
+        "src/ethusdc_bot/protocol_v3/dsr_batch.py",
     ),
     "19": (
         "configs/protocol_v3_feature_store_contract.json",

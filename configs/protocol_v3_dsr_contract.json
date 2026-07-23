@@ -4,6 +4,16 @@
   "contract_version": "protocol_v3_exact_deflated_sharpe_with_legacy_floor_v2",
   "evidence_schema_version": "protocol_v3_dsr_evidence_v2",
   "identity_schema_version": "protocol_v3_dsr_identity_v2",
+  "batch_contract_version": "protocol_v3_shared_statistics_batch_dsr_v1",
+  "batch_evidence_schema_version": "protocol_v3_dsr_batch_evidence_v1",
+  "batch_identity_schema_version": "protocol_v3_dsr_batch_identity_v1",
+  "batch_policy": {
+    "shared_trial_inventory_computed_once": true,
+    "shared_correlation_matrix_computed_once": true,
+    "scalar_dsr_formula_unchanged": true,
+    "profile_results_recomputed_during_validation": true,
+    "pbo_identity_embedded_once": true
+  },
   "series_policy": {
     "days": 360,
     "sample_std_ddof": 1,

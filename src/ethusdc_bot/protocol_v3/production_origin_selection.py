@@ -26,20 +26,23 @@ from .candidate_matrix import (
     build_candidate_daily_matrix,
     validate_candidate_daily_matrix,
 )
-from .dsr import calculate_dsr
+from .dsr_batch import calculate_dsr_batch_evidence
 from .inner_folds import InnerFoldPlan, validate_inner_fold_plan
 from .inner_selection import (
     CANDIDATE,
-    build_dsr_development_support,
+    build_dsr_batch_development_support,
+    build_frozen_selection_config,
+    build_selection_training_window,
     lexicographic_candidate_rank_key,
-    validate_selection_decision,
+    select_candidate,
 )
 from .pbo import calculate_pbo, validate_pbo_evidence
-from .pipeline import build_pipeline_generation
+from .pipeline import PreRunManifest, build_pipeline_generation
 from .production_inner_cycle import (
     ProductionInnerCycleResult,
     validate_production_inner_cycle_result,
 )
+from .run_identity import RunFingerprint
 from .trial_ledger import TrialLedgerSnapshot, read_trial_ledger
 
 PROTOCOL_VERSION: Final = "3.0.0"
@@ -54,9 +57,6 @@ RESULT_SCHEMA_VERSION: Final = (
     "protocol_v3_production_origin_selection_result_v1"
 )
 MAX_CYCLES_REACHED: Final = "max_cycles_reached"
-BLOCKED_MISSING_TASK15_DECISIONS: Final = (
-    "BLOCKED_MISSING_TASK15_DECISIONS"
-)
 READY_CANDIDATE: Final = "READY_CANDIDATE"
 NO_TRADE: Final = "NO_TRADE"
 _CYCLES: Final = tuple(range(1, 9))
@@ -95,12 +95,12 @@ _CANONICAL_CONTRACT: Final = {
         "stored_per_cycle_pbo_or_dsr_may_select": False,
     },
     "selection_policy": {
-        "task15_decision_required_for_every_cycle": True,
+        "task15_decision_recomputed_for_every_cycle": True,
         "task15_decision_must_bind_recomputed_matrix_pbo_dsr": True,
+        "caller_supplied_task15_decisions_allowed": False,
         "only_candidate_outcomes_may_compete": True,
         "ranking_source": "protocol_v3_lexicographic_inner_ranking_v1",
         "target_usdc_per_day_used": False,
-        "missing_or_invalid_decision_result": NO_TRADE,
         "no_gate_passing_candidate_result": NO_TRADE,
     },
     "artifact_policy": {
@@ -154,8 +154,9 @@ def build_production_origin_selection(
     cycle_results: Sequence[
         ProductionInnerCycleResult | Mapping[str, Any]
     ],
+    pre_run_manifest: PreRunManifest | Mapping[str, Any],
+    run_fingerprint: RunFingerprint | Mapping[str, Any],
     code_commit: str,
-    cycle_decisions: Sequence[Mapping[str, Any]] = (),
     terminal_stop_reason: str = MAX_CYCLES_REACHED,
 ) -> ProductionOriginSelectionResult:
     """Recompute complete origin evidence and select only from Task-15 output."""
@@ -186,42 +187,44 @@ def build_production_origin_selection(
     pbo = calculate_pbo(matrix)
     matrix_payload = matrix.to_dict()
     pbo_payload = pbo.to_dict()
-    dsr_by_profile = {
-        profile["profile_id"]: calculate_dsr(
+    decisions = {}
+    dsr_summaries = []
+    support_summaries = []
+    for cycle in matrix_payload["cycles"]:
+        dsr_batch = calculate_dsr_batch_evidence(
             pbo_evidence=pbo,
-            selected_profile_id=profile["profile_id"],
+            cycle_index=cycle["cycle_index"],
             trial_ledger=ledger,
         )
-        for cycle in matrix_payload["cycles"]
-        for profile in cycle["profiles"]
-    }
-    support_by_cycle = {}
-    for cycle in matrix_payload["cycles"]:
-        evidence = {
-            profile["candidate_id"]: dsr_by_profile[profile["profile_id"]]
-            for profile in cycle["profiles"]
-        }
-        support_by_cycle[cycle["cycle_index"]] = (
-            build_dsr_development_support(
-                evidence,
-                cycle_index=cycle["cycle_index"],
-                trial_ledger=ledger,
-            )
+        support = build_dsr_batch_development_support(
+            dsr_batch,
+            trial_ledger=ledger,
         )
-
-    decisions, missing_cycles = _validated_decisions(
-        cycle_decisions,
-        origin_index=origin,
-        support_by_cycle=support_by_cycle,
-    )
-    blockers = []
+        support_summaries.append(
+            _support_summary(cycle["cycle_index"], support.to_dict())
+        )
+        batch_payload = dsr_batch.to_dict()
+        dsr_summaries.extend(
+            _dsr_batch_summary(
+                row,
+                batch_payload["shared_statistics"],
+            )
+            for row in batch_payload["profiles"]
+        )
+        source = next(
+            row for row in rows if row["cycle_index"] == cycle["cycle_index"]
+        )
+        decisions[cycle["cycle_index"]] = _build_cycle_decision(
+            source,
+            plan=plan,
+            origin_index=origin,
+            support=support,
+            pre_run_manifest=pre_run_manifest,
+            run_fingerprint=run_fingerprint,
+        )
+    blockers: list[str] = []
     ranked = []
     decision_summaries = []
-    if missing_cycles:
-        blockers.append(
-            "TASK15_DECISIONS_MISSING_FOR_CYCLES:"
-            + ",".join(str(value) for value in missing_cycles)
-        )
     for cycle_index, decision in sorted(decisions.items()):
         payload = decision.to_dict()
         selected = payload["selected_candidate"]
@@ -276,10 +279,7 @@ def build_production_origin_selection(
     selected_ranking = None
     selected_cycle_index = None
     selected_decision_id = None
-    if blockers:
-        state = BLOCKED_MISSING_TASK15_DECISIONS
-        outcome = NO_TRADE
-    elif ranked:
+    if ranked:
         ranked.sort(key=lambda item: (item[0], item[1]))
         _, selected_cycle_index, selected_candidate, selected_ranking, chosen = (
             ranked[0]
@@ -308,14 +308,11 @@ def build_production_origin_selection(
         ],
         "matrix": matrix_payload,
         "pbo_summary": _pbo_summary(pbo_payload),
-        "dsr_summaries": [
-            _dsr_summary(profile_id, evidence.to_dict())
-            for profile_id, evidence in sorted(dsr_by_profile.items())
-        ],
-        "development_support_summaries": [
-            _support_summary(cycle_index, support.to_dict())
-            for cycle_index, support in sorted(support_by_cycle.items())
-        ],
+        "dsr_summaries": sorted(
+            dsr_summaries,
+            key=lambda row: row["profile_id"],
+        ),
+        "development_support_summaries": support_summaries,
         "cycle_decision_summaries": decision_summaries,
         "state": state,
         "outcome": outcome,
@@ -485,34 +482,8 @@ def validate_production_origin_selection(
         raise ProductionOriginSelectionError(
             "cycle decision summaries are duplicated or unordered"
         )
-    missing_decisions = [
-        cycle for cycle in _CYCLES if cycle not in decision_cycles
-    ]
-    expected_missing_blocker = (
-        "TASK15_DECISIONS_MISSING_FOR_CYCLES:"
-        + ",".join(str(value) for value in missing_decisions)
-        if missing_decisions
-        else None
-    )
-    if state == BLOCKED_MISSING_TASK15_DECISIONS:
-        if (
-            outcome != NO_TRADE
-            or blockers != [expected_missing_blocker]
-            or not missing_decisions
-            or any(
-                root[key] is not None
-                for key in (
-                    "selected_cycle_index",
-                    "selected_decision_id",
-                    "selected_candidate",
-                    "selected_ranking_evidence",
-                )
-            )
-        ):
-            raise ProductionOriginSelectionError(
-                "blocked origin selection must remain NO_TRADE"
-            )
-    elif state == READY_CANDIDATE:
+    missing_decisions = [cycle for cycle in _CYCLES if cycle not in decision_cycles]
+    if state == READY_CANDIDATE:
         if (
             outcome != CANDIDATE
             or blockers
@@ -641,35 +612,46 @@ def _matrix_cycle_input(matrix: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _validated_decisions(
-    values: Sequence[Mapping[str, Any]],
+def _build_cycle_decision(
+    row: Mapping[str, Any],
     *,
+    plan: InnerFoldPlan,
     origin_index: int,
-    support_by_cycle: Mapping[int, Any],
-) -> tuple[dict[int, Any], list[int]]:
-    if not isinstance(values, Sequence) or isinstance(values, (str, bytes)):
-        raise ProductionOriginSelectionError(
-            "cycle_decisions must be a sequence"
+    support: Any,
+    pre_run_manifest: PreRunManifest | Mapping[str, Any],
+    run_fingerprint: RunFingerprint | Mapping[str, Any],
+) -> Any:
+    window = build_selection_training_window(plan)
+    cycle = row["cycle_index"]
+    matrix_cycle = validate_candidate_daily_matrix(
+        row["matrix"]
+    ).to_dict()["cycles"][0]
+    try:
+        config = build_frozen_selection_config(
+            pre_run_manifest=pre_run_manifest,
+            run_fingerprint=run_fingerprint,
+            fold_identity=plan.identity_payload,
+            origin_index=origin_index,
+            cycle_index=cycle,
+            generated_candidate_ids=row["generated_candidate_ids"],
+            tested_candidate_ids=matrix_cycle["tested_candidate_ids"],
+            walk_forward_candidate_ids=matrix_cycle[
+                "promoted_candidate_ids"
+            ],
+            finalist_candidate_ids=matrix_cycle["finalist_candidate_ids"],
+            candidate_evidence=row["finalist_candidate_evidence"],
+            development_support=support,
         )
-    result = {}
-    for value in values:
-        decision = validate_selection_decision(value)
-        payload = decision.to_dict()
-        config = payload["frozen_pipeline_config"]
-        cycle = config["cycle_index"]
-        if (
-            config["origin_index"] != origin_index
-            or cycle not in _CYCLES
-            or cycle in result
-            or config["development_support"]
-            != support_by_cycle[cycle].to_dict()
-        ):
-            raise ProductionOriginSelectionError(
-                "Task-15 decision does not bind recomputed origin evidence"
-            )
-        result[cycle] = decision
-    missing = [cycle for cycle in _CYCLES if cycle not in result]
-    return result, missing
+        decision = select_candidate(window, config)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ProductionOriginSelectionError(
+            "production cycle cannot build a recomputed Task-15 decision"
+        ) from exc
+    if decision.to_dict()["fixture_only"] is not False:
+        raise ProductionOriginSelectionError(
+            "production Task-15 decision cannot use fixture evidence"
+        )
+    return decision
 
 
 def _pbo_summary(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -706,6 +688,33 @@ def _dsr_summary(profile_id: str, payload: Mapping[str, Any]) -> dict[str, Any]:
             "complete_native_trial_count"
         ],
         "evidence_sha256": payload["evidence_sha256"],
+    }
+
+
+def _dsr_batch_summary(
+    payload: Mapping[str, Any],
+    shared: Mapping[str, Any],
+) -> dict[str, Any]:
+    result = payload["result"]
+    score = result["development_dsr"]
+    if score is not None and (
+        isinstance(score, bool)
+        or not isinstance(score, (int, float))
+        or not math.isfinite(float(score))
+    ):
+        raise ProductionOriginSelectionError("batch DSR score is non-finite")
+    return {
+        "profile_id": payload["profile_id"],
+        "candidate_id": payload["candidate_id"],
+        "state": result["state"],
+        "reason": result["reason"],
+        "development_dsr": score,
+        "passed_minimum_dsr": result["passed_minimum_dsr"],
+        "n_raw": shared.get("n_raw"),
+        "complete_native_trial_count": shared.get(
+            "complete_native_trial_count"
+        ),
+        "evidence_sha256": payload["profile_evidence_sha256"],
     }
 
 
@@ -792,7 +801,6 @@ def _strict_loads(text: str) -> dict[str, Any]:
 
 
 __all__ = [
-    "BLOCKED_MISSING_TASK15_DECISIONS",
     "CONTRACT_PATH",
     "CONTRACT_SCHEMA_VERSION",
     "CONTRACT_VERSION",

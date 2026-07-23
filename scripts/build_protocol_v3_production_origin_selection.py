@@ -39,13 +39,8 @@ def main() -> int:
         required=True,
         help="Repeat exactly eight times for cycles 1 through 8.",
     )
-    parser.add_argument(
-        "--cycle-decision",
-        type=Path,
-        action="append",
-        default=[],
-        help="Repeat for validated Task-15 decisions; omitted decisions block.",
-    )
+    parser.add_argument("--pre-run-manifest", type=Path, required=True)
+    parser.add_argument("--run-fingerprint", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--code-commit", required=True)
     parser.add_argument("--origin-index", type=int, required=True)
@@ -77,17 +72,18 @@ def main() -> int:
         json.loads(path.read_text(encoding="utf-8"))
         for path in args.cycle_result
     ]
-    cycle_decisions = [
-        json.loads(path.read_text(encoding="utf-8"))
-        for path in args.cycle_decision
-    ]
     result = build_production_origin_selection(
         repo_root=args.repo_root,
         fold_plan=plan,
         trial_ledger=read_trial_ledger(args.ledger_root),
         cycle_results=cycle_results,
+        pre_run_manifest=json.loads(
+            args.pre_run_manifest.read_text(encoding="utf-8")
+        ),
+        run_fingerprint=json.loads(
+            args.run_fingerprint.read_text(encoding="utf-8")
+        ),
         code_commit=args.code_commit,
-        cycle_decisions=cycle_decisions,
     )
     target = write_production_origin_selection(result, args.output)
     payload = result.to_dict()

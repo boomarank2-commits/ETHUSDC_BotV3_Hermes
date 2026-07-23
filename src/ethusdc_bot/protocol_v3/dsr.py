@@ -48,6 +48,16 @@ _CANONICAL_CONTRACT = {
     "schema_version": CONTRACT_SCHEMA_VERSION, "protocol_version": PROTOCOL_VERSION,
     "contract_version": CONTRACT_VERSION, "evidence_schema_version": EVIDENCE_SCHEMA_VERSION,
     "identity_schema_version": IDENTITY_SCHEMA_VERSION,
+    "batch_contract_version": "protocol_v3_shared_statistics_batch_dsr_v1",
+    "batch_evidence_schema_version": "protocol_v3_dsr_batch_evidence_v1",
+    "batch_identity_schema_version": "protocol_v3_dsr_batch_identity_v1",
+    "batch_policy": {
+        "shared_trial_inventory_computed_once": True,
+        "shared_correlation_matrix_computed_once": True,
+        "scalar_dsr_formula_unchanged": True,
+        "profile_results_recomputed_during_validation": True,
+        "pbo_identity_embedded_once": True,
+    },
     "series_policy": {"days": 360, "sample_std_ddof": 1, "annualization": False, "lag_formula": "floor(4*(n/100)^(2/9))", "lag_count_at_360": 5, "autocorrelation": "centered_lag_product_over_full_centered_sum_squares", "vif_floor": 1.0},
     "moment_policy": {"minimum_n": 4, "skew": "adjusted_fisher_pearson_G1", "kurtosis": "unbiased_fisher_excess_G2_plus_3_pearson"},
     "trial_policy": {
@@ -112,6 +122,40 @@ def calculate_dsr(
     return validate_dsr_evidence({**basis, "evidence_sha256": _digest(basis)})
 
 
+def calculate_dsr_batch(
+    *,
+    pbo_evidence: PBOEvidence | Mapping[str, Any],
+    selected_profile_ids: Sequence[str],
+    trial_ledger: TrialLedgerSnapshot,
+) -> dict[str, DSREvidence]:
+    """Calculate multiple DSR rows with one shared trial-statistics pass."""
+
+    pbo = validate_pbo_evidence(pbo_evidence)
+    profile_ids = [
+        _text(value, "selected_profile_id") for value in selected_profile_ids
+    ]
+    if not profile_ids or len(profile_ids) != len(set(profile_ids)):
+        raise DSRError("selected_profile_ids must be non-empty and unique")
+    ledger = _current_ledger(trial_ledger)
+    prepared = None
+    try:
+        prepared = _prepare_dsr_inputs(pbo, ledger)
+    except (LegacyMultiplicityError, _InsufficientStatistics):
+        pass
+    result = {}
+    for profile_id in profile_ids:
+        basis = _dsr_basis(
+            pbo,
+            profile_id,
+            ledger,
+            prepared=prepared,
+        )
+        result[profile_id] = validate_dsr_evidence(
+            {**basis, "evidence_sha256": _digest(basis)}
+        )
+    return result
+
+
 def validate_dsr_for_ledger(
     evidence: DSREvidence | Mapping[str, Any],
     trial_ledger: TrialLedgerSnapshot,
@@ -125,11 +169,24 @@ def validate_dsr_for_ledger(
     return validated
 
 
-def _dsr_basis(pbo: PBOEvidence, profile_id: str, ledger: TrialLedgerSnapshot) -> dict[str, Any]:
+def _dsr_basis(
+    pbo: PBOEvidence,
+    profile_id: str,
+    ledger: TrialLedgerSnapshot,
+    *,
+    prepared: tuple[Any, list[dict[str, Any]], int, int, dict[str, Any]]
+    | None = None,
+) -> dict[str, Any]:
     pbo_payload = pbo.to_dict()
     matrix = pbo_payload["matrix_identity"]["matrix"]
     profiles = [profile for cycle in matrix["cycles"] for profile in cycle["profiles"]]
-    policy = load_legacy_multiplicity_policy(Path(__file__).resolve().parents[3])
+    policy = (
+        prepared[0]
+        if prepared is not None
+        else load_legacy_multiplicity_policy(
+            Path(__file__).resolve().parents[3]
+        )
+    )
     common = {
         "schema_version": EVIDENCE_SCHEMA_VERSION, "protocol_version": PROTOCOL_VERSION,
         "contract_version": CONTRACT_VERSION, "pbo_identity": pbo.identity_payload,
@@ -152,14 +209,22 @@ def _dsr_basis(pbo: PBOEvidence, profile_id: str, ledger: TrialLedgerSnapshot) -
     if matrix["trial_ledger_head_sha256"] != ledger.status.head_sha256:
         raise DSRError("DSR ledger head differs from Task-16 matrix ledger head")
     try:
-        validate_ledger_status_for_legacy_floor(ledger.status.to_dict(), policy)
-        trial_rows, complete_native_trial_count = _native_trial_inventory(
-            ledger, matrix["day_grid"]
-        )
-        n_raw = adjusted_n_raw(
-            policy,
-            complete_native_trial_count=complete_native_trial_count,
-        )
+        if prepared is None:
+            (
+                _,
+                trial_rows,
+                complete_native_trial_count,
+                n_raw,
+                shared_statistics,
+            ) = _prepare_dsr_inputs(pbo, ledger)
+        else:
+            (
+                _,
+                trial_rows,
+                complete_native_trial_count,
+                n_raw,
+                shared_statistics,
+            ) = prepared
     except LegacyMultiplicityError:
         return {
             **common,
@@ -185,6 +250,7 @@ def _dsr_basis(pbo: PBOEvidence, profile_id: str, ledger: TrialLedgerSnapshot) -
             legacy_multiplicity_policy=policy.to_dict(),
             n_raw=n_raw,
             complete_native_trial_count=complete_native_trial_count,
+            shared_statistics=shared_statistics,
         )
     except _InsufficientStatistics as exc:
         return {**common, **_empty_result(INSUFFICIENT_EVIDENCE, str(exc))}
@@ -214,6 +280,7 @@ def _statistics(
     legacy_multiplicity_policy: Mapping[str, Any],
     n_raw: int,
     complete_native_trial_count: int,
+    shared_statistics: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     n = len(values)
     if n != REQUIRED_DAYS or int(math.floor(4 * (n / 100) ** (2 / 9))) != LAG_COUNT:
@@ -228,28 +295,117 @@ def _statistics(
     vif = max(1.0, 1.0 + 2.0 * math.fsum((1.0 - lag / (LAG_COUNT + 1)) * autocorrelations[lag - 1] for lag in range(1, LAG_COUNT + 1)))
     n_eff = n / vif
     skew, kurtosis = _moments(centered, std)
-    sharpes = [float(row["sharpe"]) for row in trial_rows]
-    _, sigma_sr = _mean_std(sharpes)
-    if sigma_sr <= 0.0:
-        raise _InsufficientStatistics("trial_sharpe_set_zero_variance")
-    correlations = _correlation_matrix([[float(item["net_usdc"]) for item in row["daily_net_mtm_usdc"]] for row in trial_rows])
-    trace = float(len(correlations))
-    trace_square = math.fsum(value * value for row in correlations for value in row)
-    n_eff_trials = trace * trace / trace_square
-    same_grid_native_count = len(trial_rows)
-    if (
-        n_raw
-        != int(legacy_multiplicity_policy["legacy_multiplicity_floor"])
-        + complete_native_trial_count
-    ):
-        raise DSRError("DSR n_raw differs from legacy floor plus native trials")
+    shared = (
+        dict(shared_statistics)
+        if shared_statistics is not None
+        else _shared_statistics(
+            trial_rows,
+            legacy_multiplicity_policy=legacy_multiplicity_policy,
+            n_raw=n_raw,
+            complete_native_trial_count=complete_native_trial_count,
+        )
+    )
+    sigma_sr = shared["sigma_sr"]
+    correlations = shared["correlation_matrix"]
+    n_eff_trials = shared["n_eff_trials"]
+    same_grid_native_count = shared["same_grid_native_trial_count"]
+    sr0 = shared["sr0"]
     normal = NormalDist()
-    sr0 = sigma_sr * ((1.0 - EULER_GAMMA) * normal.inv_cdf(1.0 - 1.0 / n_raw) + EULER_GAMMA * normal.inv_cdf(1.0 - 1.0 / (n_raw * math.e)))
     denominator = 1.0 - skew * sharpe + ((kurtosis - 1.0) / 4.0) * sharpe * sharpe
     if denominator <= 0.0 or not math.isfinite(denominator) or n_eff <= 1.0:
         raise _InsufficientStatistics("invalid_dsr_denominator_or_effective_sample_size")
     z = (sharpe - sr0) * math.sqrt(n_eff - 1.0) / math.sqrt(denominator)
     dsr = normal.cdf(z)
+    return {
+        "n": n, "lag_count": LAG_COUNT, "daily_mean": mean, "sample_std": std,
+        "sharpe": sharpe, "autocorrelations": autocorrelations, "vif": vif,
+        "n_eff": n_eff, "skew": skew, "pearson_kurtosis": kurtosis,
+        "n_raw": n_raw,
+        "complete_native_trial_count": complete_native_trial_count,
+        "same_grid_native_trial_count": same_grid_native_count,
+        "trial_rows": trial_rows,
+        "trial_set_sha256": shared["trial_set_sha256"],
+        "sigma_sr": sigma_sr,
+        "correlation_matrix": correlations,
+        "correlation_sha256": shared["correlation_sha256"],
+        "n_eff_trials": n_eff_trials, "sr0": sr0, "denominator": denominator,
+        "z": z, "development_dsr": dsr, "passed_minimum_dsr": dsr >= MIN_DSR,
+    }
+
+
+def _prepare_dsr_inputs(
+    pbo: PBOEvidence,
+    ledger: TrialLedgerSnapshot,
+) -> tuple[Any, list[dict[str, Any]], int, int, dict[str, Any]]:
+    matrix = pbo.to_dict()["matrix_identity"]["matrix"]
+    policy = load_legacy_multiplicity_policy(
+        Path(__file__).resolve().parents[3]
+    )
+    validate_ledger_status_for_legacy_floor(ledger.status.to_dict(), policy)
+    trial_rows, complete_native_trial_count = _native_trial_inventory(
+        ledger,
+        matrix["day_grid"],
+    )
+    n_raw = adjusted_n_raw(
+        policy,
+        complete_native_trial_count=complete_native_trial_count,
+    )
+    if complete_native_trial_count != ledger.status.native_trial_count:
+        raise DSRError(
+            "native ledger count differs from its complete trial inventory"
+        )
+    if len(trial_rows) < 2:
+        raise _InsufficientStatistics("fewer_than_two_complete_trials")
+    shared = _shared_statistics(
+        trial_rows,
+        legacy_multiplicity_policy=policy.to_dict(),
+        n_raw=n_raw,
+        complete_native_trial_count=complete_native_trial_count,
+    )
+    return policy, trial_rows, complete_native_trial_count, n_raw, shared
+
+
+def _shared_statistics(
+    trial_rows: list[dict[str, Any]],
+    *,
+    legacy_multiplicity_policy: Mapping[str, Any],
+    n_raw: int,
+    complete_native_trial_count: int,
+) -> dict[str, Any]:
+    sharpes = [float(row["sharpe"]) for row in trial_rows]
+    _, sigma_sr = _mean_std(sharpes)
+    if sigma_sr <= 0.0:
+        raise _InsufficientStatistics("trial_sharpe_set_zero_variance")
+    correlations = _correlation_matrix(
+        [
+            [
+                float(item["net_usdc"])
+                for item in row["daily_net_mtm_usdc"]
+            ]
+            for row in trial_rows
+        ]
+    )
+    trace = float(len(correlations))
+    trace_square = math.fsum(
+        value * value for row in correlations for value in row
+    )
+    n_eff_trials = trace * trace / trace_square
+    if (
+        n_raw
+        != int(
+            legacy_multiplicity_policy["legacy_multiplicity_floor"]
+            + complete_native_trial_count
+        )
+    ):
+        raise DSRError(
+            "DSR n_raw differs from legacy floor plus native trials"
+        )
+    normal = NormalDist()
+    sr0 = sigma_sr * (
+        (1.0 - EULER_GAMMA) * normal.inv_cdf(1.0 - 1.0 / n_raw)
+        + EULER_GAMMA
+        * normal.inv_cdf(1.0 - 1.0 / (n_raw * math.e))
+    )
     trial_set_basis = {
         "legacy_multiplicity_policy": dict(legacy_multiplicity_policy),
         "complete_native_trial_count": complete_native_trial_count,
@@ -263,17 +419,13 @@ def _statistics(
         ],
     }
     return {
-        "n": n, "lag_count": LAG_COUNT, "daily_mean": mean, "sample_std": std,
-        "sharpe": sharpe, "autocorrelations": autocorrelations, "vif": vif,
-        "n_eff": n_eff, "skew": skew, "pearson_kurtosis": kurtosis,
-        "n_raw": n_raw,
-        "complete_native_trial_count": complete_native_trial_count,
-        "same_grid_native_trial_count": same_grid_native_count,
-        "trial_rows": trial_rows,
-        "trial_set_sha256": _digest(trial_set_basis), "sigma_sr": sigma_sr,
-        "correlation_matrix": correlations, "correlation_sha256": _digest(correlations),
-        "n_eff_trials": n_eff_trials, "sr0": sr0, "denominator": denominator,
-        "z": z, "development_dsr": dsr, "passed_minimum_dsr": dsr >= MIN_DSR,
+        "sigma_sr": sigma_sr,
+        "correlation_matrix": correlations,
+        "correlation_sha256": _digest(correlations),
+        "n_eff_trials": n_eff_trials,
+        "same_grid_native_trial_count": len(trial_rows),
+        "sr0": sr0,
+        "trial_set_sha256": _digest(trial_set_basis),
     }
 
 
@@ -507,4 +659,4 @@ def _strict_loads(text: str) -> dict[str, Any]:
     return json.loads(text, object_pairs_hook=hook, parse_constant=lambda value: (_ for _ in ()).throw(DSRError(f"non-finite JSON constant: {value}")))
 
 
-__all__ = ["COMPLETE", "CONTRACT_PATH", "CONTRACT_SCHEMA_VERSION", "CONTRACT_VERSION", "DSRError", "DSREvidence", "EVIDENCE_SCHEMA_VERSION", "IDENTITY_SCHEMA_VERSION", "INSUFFICIENT_EVIDENCE", "INSUFFICIENT_TRIAL_HISTORY", "LAG_COUNT", "MIN_DSR", "NOT_APPLICABLE_NO_TRADE", "build_dsr_identity_payload", "calculate_dsr", "load_dsr_contract", "validate_dsr_evidence", "validate_dsr_for_ledger", "validate_dsr_identity_payload"]
+__all__ = ["COMPLETE", "CONTRACT_PATH", "CONTRACT_SCHEMA_VERSION", "CONTRACT_VERSION", "DSRError", "DSREvidence", "EVIDENCE_SCHEMA_VERSION", "IDENTITY_SCHEMA_VERSION", "INSUFFICIENT_EVIDENCE", "INSUFFICIENT_TRIAL_HISTORY", "LAG_COUNT", "MIN_DSR", "NOT_APPLICABLE_NO_TRADE", "build_dsr_identity_payload", "calculate_dsr", "calculate_dsr_batch", "load_dsr_contract", "validate_dsr_evidence", "validate_dsr_for_ledger", "validate_dsr_identity_payload"]
