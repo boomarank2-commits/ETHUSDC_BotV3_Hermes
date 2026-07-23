@@ -2,6 +2,26 @@
 
 Stand: 2026-07-23
 
+## Verbindlicher Nutzerauftrag
+
+Das dauerhafte Projektziel ist nicht mit `33/33 DONE_100` erfuellt. Die 33
+Protocol-v3-Aufgaben muessen nicht nur vorhanden und getestet sein, sondern im
+echten, aus der UI gestarteten Backtestpfad nachweisbar aktiv und semantisch
+korrekt verwendet werden.
+
+Die Arbeit wird ursachenbasiert fortgesetzt, bis ein kausaler Kandidat im
+realistischen 365-Tage-Prozess nach Fees, Slippage und Binance-Regeln mindestens
+`+3 USDC/Tag` erreicht und die vorgeschriebenen Quality-Gates besteht. Solange
+dieser Nachweis fehlt, ist das Projektziel nicht abgeschlossen. Jeder Lauf muss
+den Abstand zum Ziel, die aktive Protocol-v3-Kette und den kleinsten belegten
+naechsten Engpass dokumentieren. Ein Ergebnis `TARGET_NOT_REACHED` oder
+`NO_EDGE_FOUND` beendet den Nutzerauftrag nicht, sondern erzeugt das naechste
+kleinste Diagnoseticket.
+
+Unveraendert verboten bleiben Lookahead, Fake-Trades/-Reports, perfekte Fills,
+Gate- oder Kostenlockerungen, Ergebnisoptimierung auf dem verbrauchten Outer-
+Fenster sowie automatische Paper-, Testtrade-, Live- oder Orderfreigabe.
+
 ## Verbindlicher Gesamtstand
 
 `33/33 = 100 % DONE_100` Aufgabenfortschritt.

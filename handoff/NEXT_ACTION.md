@@ -2,6 +2,24 @@
 
 Stand: 2026-07-23
 
+## Dauerauftrag und Abschlussbedingung
+
+Wenn der Nutzer spaeter nur `mach weiter` schreibt, bedeutet das:
+
+1. am unten dokumentierten kleinsten Protocol-v3-Engpass fortsetzen;
+2. beweisen, welche der 33 Aufgaben im echten UI-Backtestpfad ausgefuehrt
+   werden, statt nur ihre Dateien oder Tests zu zaehlen;
+3. fehlende Produktionsintegration minimal und getestet schliessen;
+4. den realistischen monatlichen Research-/Backtestprozess erneut ausfuehren;
+5. bei weniger als `+3 USDC/Tag` Reports und Ablehnungsgruende auswerten und
+   das naechste kleinste, belegte Folgeticket bearbeiten.
+
+Der Gesamtauftrag ist erst abgeschlossen, wenn mindestens `+3 USDC/Tag` nach
+Fees, Slippage und Binance-Regeln im vorgeschriebenen 365-Tage-Prozess kausal
+nachgewiesen sind und alle Quality-Gates bestehen. `33/33 DONE_100`, gruene
+Tests, ein technisch erfolgreicher Lauf oder ein positiver Trainingswert sind
+allein keine Abschlussbedingung.
+
 ## Ausgangslage
 
 Die Implementierungssequenz 1 bis 33 ist vollständig abgearbeitet. Aufgabe 33 endete rechtmäßig mit `BLOCKED_INSUFFICIENT_TRIAL_HISTORY`; dies ist kein Backtest-Pass und keine Bot-Freigabe.
