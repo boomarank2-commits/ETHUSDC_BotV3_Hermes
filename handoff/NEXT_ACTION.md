@@ -114,3 +114,26 @@ Die Remediation muss in dieser Reihenfolge erfolgen:
   daraus gebundene Task-15-Entscheidungen
 - Bericht:
   `handoff/PROTOCOL_V3_CROSS_CYCLE_ORIGIN_SELECTION_2026-07-23.md`
+
+## Aktualisierung nach realer Finalisten-Qualität
+
+Der frühere Punkt 6 ist erledigt. Vollständige training-only Quality-Evidenz
+für beide Finalisten, die interne Task-15-Neuberechnung nach der vollständigen
+96-Profil-Matrix und der kompakte, mathematisch unveränderte DSR-Batch sind in
+Commit `c5e9c0997385462148d3b7ba86e51db735edb6f1` implementiert.
+
+Die nächste zulässige Arbeit ist jetzt:
+
+1. den vollständigen Task-13-Origin-Work-Unit mit Registration, Claim,
+   Pre-Run-Manifest, Run-Fingerprint, Pipeline-/Code-/Ledger-Bindung,
+   acht Cycle-Slots und Origin-Selection-Slot implementieren;
+2. Crash-/Resume-, Stale-Identity-, Teilartefakt- und Exactly-once-Tests
+   ausführen;
+3. Origin 1 unter
+   `protocol_v3_pipeline_sha256:9e5e6e9d9491ac7fffd5dc23ce17d7bdf9f78a50cd9c9db587c1dcd924f5fe41`
+   neu ausführen;
+4. danach Tasks 19 bis 27 und Origins 2 bis 12 anbinden.
+
+Die Artefakte aus `950c763` und `8fcfb6e` niemals wiederverwenden oder
+umetikettieren. `+3 USDC/Tag` ist weiterhin nicht nachgewiesen; Bot, Paper,
+Testtrade, Live und Adoption bleiben gesperrt.
