@@ -173,13 +173,15 @@ def execute_production_origin_work_unit(
         )
     plan = validate_inner_fold_plan(fold_plan)
     origin = _positive(origin_index, "origin_index")
-    if (
-        origin > len(boundary_plan.origins)
-        or plan.origin_index != origin
-    ):
+    if origin > len(boundary_plan.origins):
         raise ProductionOriginWorkUnitError(
             "origin index differs from boundary or fold plan"
         )
+    _validate_origin_plan_binding(
+        boundary_plan=boundary_plan,
+        fold_plan=plan,
+        origin_index=origin,
+    )
     commit = str(code_commit).strip().lower()
     if not _COMMIT.fullmatch(commit):
         raise ProductionOriginWorkUnitError(
@@ -708,6 +710,24 @@ def _validate_cycle_binding(
     ):
         raise ProductionOriginWorkUnitError(
             "cycle result identity differs from active origin"
+        )
+
+
+def _validate_origin_plan_binding(
+    *,
+    boundary_plan: MonthlyProcessBoundaryPlan,
+    fold_plan: InnerFoldPlan,
+    origin_index: int,
+) -> None:
+    origin = boundary_plan.origins[origin_index - 1]
+    if (
+        fold_plan.training_start_inclusive_utc.date()
+        != origin.training_start_inclusive
+        or fold_plan.training_end_exclusive_utc.date()
+        != origin.training_end_exclusive
+    ):
+        raise ProductionOriginWorkUnitError(
+            "fold plan training window differs from selected origin"
         )
 
 

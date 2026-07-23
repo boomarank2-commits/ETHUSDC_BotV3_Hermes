@@ -10,6 +10,9 @@ import pytest
 from ethusdc_bot.protocol_v3 import production_origin_work_unit as work_unit
 from ethusdc_bot.protocol_v3 import production_origin_work_unit_api
 from ethusdc_bot.protocol_v3 import transactional_cache as tx
+from ethusdc_bot.protocol_v3.boundaries import (
+    build_monthly_process_boundary_plan,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _SUPPORT_PATH = Path(__file__).with_name("protocol_v3_task13_support.py")
@@ -153,4 +156,33 @@ def test_fresh_origin_requires_exact_preflight_ledger_head(
             root=root,
             ledger_root=state["ledger_root"],
             initial_status=stale,
+        )
+
+
+def test_fold_plan_is_bound_to_selected_origin_window(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import ethusdc_bot.protocol_v3.reporting as reporting_module
+
+    monkeypatch.setattr(
+        reporting_module,
+        "_utc_now",
+        lambda: datetime(2026, 7, 16, tzinfo=UTC),
+    )
+    state = support.build_state(tmp_path, monkeypatch)
+    boundary = build_monthly_process_boundary_plan("2026-07-08")
+    work_unit._validate_origin_plan_binding(
+        boundary_plan=boundary,
+        fold_plan=state["inner_fold_plan"],
+        origin_index=1,
+    )
+    with pytest.raises(
+        work_unit.ProductionOriginWorkUnitError,
+        match="training window differs",
+    ):
+        work_unit._validate_origin_plan_binding(
+            boundary_plan=boundary,
+            fold_plan=state["inner_fold_plan"],
+            origin_index=2,
         )
