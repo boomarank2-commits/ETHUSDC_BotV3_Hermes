@@ -1,0 +1,105 @@
+{
+  "schema_version": "protocol_v3_transaction_contract_v4",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_content_addressed_cache_and_transactional_resume_with_inner_selection_and_production_candidates_v4",
+  "identity_slot_schema_version": "protocol_v3_transaction_identity_slot_v1",
+  "transaction_identity_schema_version": "protocol_v3_transaction_identity_v4",
+  "checkpoint_schema_version": "protocol_v3_transaction_checkpoint_v1",
+  "checkpoint_head_schema_version": "protocol_v3_checkpoint_head_v1",
+  "cache_record_schema_version": "protocol_v3_cache_record_v1",
+  "lock_schema_version": "protocol_v3_transaction_lock_v1",
+  "roots": {
+    "checkpoint_root": "reports/protocol_v3/checkpoints",
+    "cache_root": "reports/protocol_v3/cache",
+    "lock_root": "reports/protocol_v3/transaction_locks",
+    "recovered_lock_root": "reports/protocol_v3/recovered_locks"
+  },
+  "identity_policy": {
+    "required_slots": [
+      "three_market_data",
+      "code_pipeline",
+      "feature_identity",
+      "context_identity",
+      "candidate_identity",
+      "fold_identity",
+      "boundary_identity",
+      "horizon_identity",
+      "execution_identity",
+      "simulator_identity",
+      "cost_identity",
+      "quality_gate_identity",
+      "exchange_info_identity",
+      "trial_ledger_head",
+      "rotation_state_identity",
+      "sealed_store_heads"
+    ],
+    "allowed_slot_states": [
+      "BOUND",
+      "GENESIS",
+      "NOT_APPLICABLE"
+    ],
+    "missing_slot_forbidden": true,
+    "none_slot_forbidden": true,
+    "caller_digest_claims_forbidden": true,
+    "full_run_fingerprint_v2_required": true,
+    "concrete_context_parity_binding_required": true,
+    "bound_inner_fold_plan_required": true,
+    "bound_candidate_selection_required": true,
+    "bound_outer_rotation_state_supported": true,
+    "outer_rotation_state_must_match_origin_selection_and_bundle": true,
+    "trial_ledger_head_is_decision_time_head": true,
+    "sealed_store_heads_are_transitively_revalidated": true,
+    "production_candidate_selection_supported_after_tasks_16_18": true
+  },
+  "checkpoint_policy": {
+    "pre_run_manifest_required": true,
+    "seed_namespace_and_derived_state_required": true,
+    "budget_reservations_required": true,
+    "stop_and_stagnation_state_required": true,
+    "temp_file_in_target_directory": true,
+    "file_flush_and_fsync_required": true,
+    "atomic_replace_required": true,
+    "head_is_committed_visibility_marker": true,
+    "resume_uses_last_committed_head_only": true,
+    "resume_requires_exact_rotation_state_identity": true,
+    "orphan_temp_or_checkpoint_is_not_committed": true
+  },
+  "lock_policy": {
+    "exclusive_create": true,
+    "blind_stale_overwrite_forbidden": true,
+    "same_host_dead_process_evidence_required_for_recovery": true,
+    "lock_digest_and_owner_required_for_release": true
+  },
+  "cache_policy": {
+    "cache_key_is_complete_transaction_identity_sha256": true,
+    "transitive_reference_revalidation_on_hit": true,
+    "cache_reuse_appended_to_permanent_trial_ledger": true,
+    "cache_reuse_counts_as_independent_trial": false,
+    "reuse_event_is_deterministic_and_idempotent": true,
+    "crash_after_ledger_append_reuses_same_event_key": true
+  },
+  "fault_injection_phases": [
+    "before_checkpoint_temp",
+    "after_checkpoint_temp_fsync",
+    "after_checkpoint_temp_validate",
+    "after_checkpoint_replace",
+    "after_checkpoint_reload",
+    "after_ledger_reuse_append",
+    "before_head_replace",
+    "after_head_replace"
+  ],
+  "deferred_scope": {
+    "router_task": 22,
+    "outer_orchestration_task": 23,
+    "rotation_persistence_task": 24,
+    "final_evaluator_task": 31
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}

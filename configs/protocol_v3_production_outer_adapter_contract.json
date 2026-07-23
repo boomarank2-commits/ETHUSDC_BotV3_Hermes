@@ -1,0 +1,56 @@
+{
+  "schema_version": "protocol_v3_production_outer_adapter_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_real_outer_origin_production_adapter_v1",
+  "markets": [
+    "ETHUSDC",
+    "BTCUSDC",
+    "ETHBTC"
+  ],
+  "process_policy": {
+    "outer_origins": 12,
+    "cycles_per_origin_max": 8,
+    "inner_folds_per_origin": 6,
+    "validation_days_per_fold": 60,
+    "process_oos_days": 365,
+    "training_days_per_origin": 730,
+    "raw_archive_inventory_must_cover_frozen_snapshot_interval": true,
+    "task13_resume_required": true,
+    "plan_write_is_create_only": true,
+    "old_protocol_v2_runner_forbidden": true,
+    "fixture_evidence_forbidden": true
+  },
+  "required_task_contracts": {
+    "13": "protocol_v3_content_addressed_cache_and_transactional_resume_with_inner_selection_and_production_candidates_v4",
+    "14": "protocol_v3_exact_inner_6x60_day_folds_v1",
+    "15": "protocol_v3_pure_inner_candidate_selection_v1",
+    "16": "protocol_v3_complete_candidate_daily_matrix_and_promotion_v1",
+    "17": "protocol_v3_exact_cscv_pbo_v1",
+    "18": "protocol_v3_exact_deflated_sharpe_with_legacy_floor_v2",
+    "19": "protocol_v3_causal_multitimeframe_feature_store_v1",
+    "20": "protocol_v3_causal_opportunity_regime_v1",
+    "21": "protocol_v3_bounded_local_specialists_v1",
+    "22": "protocol_v3_deterministic_no_trade_router_and_frozen_candidate_bundle_v1",
+    "23": "protocol_v3_twelve_causal_outer_origin_orchestrator_v1",
+    "24": "warmup_purge_fold_outer_state_v1",
+    "25": "protocol_v3_daily_mtm_and_separate_time_aggregations_v1",
+    "26": "monthly_quality_gate_v1",
+    "27": "protocol_v3_bound_hindsight_capture_and_stationary_bootstrap_v2"
+  },
+  "readiness_policy": {
+    "plan_state": "ADAPTER_PLAN_READY",
+    "execution_state_before_executor": "EXECUTOR_NOT_READY",
+    "plan_alone_may_clear_task33": false,
+    "plan_alone_may_start_research": false,
+    "task33_requires_validated_executor_attestation": true
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "canonical_adoption": "locked",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}

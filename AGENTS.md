@@ -224,3 +224,24 @@ Ein Zustand ist erst `fertig`, wenn alle Punkte zutreffen:
 - Git-Stand sauber,
 - Handoff aktualisiert,
 - Nutzer hat naechsten Schritt bestaetigt.
+
+---
+
+## 11. Protocol-v3-Arbeits- und Evidenzvertrag
+
+Protocol-v3-Vertragsgeneration: `3.0.0`
+Maschinenlesbarer Vertrag: `configs/protocol_v3_contract.json`
+Kanonischer Zusatzvertrag: `docs/42_PROTOCOL_V3_EXECUTABLE_CONTRACT.md`
+Verbindliche Reihenfolge: `docs/41_PROTOCOL_V3_IMPLEMENTATION_SEQUENCE.md`
+
+Fuer Protocol v3 gelten zusaetzlich folgende harte Agentenregeln:
+
+1. Es ist immer genau eine Aufgabe aus Dokument 41 aktiv. Eine spaetere Aufgabe beginnt erst, wenn die vorherige Aufgabe mit Tests, Handoff und Git-Synchronitaet `DONE_100` erreicht hat.
+2. Champion ist die versionierte monatliche Auswahlpipeline, nicht ein einzelner fixer Kandidat.
+3. Der Zeitraum `2025-07-08..2026-07-07` bleibt dauerhaft `consumed_audit` und `NOT_FRESH`.
+4. Reine Rohmarktbeobachtungen aus einem frueheren Pseudo-OOS duerfen in einer spaeteren Origin als kausale Historie erscheinen. Fruehere PnL, Rankings, Reports, Gate-Ergebnisse und menschliche Ergebnisinterpretationen duerfen niemals in spaetere Fits gelangen.
+5. `monthly_process_oos` auf der vorhandenen Historie bleibt `diagnostic_only` und kann weder Adoption noch Protocol-v3-Finalstatus erzeugen.
+6. Ein `research_challenger_shadow` ist separat, manuell und strikt orderfrei. Er darf keine Adoption, Orders, Trading-API, Paper-, Testtrade- oder Live-Freigabe ausloesen.
+7. Ein Protocol-v3-Finalstatus ist nur durch einen getrennten Pipeline-Final-Evaluator auf einem vorab registrierten, wirklich neuen `sealed_final_holdout` moeglich.
+8. Protocol v2 und der bestehende Single-Candidate-Finalpfad bleiben erhalten, duerfen aber keinen Protocol-v3-Finalstatus behaupten.
+9. Fehlende oder widerspruechliche Manifest-/Dokumentversionen blockieren fail-closed. Kein Agent darf die Sperre durch Annahmen oder stillschweigende Defaults umgehen.

@@ -1,0 +1,44 @@
+{
+  "schema_version": "protocol_v3_production_finalist_quality_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_real_finalist_quality_evidence_v1",
+  "input_policy": {
+    "selection_window_days": 730,
+    "validation_union_days": 360,
+    "fold_count": 6,
+    "fold_days": 60,
+    "finalists_per_cycle": 2,
+    "training_only": true,
+    "audit_or_holdout_forbidden": true
+  },
+  "evaluation_policy": {
+    "simulator": "protocol_v3_intrabar_execution",
+    "baseline_fee_bps_per_side": 10,
+    "baseline_slippage_bps_per_side": 5,
+    "joint_fee_bps_per_side": 15,
+    "joint_slippage_bps_per_side": 10,
+    "slippage_fee_bps_per_side": 10,
+    "slippage_stress_bps_per_side": 15,
+    "flat_start_per_wfv_fold": true,
+    "full_training_replay_required": true,
+    "continuous_validation_replay_required": true,
+    "all_numeric_parameter_neighbors_required": true,
+    "parameter_neighbor_limit": 18,
+    "rolling_temporal_regime_from_baseline_wfv": true
+  },
+  "output_policy": {
+    "quality_gate_version": "quality_gate_v1",
+    "missing_or_invalid_gate_evidence_forbidden": true,
+    "candidate_evidence_hash_binding_required": true,
+    "outer_results_forbidden": true,
+    "target_usdc_per_day_used": false
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "schema_version": "protocol_v3_router_bundle_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_deterministic_no_trade_router_and_frozen_candidate_bundle_v1",
+  "router_policy": {
+    "outcomes": ["SPECIALIST", "NO_TRADE"],
+    "exactly_one_outcome": true,
+    "no_trade_is_default": true,
+    "task15_selection_required": true,
+    "task20_assessment_must_be_exactly_revalidated": true,
+    "task21_specialist_mapping_required": true,
+    "local_edge_replay_required": true,
+    "btc_or_ethbtc_may_create_position": false,
+    "opportunity_may_determine_direction": false,
+    "max_open_lots": 1
+  },
+  "local_edge_policy": {
+    "required_folds": 6,
+    "days_per_fold": 60,
+    "required_days": 360,
+    "minimum_total_trades": 20,
+    "minimum_profit_factor": 1.05,
+    "every_fold_net_usdc_per_day_must_be_positive": true,
+    "daily_rows_are_specialist_filtered_net_mtm": true,
+    "missing_days_are_not_zero": true,
+    "outer_results_forbidden": true
+  },
+  "bundle_policy": {
+    "binds": [
+      "router_decision",
+      "specialist_bundle",
+      "scalar_parameters",
+      "feature_scalers_and_quantiles",
+      "opportunity_regime_quantiles",
+      "feature_store_identity",
+      "context_policy",
+      "cost_model",
+      "selection_and_local_edge_evidence",
+      "rotation_policy",
+      "validity"
+    ],
+    "valid_from_is_as_of_plus_hours": 24,
+    "entry_before_valid_from_forbidden": true,
+    "retiring_bundle_is_exit_only": true,
+    "flat_handoff_required": true,
+    "task24_runtime_rotation_state_deferred": true,
+    "flat_strategy_candidate_params_are_not_executable": true
+  },
+  "deferred_scope": {
+    "outer_orchestration_task": 23,
+    "runtime_rotation_state_task": 24,
+    "daily_mtm_task": 25
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden",
+    "long_only": true,
+    "symbol": "ETHUSDC"
+  }
+}

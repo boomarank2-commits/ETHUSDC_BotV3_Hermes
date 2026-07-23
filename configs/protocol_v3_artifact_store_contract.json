@@ -1,0 +1,80 @@
+{
+  "schema_version": "protocol_v3_artifact_store_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_compact_artifact_store_v1",
+  "object_schema_version": "protocol_v3_artifact_object_v1",
+  "reference_schema_version": "protocol_v3_artifact_reference_v1",
+  "index_schema_version": "protocol_v3_artifact_index_v1",
+  "object_root": "reports/protocol_v3/artifacts/objects",
+  "index_root": "reports/protocol_v3/artifact_indexes",
+  "artifact_kinds": {
+    "daily_mtm": {
+      "artifact_schema": "protocol_v3_daily_mtm_v1",
+      "cardinality_unit": "utc_days",
+      "coverage_policy": "complete_contiguous_utc_day_grid"
+    },
+    "diagnostics": {
+      "artifact_schema": "protocol_v3_fold_candidate_diagnostics_v1",
+      "cardinality_unit": "records",
+      "coverage_policy": "not_applicable"
+    },
+    "equity_underwater": {
+      "artifact_schema": "protocol_v3_equity_underwater_v1",
+      "cardinality_unit": "points",
+      "coverage_policy": "ordered_unique_utc_timestamps"
+    },
+    "trades": {
+      "artifact_schema": "protocol_v3_trades_v1",
+      "cardinality_unit": "trades",
+      "coverage_policy": "ordered_unique_trade_ids"
+    }
+  },
+  "storage_policy": {
+    "content_address_algorithm": "sha256_actual_canonical_bytes_v1",
+    "object_relative_path": "<artifact_kind>/<sha256_prefix_2>/<sha256>.json",
+    "existing_object_requires_full_reload_and_semantic_validation": true,
+    "overwrite_existing_object": false,
+    "publish_index_only_after_all_objects_reloaded": true,
+    "deduplicate_only_identical_bytes_and_semantics": true,
+    "large_generated_artifacts_gitignored": true,
+    "raw_candles_forbidden": true,
+    "index_embeds_records": false
+  },
+  "provenance_policy": {
+    "required_fields": [
+      "parent_report_id",
+      "parent_report_sha256",
+      "run_fingerprint",
+      "pipeline_generation",
+      "work_unit_id",
+      "work_unit_sha256"
+    ],
+    "parent_report_must_be_persisted_and_revalidated": true,
+    "work_unit_identity_is_embedded_once_in_index": true,
+    "references_must_match_index_provenance": true
+  },
+  "size_policy": {
+    "version": "protocol_v3_compact_index_size_policy_v1",
+    "rationale": "12 origins x 8 cycles x 4 artifact references = 384 references; limits provide 2x reference headroom while remaining independent of candle and curve row counts",
+    "representative_outer_origins": 12,
+    "representative_cycles_per_origin": 8,
+    "artifact_types_per_cycle": 4,
+    "representative_references": 384,
+    "max_references": 768,
+    "max_index_bytes": 1048576,
+    "max_work_unit_identity_bytes": 16384
+  },
+  "deferred_scope": {
+    "transactional_resume_task": 13,
+    "fold_planner_task": 14,
+    "outer_orchestration_task": 23
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}

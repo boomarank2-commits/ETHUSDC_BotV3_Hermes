@@ -1,0 +1,97 @@
+{
+  "schema_version": "protocol_v3_pipeline_final_contract_v2",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_preregistered_transitively_attested_exactly_once_pipeline_final_v2",
+  "registration_schema_version": "protocol_v3_pipeline_final_registration_v1",
+  "claim_schema_version": "protocol_v3_pipeline_final_claim_v1",
+  "roots": {
+    "registration_root": "reports/protocol_v3/evidence_windows/pipeline_final",
+    "claim_root": "reports/protocol_v3/pipeline_final_claims",
+    "attestation_root": "reports/protocol_v3/pipeline_final/attestations",
+    "final_report_root": "reports/protocol_v3/pipeline_final",
+    "open_receipt_root": "reports/protocol_v3/pipeline_final_open_receipts"
+  },
+  "window_policy": {
+    "window_class": "sealed_final_holdout",
+    "calendar_days": 365,
+    "outer_origins": 12,
+    "training_days_per_origin": 730,
+    "activation_delay_hours": 24,
+    "registration_must_precede_window": true,
+    "registration_timestamp_must_be_current": true,
+    "consumed_audit_overlap_forbidden": true,
+    "visible_forward_month_overlap_forbidden": true,
+    "exact_task2_boundary_plan_required": true
+  },
+  "identity_policy": {
+    "exact_identity_fields_required": true,
+    "caller_digest_claims_recomputed": true,
+    "required_fields": [
+      "bootstrap_contract_sha256",
+      "boundary_plan_sha256",
+      "code_commit",
+      "context_contract_sha256",
+      "cost_contract_sha256",
+      "data_contract_sha256",
+      "exchange_info_contract_sha256",
+      "execution_contract_sha256",
+      "feature_contract_sha256",
+      "pipeline_contract_sha256",
+      "pipeline_generation_id",
+      "quality_gate_contract_sha256",
+      "report_contract_sha256",
+      "run_fingerprint",
+      "search_budget_sha256",
+      "seed_policy_sha256",
+      "simulator_contract_sha256",
+      "stop_policy_sha256",
+      "trial_ledger_head_sha256"
+    ]
+  },
+  "claim_policy": {
+    "create_only": true,
+    "exactly_one_evaluation_attempt": true,
+    "claim_must_precede_window": true,
+    "claim_survives_failure": true,
+    "retry_after_claim_forbidden": true,
+    "result_opened_at_claim": false
+  },
+  "sealing_policy": {
+    "intermediate_outer_pnl_visible": false,
+    "intermediate_rankings_visible": false,
+    "intermediate_strategy_switches_visible": false,
+    "final_report_artifact_kind": "protocol_v3_pipeline_final",
+    "task31_attestation_required_before_open": true,
+    "open_exactly_once_after_complete": true,
+    "attestation_transitively_revalidates_tasks_23_25_26_27": true,
+    "final_report_contract_version": "protocol_v3_exactly_once_pipeline_final_report_open_v2",
+    "report_written_before_open_receipt": true,
+    "exact_report_without_receipt_is_crash_recoverable": true,
+    "second_open_after_receipt_forbidden": true,
+    "result_feedback_to_pipeline_forbidden": true,
+    "delayed_receipt_recovery_uses_persisted_report_timestamp": true,
+    "duplicate_json_keys_forbidden": true,
+    "file_and_directory_fsync_required": true,
+    "receipt_without_report_forbidden": true
+  },
+  "legacy_separation": {
+    "legacy_report_type_forbidden": "final_evaluation",
+    "protocol_v2_may_claim_task31": false,
+    "single_candidate_runner_may_claim_task31": false,
+    "task27_task28_task29_evidence_may_claim_freshness": false
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "canonical_adoption": "locked",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  },
+  "progress_schema_version": "protocol_v3_pipeline_final_progress_v1",
+  "checkpoint_receipt_schema_version": "protocol_v3_pipeline_final_checkpoint_receipt_v1",
+  "attestation_schema_version": "protocol_v3_pipeline_final_attestation_v1",
+  "final_report_schema_version": "protocol_v3_report_v1",
+  "open_receipt_schema_version": "protocol_v3_pipeline_final_open_receipt_v1"
+}

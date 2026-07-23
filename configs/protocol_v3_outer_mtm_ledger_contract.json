@@ -1,0 +1,37 @@
+{
+  "schema_version": "protocol_v3_outer_mtm_ledger_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_daily_mtm_and_separate_time_aggregations_v1",
+  "ledger_policy": {
+    "outer_origins": 12,
+    "process_oos_days": 365,
+    "complete_contiguous_utc_day_grid_required": true,
+    "explicit_zero_days_required": true,
+    "daily_net_is_closing_equity_delta": true,
+    "process_ends_flat": true,
+    "process_mtm_total_must_equal_closed_trade_net_total": true
+  },
+  "attribution_policy": {
+    "deployment_intervals_follow_frozen_boundaries": true,
+    "calendar_months_follow_utc_days": true,
+    "calendar_quarters_follow_utc_days": true,
+    "closed_trades_follow_utc_exit_time": true,
+    "fees_and_slippage_follow_actual_execution_day": true,
+    "mtm_and_closed_trade_pnl_are_never_added_together": true
+  },
+  "output_policy": {
+    "deployment_intervals": 12,
+    "all_touched_calendar_months_required": true,
+    "all_touched_calendar_quarters_required": true,
+    "content_hash_required": true,
+    "monthly_quality_gate_deferred_to_task": 26
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}

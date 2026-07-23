@@ -1,0 +1,66 @@
+{
+  "schema_version": "protocol_v3_run_identity_contract_v2",
+  "protocol_version": "3.0.0",
+  "exchange_info_contract_version": "binance_spot_ethusdc_exchange_info_snapshot_v1",
+  "run_fingerprint_contract_version": "protocol_v3_complete_run_fingerprint_v2",
+  "exchange_info_policy": {
+    "exchange": "binance",
+    "market_type": "spot",
+    "symbol": "ETHUSDC",
+    "base_asset": "ETH",
+    "quote_asset": "USDC",
+    "status": "TRADING",
+    "spot_trading_allowed_required": true,
+    "public_payload_only": true,
+    "private_or_account_data_forbidden": true,
+    "required_filters": [
+      "PRICE_FILTER",
+      "LOT_SIZE",
+      "MARKET_LOT_SIZE"
+    ],
+    "notional_filter_any_of": [
+      "MIN_NOTIONAL",
+      "NOTIONAL"
+    ],
+    "canonical_decimal_strings": true,
+    "immutable_write_only": true,
+    "sha256_bound": true
+  },
+  "run_fingerprint_policy": {
+    "timestamp_free_identity": true,
+    "required_identity_keys": [
+      "raw_data",
+      "as_of_day",
+      "code",
+      "pipeline",
+      "features",
+      "context",
+      "quality_gates",
+      "cost_model",
+      "simulator",
+      "boundary",
+      "trial_ledger_head",
+      "exchange_info"
+    ],
+    "resume_requires_exact_fingerprint": true,
+    "cache_hit_requires_exact_fingerprint": true,
+    "canonical_json": true,
+    "sha256_bound": true,
+    "context_runtime_binding": {
+      "required": true,
+      "requires_concrete_validated_context_parity_binding": true,
+      "identity_payload_embedded": true,
+      "context_identity_sha256_verified": true,
+      "cache_and_resume_key_verified": true,
+      "data_snapshot_sha256_must_match_raw_data": true
+    }
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}

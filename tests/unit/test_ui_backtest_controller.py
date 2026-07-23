@@ -14,6 +14,7 @@ from ethusdc_bot.ui.backtest_controller import (
     TrainingResearchController,
     build_canonical_training_loop_config,
     build_initial_training_research_status,
+    discover_stale_research_checkpoint,
     run_production_research_via_starter,
     run_training_research_async,
 )
@@ -223,6 +224,32 @@ def test_durable_running_checkpoint_blocks_second_supervisor(tmp_path: Path) -> 
 
     assert calls == []
     assert controller.is_running is False
+
+
+def test_stale_resume_checkpoint_is_selected_only_when_processes_are_gone(tmp_path: Path) -> None:
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    resume_state = reports / "research_loop_resume.resume.json"
+    resume_state.write_text("{}", encoding="utf-8")
+    checkpoint = reports / "production_research_supervisor_resume.checkpoint.json"
+    checkpoint.write_text(
+        json.dumps(
+            {
+                "status": "running",
+                "run_id": "production_research_supervisor_resume",
+                "resume_supported": True,
+                "resume_state_path": str(resume_state),
+                "supervisor_pid": 2_000_000,
+                "child_pid": 2_000_001,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    stale = discover_stale_research_checkpoint(reports)
+
+    assert stale is not None
+    assert stale["run_id"] == "production_research_supervisor_resume"
 
 
 def test_runner_failure_is_published_without_background_exception(tmp_path: Path) -> None:

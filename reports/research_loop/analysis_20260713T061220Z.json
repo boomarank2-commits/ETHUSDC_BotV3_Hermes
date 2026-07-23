@@ -1,0 +1,82 @@
+{
+  "artifact_kind": "compact_research_analysis",
+  "run_id": "research_loop_supervisor_20260713T061220Z",
+  "runner_commit": "4eb2dbb",
+  "status": "completed",
+  "cycles_executed": 7,
+  "max_cycles": 8,
+  "stop_reason": "selection_stagnation_3_cycles",
+  "candidate_stage_totals": {
+    "generated": 280,
+    "tested": 84,
+    "walk_forward": 21,
+    "finalists": 14
+  },
+  "protocol": {
+    "trade_market": "ETHUSDC",
+    "market_type": "spot",
+    "position_mode": "long_only",
+    "lot_usdc": 100,
+    "max_lots": 1,
+    "compounding": false,
+    "fee_rate_per_side": 0.001,
+    "slippage_bps_per_side": 5,
+    "context_enabled": true,
+    "context_only_symbols": ["BTCUSDC", "ETHBTC"],
+    "generated_per_cycle": 40,
+    "tested_per_cycle": 12,
+    "walk_forward_per_cycle": 3,
+    "finalists_per_cycle": 2,
+    "walk_forward_folds": 6,
+    "rolling_origins": 3,
+    "audit_evaluated": false,
+    "final_holdout_evaluated": false
+  },
+  "best_validation": {
+    "candidate_id": "cooldown_fee_aware_07_003",
+    "family": "cooldown_fee_aware",
+    "net_usdc_per_day": 0.0288672693,
+    "profit_factor": 1.3159707518,
+    "trade_count": 16
+  },
+  "selected_wfv": {
+    "net_usdc_per_day": 0.0037115468,
+    "profit_factor": 1.0792617476,
+    "trade_count": 29,
+    "max_drawdown_usdc": 17.6424519536,
+    "positive_fold_count": 3,
+    "worst_fold_net_usdc_per_day": -0.0724212009,
+    "cost_load_usdc": 8.7117541932
+  },
+  "target_usdc_per_day": 3.0,
+  "distance_to_target": {
+    "validation_usdc_per_day": 2.9711327307,
+    "walk_forward_usdc_per_day": 2.9962884532
+  },
+  "quality_gate": {
+    "passed": false,
+    "key_failures": [
+      "validation_trades_below_50",
+      "walk_forward_trades_below_180",
+      "walk_forward_profit_factor_below_1_2",
+      "walk_forward_drawdown_above_15_usdc",
+      "only_3_of_6_positive_folds",
+      "rolling_and_stress_evidence_negative",
+      "temporal_and_regime_coverage_insufficient"
+    ]
+  },
+  "safety": {
+    "orders": "not_created",
+    "live": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "not_used",
+    "api_keys": "not_used"
+  },
+  "large_artifacts_intentionally_excluded": [
+    "raw candles",
+    "individual trades",
+    "full 3.2 GB report JSON",
+    "seven 390-425 MB cycle JSON files"
+  ]
+}

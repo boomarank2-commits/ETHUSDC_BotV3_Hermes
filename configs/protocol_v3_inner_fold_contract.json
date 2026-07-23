@@ -1,0 +1,65 @@
+{
+  "schema_version": "protocol_v3_inner_fold_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_exact_inner_6x60_day_folds_v1",
+  "plan_schema_version": "protocol_v3_inner_fold_plan_v1",
+  "identity_schema_version": "protocol_v3_inner_fold_identity_v1",
+  "calendar_policy": {
+    "timezone": "UTC",
+    "development_days": 730,
+    "validation_fold_count": 6,
+    "validation_days_per_fold": 60,
+    "validation_union_days": 360,
+    "first_fit_days_before_purge": 370,
+    "fit_growth_days_per_fold": 60,
+    "half_open_intervals": true,
+    "validation_folds_strictly_chronological": true,
+    "validation_folds_non_overlapping": true,
+    "validation_union_is_last_360_development_days": true
+  },
+  "formula_policy": {
+    "fold_index_range": "0..5",
+    "validation_start": "training_end-(6-k)*60d",
+    "validation_end": "training_end-(5-k)*60d",
+    "fit_start": "training_start",
+    "fit_end": "validation_start-purge_duration"
+  },
+  "purge_policy": {
+    "source": "Task-9 HorizonPolicy and purge_training_events",
+    "formula": "max(max_label_horizon_minutes,max_holding_period_minutes+pending_entry_latency_minutes)+execution_bar_minutes",
+    "boundary_touch_purges": true,
+    "signals_at_or_after_validation_start_forbidden": true,
+    "fixed_maximum_purge_cutoff_required": true
+  },
+  "leakage_policy": {
+    "fit_access_must_be_before_fit_end": true,
+    "validation_access_must_be_inside_fold": true,
+    "feature_source_must_not_follow_decision": true,
+    "warmup_before_training_start_feature_read_only": true,
+    "validation_information_must_end_before_fold_end": true,
+    "training_information_must_end_before_validation_start": true,
+    "timestamp_spies_fail_closed": true
+  },
+  "fold_runtime_policy": {
+    "starts_flat": true,
+    "pending_entry_at_start": "forbidden",
+    "cooldown_at_start": "forbidden",
+    "scaler_state_at_start": "forbidden",
+    "runtime_model_state_at_start": "forbidden",
+    "fold_end_uses_task9_finalization": true
+  },
+  "deferred_scope": {
+    "candidate_selector_task": 15,
+    "candidate_daily_matrix_task": 16,
+    "pbo_task": 17,
+    "outer_orchestration_task": 23
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}

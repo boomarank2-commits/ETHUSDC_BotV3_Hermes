@@ -32,6 +32,12 @@ data/features/
 reports/backtests/
 reports/paper/
 reports/live/
+reports/protocol_v3/artifacts/
+reports/protocol_v3/artifact_indexes/
+reports/protocol_v3/cache/
+reports/protocol_v3/checkpoints/
+reports/protocol_v3/transaction_locks/
+reports/protocol_v3/recovered_locks/
 logs/
 *.log
 *.sqlite

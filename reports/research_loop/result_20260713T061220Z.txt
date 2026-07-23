@@ -1,0 +1,19 @@
+ETHUSDC Offline Research Loop - Protocol v2
+Loop-Run-ID: research_loop_supervisor_20260713T061220Z
+Git commit: 4eb2dbb
+Cycles executed: 7/8
+Stop reason: selection_stagnation_3_cycles
+Holdout evaluated: False
+Consumed audit affects selection: False
+Candidate stage totals: {'generated': 280, 'tested': 84, 'walk_forward': 21, 'finalists': 14}
+Best validation: {'candidate_id': 'cooldown_fee_aware_07_003', 'family': 'cooldown_fee_aware', 'net_usdc_per_day': 0.0288672693, 'trade_count': 16, 'profit_factor': 1.3159707518}
+Freeze status: blocked_by_holdout_policy
+Final holdout not evaluated; +3 USDC/day target was not evaluated.
+Live/Paper/Testtrade locked. No orders, no Trading API, no API keys.
+Cycle 1: generated=40 tested=12 walk_forward=3 finalists=2 best_validation={'candidate_id': 'breakout_volatility_filter_01_009', 'family': 'breakout_volatility_filter', 'net_usdc_per_day': -0.0616125616, 'trade_count': 29, 'profit_factor': 0.4756362645}
+Cycle 2: generated=40 tested=12 walk_forward=3 finalists=2 best_validation={'candidate_id': 'breakout_volatility_filter_02_007', 'family': 'breakout_volatility_filter', 'net_usdc_per_day': -0.4313736304, 'trade_count': 205, 'profit_factor': 0.4461929687}
+Cycle 3: generated=40 tested=12 walk_forward=3 finalists=2 best_validation={'candidate_id': 'breakout_volatility_filter_03_006', 'family': 'breakout_volatility_filter', 'net_usdc_per_day': -0.0707565186, 'trade_count': 16, 'profit_factor': 0.2677997793}
+Cycle 4: generated=40 tested=12 walk_forward=3 finalists=2 best_validation={'candidate_id': 'session_filter_04_011', 'family': 'session_filter', 'net_usdc_per_day': 0.0001254571, 'trade_count': 49, 'profit_factor': 1.0005670055}
+Cycle 5: generated=40 tested=12 walk_forward=3 finalists=2 best_validation={'candidate_id': 'breakout_volatility_filter_05_011', 'family': 'breakout_volatility_filter', 'net_usdc_per_day': 0.015995153, 'trade_count': 2, 'profit_factor': 63.809010054}
+Cycle 6: generated=40 tested=12 walk_forward=3 finalists=2 best_validation={'candidate_id': 'breakout_volatility_filter_06_003', 'family': 'breakout_volatility_filter', 'net_usdc_per_day': 0.015995153, 'trade_count': 2, 'profit_factor': 63.809010054}
+Cycle 7: generated=40 tested=12 walk_forward=3 finalists=2 best_validation={'candidate_id': 'cooldown_fee_aware_07_003', 'family': 'cooldown_fee_aware', 'net_usdc_per_day': 0.0288672693, 'trade_count': 16, 'profit_factor': 1.3159707518}

@@ -5,12 +5,14 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 import json
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
 from ethusdc_bot.backtest.data_loader import DEFAULT_RAW_ROOT
 from ethusdc_bot.backtest.experiment_registry import ExperimentPaths
 from ethusdc_bot.backtest.metrics import BacktestMetrics
+from ethusdc_bot.backtest.quality_gates import QUALITY_GATE_V1
 from ethusdc_bot.backtest.simulator import StrategyCandidate
 from ethusdc_bot.backtest.split import REQUIRED_DAYS
 
@@ -211,19 +213,39 @@ def _rank_tuple(record: dict[str, Any]) -> tuple[float, float, float, float, flo
         validation.net_usdc_per_day,
         validation.profit_factor,
         -validation.max_drawdown_usdc,
-        -validation.trade_count,
+        validation.trade_count,
     )
 
 
 def _rank_score(record: dict[str, Any]) -> float:
     training = record["training_metrics"]
     validation = record["validation_metrics"]
+    required_trades = QUALITY_GATE_V1.min_validation_trades
+    sample_weight = min(1.0, validation.trade_count / required_trades) if required_trades else 1.0
+    finite_pf = validation.profit_factor if isfinite(validation.profit_factor) else 0.0
+    bounded_pf = min(2.0, max(0.0, finite_pf))
     stability = -abs(validation.net_usdc_per_day - training.net_usdc_per_day)
     overtrade_penalty = -max(0, validation.trade_count - 1000) / 100
-    undertrade_penalty = -max(0, 20 - validation.trade_count) / 20
+    undertrade_penalty = -2.0 * max(0, required_trades - validation.trade_count) / required_trades
     cost_penalty = -(validation.fees_usdc + validation.slippage_usdc) / 100
-    drawdown_penalty = -validation.max_drawdown_usdc / 100
-    return validation.net_usdc_per_day + validation.profit_factor * 0.2 + stability * 0.5 + cost_penalty + drawdown_penalty + overtrade_penalty + undertrade_penalty
+    drawdown_excess = max(
+        0.0,
+        validation.max_drawdown_usdc - QUALITY_GATE_V1.max_validation_drawdown_usdc,
+    )
+    drawdown_penalty = (
+        -validation.max_drawdown_usdc / 100
+        - drawdown_excess / QUALITY_GATE_V1.max_validation_drawdown_usdc
+    )
+    profit_factor_score = bounded_pf * 0.2 * sample_weight
+    return (
+        validation.net_usdc_per_day
+        + profit_factor_score
+        + stability * 0.5
+        + cost_penalty
+        + drawdown_penalty
+        + overtrade_penalty
+        + undertrade_penalty
+    )
 
 
 def _candidate_weaknesses(training: BacktestMetrics, validation: BacktestMetrics) -> list[str]:
@@ -234,14 +256,14 @@ def _candidate_weaknesses(training: BacktestMetrics, validation: BacktestMetrics
         weaknesses.append("validation_negative")
     if validation.profit_factor < 1:
         weaknesses.append("profit_factor_below_one")
-    if validation.trade_count < 20:
+    if validation.trade_count < QUALITY_GATE_V1.min_validation_trades:
         weaknesses.append("too_few_trades")
     if validation.trade_count > 1000:
         weaknesses.append("overtrading")
     cost_load = validation.fees_usdc + validation.slippage_usdc
     if cost_load > max(1.0, abs(validation.net_profit_usdc)) * 2:
         weaknesses.append("cost_load_high")
-    if validation.max_drawdown_usdc > max(25.0, abs(validation.net_profit_usdc) * 1.5):
+    if validation.max_drawdown_usdc > QUALITY_GATE_V1.max_validation_drawdown_usdc:
         weaknesses.append("drawdown_high")
     if abs(validation.net_usdc_per_day - training.net_usdc_per_day) > max(0.25, abs(training.net_usdc_per_day) * 2):
         weaknesses.append("unstable_train_validation")
@@ -250,13 +272,15 @@ def _candidate_weaknesses(training: BacktestMetrics, validation: BacktestMetrics
 
 def _why_ranked_here(position: int, validation: BacktestMetrics) -> str:
     if position == 1:
-        return "best conservative validation-only rank; blindtest not used"
-    return f"ranked {position} by validation-only score; net/day={validation.net_usdc_per_day}, pf={validation.profit_factor}, trades={validation.trade_count}"
+        return "best sample-aware validation-only rank; blindtest not used"
+    return f"ranked {position} by sample-aware validation-only score; net/day={validation.net_usdc_per_day}, pf={validation.profit_factor}, trades={validation.trade_count}"
 
 
 def _why_not_profitable_enough(best_validation: dict[str, Any]) -> str:
     validation = best_validation["validation_metrics"]
     weaknesses = best_validation.get("weaknesses", [])
+    if "too_few_trades" in weaknesses:
+        return "best validation candidate has insufficient trade evidence for the frozen validation gate"
     if validation["net_usdc_per_day"] < 0:
         return "best validation candidate is still negative before blindtest; no sufficient edge shown"
     if validation["profit_factor"] < 1:

@@ -1,0 +1,39 @@
+{
+  "schema_version": "protocol_v3_outer_origins_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_twelve_causal_outer_origin_orchestrator_v1",
+  "process_policy": {
+    "outer_origins": 12,
+    "development_days_per_origin": 730,
+    "process_oos_days": 365,
+    "pipeline_refit_per_origin": true,
+    "same_pipeline_generation_required": true,
+    "same_code_commit_required": true,
+    "distinct_fit_cutoffs_required": true,
+    "complete_oos_union_required": true,
+    "selection_pipeline_invoked_inside_orchestrator": true,
+    "exactly_one_frozen_bundle_per_origin": true
+  },
+  "isolation_policy": {
+    "prior_raw_market_observations_may_become_causal_training_history": true,
+    "prior_outer_pnl_forbidden": true,
+    "prior_outer_rankings_forbidden": true,
+    "prior_outer_reports_forbidden": true,
+    "prior_outer_gate_results_forbidden": true,
+    "human_result_interpretation_forbidden": true,
+    "outer_result_channel_exposed_to_selection": false
+  },
+  "deferred_scope": {
+    "entry_delay_and_rotation_task": 24,
+    "daily_mtm_and_time_aggregation_task": 25,
+    "monthly_quality_gate_task": 26
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}

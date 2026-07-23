@@ -40,6 +40,24 @@ def test_select_operator_view_uses_one_context_only() -> None:
     )
 
 
+def test_requested_running_view_does_not_override_a_completed_result() -> None:
+    assert dashboard.apply_requested_operator_view(
+        "backtest_result",
+        requested_view="backtest_running",
+        backtest_mode="completed",
+    ) == "backtest_result"
+    assert dashboard.apply_requested_operator_view(
+        "download",
+        requested_view="backtest_running",
+        backtest_mode="running",
+    ) == "backtest_running"
+    assert dashboard.apply_requested_operator_view(
+        "backtest_result",
+        requested_view="download",
+        backtest_mode="completed",
+    ) == "download"
+
+
 def test_stale_checkpoint_is_exposed_as_interrupted(monkeypatch) -> None:
     monkeypatch.setattr(dashboard, "_run_lock_is_owned", lambda _root: False)
 

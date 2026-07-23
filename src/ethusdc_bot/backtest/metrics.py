@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-from math import inf
+from dataclasses import asdict, dataclass
 from typing import Iterable, Protocol
 
 
@@ -31,6 +30,25 @@ class BacktestMetrics:
         return asdict(self)
 
 
+def _conservative_profit_factor(wins: list[float], gross_loss: float) -> float:
+    """Return a finite PF and avoid tiny lossless samples dominating ranking.
+
+    A lossless sample has no observed loss denominator.  Treat one average
+    winning trade as a conservative pseudo-loss, which yields PF == win count.
+    One isolated winner therefore scores 1.0 instead of infinity, while a
+    genuinely broader lossless sample remains distinguishable and still has to
+    satisfy the existing trade-count and robustness gates.
+    """
+
+    gross_win = sum(wins)
+    if gross_loss > 0:
+        return gross_win / gross_loss
+    if not wins or gross_win <= 0:
+        return 0.0
+    pseudo_loss = gross_win / len(wins)
+    return gross_win / pseudo_loss if pseudo_loss > 0 else 0.0
+
+
 def compute_metrics(
     trades: Iterable[TradeLike],
     *,
@@ -43,7 +61,6 @@ def compute_metrics(
     net = round(sum(profits), 10)
     wins = [profit for profit in profits if profit > 0]
     losses = [profit for profit in profits if profit < 0]
-    gross_win = sum(wins)
     gross_loss = abs(sum(losses))
     equity = 0.0
     peak = 0.0
@@ -59,7 +76,7 @@ def compute_metrics(
         trade_count=trade_count,
         winrate=round(len(wins) / trade_count, 10) if trade_count else 0.0,
         max_drawdown_usdc=round(max_dd, 10),
-        profit_factor=round(gross_win / gross_loss, 10) if gross_loss else (inf if gross_win else 0.0),
+        profit_factor=round(_conservative_profit_factor(wins, gross_loss), 10),
         average_trade_usdc=round(net / trade_count, 10) if trade_count else 0.0,
         fees_usdc=round(sum(trade.fees_usdc for trade in trade_list), 10),
         slippage_usdc=round(sum(trade.slippage_usdc for trade in trade_list), 10),

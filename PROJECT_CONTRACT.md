@@ -222,3 +222,19 @@ Wenn der Zielwert nicht erreicht wird, muss das System ehrlich melden:
 - warum nicht,
 - welche Daten/Reports das beweisen,
 - welcher minimale naechste Schritt sinnvoll ist.
+
+---
+
+## 11. Protocol v3 - monatlich refittende Pipeline
+
+Protocol-v3-Vertragsgeneration: `3.0.0`
+Maschinenlesbarer Vertrag: `configs/protocol_v3_contract.json`
+Kanonischer Zusatzvertrag: `docs/42_PROTOCOL_V3_EXECUTABLE_CONTRACT.md`
+
+Der Nutzer hat die im Blueprint beschriebene monatlich refittende Auswahlpipeline als naechste auszufuehrende Vertragsgeneration freigegeben. Champion von Protocol v3 ist die unveraenderte Auswahlpipeline mit zwoelf Monats-Origins, nicht ein einzelner fixer Parametersatz.
+
+Der bereits ausgewertete Zeitraum `2025-07-08..2026-07-07` bleibt dauerhaft `consumed_audit`, `NOT_FRESH` und nicht als Finalnachweis verwendbar. Reine kausal beobachtbare Rohmarktdaten daraus duerfen in spaeteren Origins als Historie verwendet werden. Fruehere PnL, Rankings, Reports, Gate-Ergebnisse und menschliche Ergebnisanpassungen duerfen niemals in spaetere Fits zurueckgespielt werden.
+
+Der daraus entstehende historische `monthly_process_oos` bleibt `diagnostic_only`. Nach vollstaendiger Protocol-v3-Implementierung, bestandenen Gates und ausdruecklicher Nutzeraktion darf ein Kandidat hoechstens im separaten, strikt orderfreien `research_challenger_shadow` beobachtet werden. Dies ist keine Adoption und keine Freigabe fuer Paper, Testtrade, Live oder Orders.
+
+Ein kanonischer Protocol-v3-Finalstatus erfordert einen getrennten Pipeline-Final-Evaluator auf einem vor Beginn registrierten, wirklich neuen `sealed_final_holdout` von 365 Tagen. Protocol v2 und der bestehende Single-Candidate-Finalpfad bleiben erhalten, duerfen aber keinen Protocol-v3-Finalstatus erzeugen.

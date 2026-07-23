@@ -1,0 +1,87 @@
+{
+  "schema_version": "protocol_v3_context_parity_contract_v2",
+  "protocol_version": "3.0.0",
+  "contract_version": "three_market_closed_bar_context_parity_v2",
+  "markets": [
+    {
+      "symbol": "ETHUSDC",
+      "role": "trade_market",
+      "may_create_signal": true,
+      "may_trigger_trade": true
+    },
+    {
+      "symbol": "BTCUSDC",
+      "role": "context_only",
+      "may_create_signal": false,
+      "may_trigger_trade": false
+    },
+    {
+      "symbol": "ETHBTC",
+      "role": "context_only",
+      "may_create_signal": false,
+      "may_trigger_trade": false
+    }
+  ],
+  "paths": [
+    "research",
+    "replay",
+    "final_evaluator",
+    "research_challenger"
+  ],
+  "parity_policy": {
+    "all_paths_use_same_context_engine": true,
+    "context_may_only_confirm_or_veto_existing_ethusdc_signal": true,
+    "context_may_never_create_signal": true,
+    "context_may_never_submit_order": true,
+    "candidate_policy_must_be_identical_across_paths": true
+  },
+  "time_policy": {
+    "timezone": "UTC",
+    "source_interval": "1m",
+    "source_bar_ms": 60000,
+    "decision_time": "closed_signal_bar_end",
+    "required_markets_per_decision": 3,
+    "exact_open_time_identity_required": true,
+    "nearest_neighbor_forbidden": true,
+    "forward_fill_forbidden": true,
+    "interpolation_forbidden": true,
+    "missing_context": "block",
+    "misaligned_context": "block",
+    "stale_context": "block",
+    "future_context": "block"
+  },
+  "watermark_policy": {
+    "source": "validated_protocol_v3_three_market_data_snapshot",
+    "rule": "latest_common_closed_1m_bar_not_after_snapshot_common_complete_day",
+    "window_must_lie_inside_snapshot_raw_interval": true,
+    "all_three_market_content_digests_required": true,
+    "common_grid_digest_required": true,
+    "complete_utc_day_windows_required": true,
+    "window_day_content_must_match_snapshot_index": true
+  },
+  "identity_policy": {
+    "data_snapshot_sha256_required": true,
+    "context_contract_sha256_required": true,
+    "policy_payload_sha256_required": true,
+    "window_market_content_sha256_required": true,
+    "context_identity_sha256_required": true,
+    "pipeline_and_run_fingerprint_binding_required": true,
+    "cache_or_resume_reuse_requires_exact_identity": true
+  },
+  "deferred_scope": {
+    "report_schemas_task": 11,
+    "cache_store_task": 13,
+    "feature_store_task": 19,
+    "router_task": 22,
+    "challenger_controller_task": 29,
+    "final_evaluator_task": 31
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}

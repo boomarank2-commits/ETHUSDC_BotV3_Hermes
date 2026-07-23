@@ -1,0 +1,52 @@
+{
+  "schema_version": "protocol_v3_current_refit_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_current_730_day_refit_champion_challenger_cash_v1",
+  "refit_policy": {
+    "development_days": 730,
+    "selection_entrypoint": "outer_origins.run_outer_origin",
+    "selection_pipeline_must_be_unchanged": true,
+    "target_anchor_is_current_origin_test_start": true,
+    "valid_from_formula": "T+24h",
+    "valid_until_formula": "next_monthly_anchor",
+    "entry_enabled_at_formula": "max(valid_from,flat_time)",
+    "deadline": "T+24h",
+    "late_completion_may_not_activate_retroactively": true
+  },
+  "data_snapshot_policy": {
+    "markets": ["ETHUSDC", "BTCUSDC", "ETHBTC"],
+    "snapshot_as_of_day": "T-1",
+    "latest_common_complete_day": "T-1",
+    "raw_interval_end_exclusive": "T",
+    "stale_or_future_snapshot_forbidden": true,
+    "exchange_info_may_not_postdate_request": true
+  },
+  "prior_evidence_policy": {
+    "baseline_joint_and_slippage_ledger_hashes_required": true,
+    "monthly_gate_and_hindsight_are_provenance_only": true,
+    "feedback_into_current_selection_forbidden": true
+  },
+  "decision_policy": {
+    "choices": ["CHAMPION", "CHALLENGER", "CASH"],
+    "cash_net_usdc_per_day": 0,
+    "current_selection_and_router_only": true,
+    "historical_outer_gate_hindsight_feedback_forbidden": true,
+    "missing_champion_retest_is_fail_closed": true
+  },
+  "evidence_policy": {
+    "freshness": "NOT_FRESH",
+    "diagnostic_only": true,
+    "canonical_adoption_eligible": false,
+    "manual_research_shadow_start_required": true,
+    "manual_research_shadow_start_allowed": false,
+    "sealed_final_holdout_used": false
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}

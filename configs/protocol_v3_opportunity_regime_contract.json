@@ -1,0 +1,59 @@
+{
+  "schema_version": "protocol_v3_opportunity_regime_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_causal_opportunity_regime_v1",
+  "fit_state_schema_version": "protocol_v3_opportunity_regime_fit_state_v1",
+  "assessment_schema_version": "protocol_v3_opportunity_regime_assessment_v1",
+  "source_policy": {
+    "feature_store_contract": "protocol_v3_causal_multitimeframe_feature_store_v1",
+    "feature_fit_state_required": true,
+    "task14_fold_identity_required": true,
+    "closed_bars_only": true,
+    "training_only_thresholds": true
+  },
+  "metric_policy": {
+    "realized_volatility": "root_mean_square_of_last_24_closed_1h_returns_bps",
+    "atr": "mean_range_bps_of_last_14_closed_1h_bars",
+    "expected_range": "median_range_bps_of_last_20_closed_1h_bars",
+    "compression": "latest_4h_range_bps_over_median_prior_20_closed_4h_ranges",
+    "trend": "compounded_last_24_closed_1h_returns",
+    "efficiency": "absolute_24h_net_return_over_sum_absolute_1h_returns",
+    "trend_anchor": "median_last_20_closed_4h_closes",
+    "pullback": "distance_from_last_12_closed_4h_high_in_1h_ATR_units",
+    "context": "compounded_last_6_closed_4h_returns_for_BTCUSDC_and_ETHBTC"
+  },
+  "fit_policy": {
+    "minimum_metric_rows": 60,
+    "quantiles": [0.1, 0.25, 0.5, 0.75, 0.9],
+    "quantile_estimator": "linear_type7",
+    "warmup_excluded": true
+  },
+  "classification_policy": {
+    "legacy_regimes": ["down_low", "down_high", "up_low", "up_high"],
+    "opportunity": ["LOW", "MEDIUM", "HIGH"],
+    "range_state": ["COMPRESSED", "NORMAL", "EXPANDED"],
+    "structure": ["TREND", "COMPRESSION", "RANGE", "STRESS", "UNKNOWN"],
+    "unknown_requires": "NO_TRADE",
+    "contradictory_context_requires": "NO_TRADE",
+    "stress_requires": "NO_TRADE",
+    "low_opportunity_requires": "NO_TRADE",
+    "opportunity_may_not_determine_direction": true,
+    "may_select_specialist": false
+  },
+  "deferred_scope": {
+    "specialists_task": 21,
+    "router_task": 22,
+    "outer_orchestration_task": 23
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden",
+    "may_create_signal": false,
+    "may_create_pnl": false,
+    "may_select_strategy": false
+  }
+}

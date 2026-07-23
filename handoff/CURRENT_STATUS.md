@@ -1,73 +1,238 @@
-# Current Status
+# Current Status – Protocol v3
 
-Updated: 2026-07-12
+Stand: 2026-07-23
 
-Repository state:
+## Verbindlicher Nutzerauftrag
 
-- Active branch: `codex/ui-responsiveness-and-next-iteration`
-- Branch base: `08bd555ece20b472a72196844954be7360309207` (PR #15 head)
-- UI responsiveness implementation: `5ef7eb8c0283ab67f89b249a274637d465cea8a3`
-- Signal-funnel instrumentation: `5870eca47a294768f80851183fe056d0a55c90e6`
-- Draft PR #15 remains the completed profile-rotation block; the current branch is the next stacked block.
-- PR #14 CI run `29191047437`: successful, 846 tests on the PR14 head.
-- Current local verification: 856 tests passed; Python compile, PowerShell parse, and `git diff --check` passed.
+Das dauerhafte Projektziel ist nicht mit `33/33 DONE_100` erfuellt. Die 33
+Protocol-v3-Aufgaben muessen nicht nur vorhanden und getestet sein, sondern im
+echten, aus der UI gestarteten Backtestpfad nachweisbar aktiv und semantisch
+korrekt verwendet werden.
 
-Canonical user path:
+Die Arbeit wird ursachenbasiert fortgesetzt, bis ein kausaler Kandidat im
+realistischen 365-Tage-Prozess nach Fees, Slippage und Binance-Regeln mindestens
+`+3 USDC/Tag` erreicht und die vorgeschriebenen Quality-Gates besteht. Solange
+dieser Nachweis fehlt, ist das Projektziel nicht abgeschlossen. Jeder Lauf muss
+den Abstand zum Ziel, die aktive Protocol-v3-Kette und den kleinsten belegten
+naechsten Engpass dokumentieren. Ein Ergebnis `TARGET_NOT_REACHED` oder
+`NO_EDGE_FOUND` beendet den Nutzerauftrag nicht, sondern erzeugt das naechste
+kleinste Diagnoseticket.
 
-`START_DASHBOARD.bat`
--> `ethusdc_bot.ui.dashboard`
--> `TrainingResearchController`
--> `tools/run_production_research.ps1`
--> `ethusdc_bot.backtest.research_supervisor`
--> `ethusdc_bot.backtest.research_loop_runner`
--> the single ETHUSDC simulator.
+Unveraendert verboten bleiben Lookahead, Fake-Trades/-Reports, perfekte Fills,
+Gate- oder Kostenlockerungen, Ergebnisoptimierung auf dem verbrauchten Outer-
+Fenster sowie automatische Paper-, Testtrade-, Live- oder Orderfreigabe.
 
-No V1/legacy runner is reachable from the UI button. Legacy public entry points remain fail-closed. Direct PowerShell/Supervisor/Runner invocations are internal or diagnostic surfaces, not a second algorithm.
+## Verbindlicher Gesamtstand
 
-Latest completed production-selection run:
+`33/33 = 100 % DONE_100` Aufgabenfortschritt.
 
-- Supervisor run ID: `production_research_supervisor_20260712T163528Z`
-- Runner run ID: `research_loop_20260712T163528Z`
-- Branch/commit: `codex/canonical-backtest-audit-and-consolidation` / `08bd555ece20b472a72196844954be7360309207`
-- Status: completed normally after 7/8 cycles, `selection_stagnation_3_cycles`
-- Totals: 280 generated / 84 tested / 21 WFV / 14 finalists; every cycle kept 40/12/3/2 and context 6/2.
-- Selected: `breakout_volatility_filter_04_012`
-- WFV: +6.875145713 USDC total, +0.012591842 USDC/day, 28 trades, PF 1.4688289221, win rate 50%, max drawdown 6.3883786063 USDC
-- Costs: 5.6124876333 USDC fees plus 2.8062476402 USDC slippage
-- Folds: 4/4/2/2/12/4 trades; three positive folds; worst fold -0.0185551606 USDC/day
-- Temporal activity: 12/19 active months, 7/19 positive months, maximum no-trade gap 135 days
-- Best validation: `cooldown_fee_aware_07_003`, +0.0288672693 USDC/day, 16 trades, PF 1.3159707518; its WFV was only +0.0037115468 USDC/day.
-- Rolling origins: zero actually executed because exactly 1095 days provide no older 730+365 window
-- Quality gate: failed; no qualified finalist; final holdout not evaluated
+Alle Aufgaben 1 bis 33 der Implementierungssequenz sind formal abgeschlossen. Aufgabe 33 endet mit dem vertraglich zulässigen, reproduzierbaren Status `BLOCKED_INSUFFICIENT_TRIAL_HISTORY`.
 
-Measured patch effect and current bottleneck:
+100 % Aufgabenfortschritt bedeutet hier ausdrücklich nicht: Ziel erreicht, Backtest bestanden oder Bot startbereit. Das Ziel `+3 USDC/Tag` ist nicht ausgewertet; der Bot bleibt gesperrt.
 
-- Profile offsets 0 through 6 were really exercised, and selected families diversified from breakout to cooldown-fee-aware in cycles 6-7.
-- Compared with `research_loop_20260712T081650Z`, WFV net/day improved by 0.0387498936 USDC, PF by 1.158535593, and drawdown by 10.1389691002 USDC.
-- Activity did not materially improve: 28 versus 27 trades and 135 versus 136 no-trade days.
-- The best selected WFV candidate is positive after costs but remains far below +3 USDC/day (gap -2.987408158) and fails fold-trade, temporal-coverage, concentration, stress, and stability gates.
-- The next smallest evidence patch is signal-funnel/rejection attribution in the existing simulator/report. Entry/filter rejection cannot currently be separated well enough to justify another parameter or strategy change.
+## Repository-Wahrheit
 
-Signal-funnel instrumentation now available for the next run:
+- Repository: `boomarank2-commits/ETHUSDC_BotV3_Hermes`
+- Branch: `codex/research-resume-and-ui-state-v1`
+- Draft-PR: `#17`
+- Task-33-Issue: `#19`
+- Task-33-Technik-Head: `713ccbaa3b11e3ed9d2b5e92325e7c070e3aad6a`
+- vollständige lokale Suite nach UI- und Runtime-Remediation: 1.336/1.336 Tests erfolgreich
+- Task-33-Technik-CI: Run `29928845971` vollständig grün
+- Task-33-Abschluss: `handoff/PROTOCOL_V3_TASK_33_2026-07-22.md`
 
-- Counts total observations, position-open blocks, cooldown blocks, end-of-data blocks, entry evaluations, raw entry signals, accepted signals, and one exact rejection reason per rejected evaluation.
-- Existing reasons distinguish warmup, threshold, trend, volatility, regime, session, expected-move, and context vetoes.
-- WFV reports contain per-fold counters plus a reconciled aggregate; the selected cycle contains full-training, validation, and WFV funnels.
-- Tests prove observation and entry-evaluation reconciliation. The report explicitly declares `changes_strategy_behavior=false` and `uses_audit_or_holdout=false`.
-- No signal condition, trade, PnL, fee, slippage, ranking, candidate, parameter, or Quality Gate was changed.
+## Aufgabe 31 – erneut bestätigt
 
-Dashboard responsiveness fix:
+41 zielgerichtete Task-31-Tests und die damalige vollständige Suite mit 1.305/1.305 Tests waren grün. Final-Registrierung, Exactly-once-Claim, result-blinder Fortschritt, transitive Attestation, frischer versiegelter Holdout und alle Safety-Sperren sind korrekt gebunden. Es wurde kein echtes Finalfenster verbraucht.
 
-- Root cause: the one-second Tk heartbeat synchronously called `build_dashboard_snapshot`, whose frozen-report discovery fully deserialized every 3.2-3.7 GB JSON; completion then streamed the newest 3.23 GB report on the Tk thread.
-- Snapshot and final-report formatting now run on a daemon refresh worker and publish only a small payload back to Tk.
-- Non-frozen large reports are rejected from frozen-candidate discovery via their compact TXT status in about 0.003 seconds; genuinely frozen large reports are bounded-streamed once and cached.
-- A durable running supervisor checkpoint blocks a second start after UI restart.
-- The original dashboard PID was restored without termination from off-screen coordinates `(-32000,-32000)` to `(40,40)` after the research runner had exited cleanly.
+## Aufgabe 32 – DONE_100
 
-Safety status:
+Der fixture-isolierte End-to-End-Dry-Run war in allen vier Modi bitgleich. 1.321/1.321 lokale Tests sowie GitHub-CI `29924203612` und Abschluss-CI `29925381805` waren grün. Die Evidenz blieb `FIXTURE_ONLY` und nicht adoption- oder startfähig.
 
-- ETHUSDC Spot LONG-only; fixed 100 USDC; one position; no compounding.
-- 0.1% fee and 5 bps slippage per side remain unchanged.
-- BTCUSDC and ETHBTC remain aligned context-only markets and cannot create a trade.
-- Audit and final holdout remain closed.
-- Live, Paper, Testtrade, orders, trading API, account access, and API keys remain locked or unused.
+## Aufgabe 33 – DONE_100 mit belegtem Blocker
+
+Der reale Preflight hat den externen Drei-Markt-Datenbestand, das vollständige 1m-Raster, den dynamischen Warmup, aktuelle öffentliche Binance-Filter, Pipelinegeneration und permanenten Trial-Ledger geprüft.
+
+- Run-ID: `task33-preflight-713ccbaa3b11-ea4cb7750cea-f1782ba70088`
+- Daten-Snapshot: `ea4cb7750cea5bc75574a15e29fee6715af751d9a41a9d807fead70680d71447`
+- gemeinsamer vollständiger Stichtag: `2026-07-07`
+- historischer Prozess: `2025-07-08..2026-07-07`, 365 Tage, dauerhaft `NOT_FRESH`
+- Ledger: 180 bekannte Auswertungszeilen, aber 0 beweisbare unabhängige Trials
+- Ledger-Status: `INSUFFICIENT_TRIAL_HISTORY`, einzig zulässig `NO_TRADE`
+- Runtime-Remediation: produktive Lookbacks und exakte HorizonPolicy sind jetzt pipelinegebunden eingefroren
+- verbleibende Lücke: realer Task-15-bis-27-/Outer-Origin-Produktionsadapter
+- voller Research-Lauf gestartet: nein
+- sämtliche Ergebnis- und Handelsmetriken: `null`, `not_executed_due_blocker`
+- Adoption: nein; Botstart: nein
+
+Der create-only Bericht liegt ausschließlich im externen Runtime-Root unter `C:\TradingBot\data\ETHUSDC_BotV3_Hermes\runtime\protocol_v3\task33` und ist nicht ins Repository aufgenommen.
+
+## Sicherheitsstatus
+
+- keine API-Keys, privaten Endpunkte, Kontoabfragen oder Secrets
+- keine Orders, kein Paper-, Testtrade- oder Live-Start
+- keine Quality-Gates gelockert
+- keine Fake-Trades, Fake-Fills oder Fake-Reports
+- kein `sealed_final_holdout` registriert oder verbraucht
+- kein `active_config.json` und keine kanonische Adoption
+- der Bot darf nicht gestartet werden
+
+## Nächster Einstieg
+
+Die reale UI-Backtest-Integrationsdiagnose ist in `handoff/PROTOCOL_V3_UI_BACKTEST_INTEGRATION_2026-07-22.md` dokumentiert. Die UI verwendet jetzt den validierten Task-33-Preflight statt den alten Protocol-v2-Runner als Protocol-v3-Test auszugeben.
+
+Der anschließende Runtime-Input-Freeze ist in `handoff/PROTOCOL_V3_RUNTIME_INPUT_FREEZE_2026-07-22.md` dokumentiert. `+3 USDC/Tag` ist weiterhin nicht ausgewertet oder erreicht, weil der echte v3-Research-Lauf vor der Kandidatenberechnung blockiert.
+
+Der neu erzeugte create-only Preflight `task33-preflight-92920a4796ab-ea4cb7750cea-f1782ba70088` bestätigt, dass Lookback- und Horizon-Blocker behoben sind. Offen bleiben ausschließlich `INSUFFICIENT_TRIAL_HISTORY` und `MISSING_PRODUCTION_OUTER_ORIGIN_ADAPTER`.
+
+`handoff/NEXT_ACTION.md` beschreibt die verbleibende Produktionsrunner- und Vertrags-Remediation. Der Bot bleibt gesperrt.
+
+## Vertragsremediation vom 2026-07-23
+
+Mit ausdrücklicher Nutzerfreigabe ist
+`protocol_v3_conservative_legacy_multiplicity_floor_v1` implementiert. Die 180
+belegten Legacy-Auswertungszeilen zählen ausschließlich als konservative
+Multiple-Testing-Untergrenze; es wurden keine Identitäten, Seeds, PnL-Werte,
+Rankings, Gate-Ergebnisse oder Tagesreihen erfunden.
+
+Der neue create-only Preflight
+`task33-preflight-58290b6870a9-ea4cb7750cea-f1782ba70088` validiert mit der
+aktuellen UI-Evidence-Pipeline. Status:
+`BLOCKED_MISSING_FROZEN_RUNTIME_INPUTS`. Einziger verbleibender Blocker:
+`MISSING_PRODUCTION_OUTER_ORIGIN_ADAPTER`.
+
+- Reportdigest:
+  `298d265436dcd61741e87c36938a5e86dfa335f722d9daf7da116dc2fd445cbf`
+- Pipelinegeneration:
+  `protocol_v3_pipeline_sha256:2ac531ca85d5dd3b3bb83f070b0c4bb4dbab2cfec5c7d9b0d8803626ce2f27d1`
+- technischer Commit:
+  `58290b6870a9272d25d8641b12dd5dc0df165f7e`
+- vollständige Suite: 1.347/1.347 grün
+- GitHub Review CI: Run `29987377105` vollständig grün
+- voller Research-Lauf: nicht gestartet
+- Ergebnisfelder: vollständig `null`
+- Release: `NO_TRADE`; Botstart: gesperrt
+
+Bericht:
+`handoff/PROTOCOL_V3_LEGACY_MULTIPLICITY_REMEDIATION_2026-07-23.md`.
+
+## Produktionsadapter-Zwischenstand vom 2026-07-23
+
+Issue `#21` ist weiterhin aktiv. Der echte Rohdatenpfad ist jetzt bis zu einem
+vollständigen Inner-Origin-Research-Lauf implementiert:
+
+- reale Drei-Markt-Minuten;
+- exakte 6x60-Folds;
+- permanenter nativer Trial-Ledger mit Cache-Reuse;
+- Task-16-Matrix;
+- Task-17-PBO;
+- Task-18-DSR.
+
+Origin 1 wurde unter der aktuellen Generation über alle acht erlaubten Zyklen
+ausgeführt. 96 Profile ergaben 95 unabhängige Trials plus eine
+Cache-Wiederverwendung. Der beste Entwicklungswert war
+`+0,017724789686 USDC/Tag` bei 33 Trades und bestand DSR/Quality-Gates nicht.
+Das Ziel `+3 USDC/Tag` ist nicht erreicht.
+
+Die vollständige lokale Suite ist mit `1.365/1.365` Tests grün. GitHub Review
+CI `29993051021` ist für Implementierungs-Head `950c763` ebenfalls grün.
+
+Der vollständige Adapter bleibt blockiert, weil eine versionierte
+Cross-Cycle-Origin-Champion-Regel, Task-13-Work-Unit-Resume, Tasks 19 bis 27
+und Origins 2 bis 12 noch fehlen. Task 33 darf noch nicht READY melden.
+
+Vollständiger Bericht:
+`handoff/PROTOCOL_V3_PRODUCTION_ADAPTER_IN_PROGRESS_2026-07-23.md`.
+
+## Cross-Cycle-Origin-Auswahl vom 2026-07-23
+
+Die versionierte, result-unabhängige Cross-Cycle-Auswahl ist implementiert.
+Sie verlangt exakt acht Cycles, vereinigt 96 Profile, berechnet PBO und DSR
+auf der vollständigen Matrix neu und verwendet denselben lexikographischen
+Rank-Key wie die Inner-Cycle-Auswahl. Das Ziel `+3 USDC/Tag` beeinflusst die
+Auswahl nicht. Fehlende oder nicht exakt gebundene Task-15-Entscheidungen
+enden fail-closed mit `NO_TRADE`.
+
+Die vorhandenen Origin-1-Artefakte unter Commit `950c763` gehören zu einer
+älteren Pipelinegeneration und werden korrekt abgelehnt. Sie werden nicht als
+neue Evidenz umetikettiert.
+
+Verifikation:
+
+- fokussierte Suite: `25/25` grün;
+- zusätzliche Protocol-v3-Suite: `63/63` grün;
+- vollständige lokale Suite: `1.367/1.367` grün;
+- Compile, Scoped Ruff und `git diff --check`: grün.
+
+Der nächste belegte Blocker ist die im Production-Fold-Evaluator noch nicht
+persistierte vollständige Quality-Evidenz für rechtmäßige
+Task-15-Finalistenentscheidungen. Erst nach ihrer Implementierung wird Origin
+1 unter der dann finalen Pipelinegeneration erneut ausgeführt.
+
+Vollständiger Bericht:
+`handoff/PROTOCOL_V3_CROSS_CYCLE_ORIGIN_SELECTION_2026-07-23.md`.
+
+## Reale Finalisten-Qualität und Task-15-Bindung vom 2026-07-23
+
+Der Production-Finalistenpfad erzeugt jetzt für beide Finalisten vollständige
+training-only Quality-Evidenz. Nach allen acht Cycles werden die vollständige
+96-Profil-Matrix, PBO und DSR neu berechnet und daraus intern acht echte
+Task-15-Entscheidungen erzeugt. Vom Aufrufer gelieferte Entscheidungen sind
+nicht mehr zulässig.
+
+Der DSR-Batch teilt ausschließlich die identischen Trial- und
+Korrelationsstatistiken; die skalare Formel und alle Schwellen bleiben
+unverändert. Der reale Cycle-CLI lädt nun den vollständigen
+730-Tage-Entwicklungszeitraum.
+
+- technischer Commit: `c5e9c0997385462148d3b7ba86e51db735edb6f1`
+- Pipelinegeneration:
+  `protocol_v3_pipeline_sha256:9e5e6e9d9491ac7fffd5dc23ce17d7bdf9f78a50cd9c9db587c1dcd924f5fe41`
+- direkt betroffene Tests: `60/60` grün
+- vollständige lokale Suite: `1.371/1.371` grün
+- Ziel `+3 USDC/Tag`: weiterhin nicht ausgewertet oder erreicht
+
+Die alten Origin-1-Artefakte aus `950c763` und `8fcfb6e` sind generationenalt
+und bleiben unbrauchbar. Der nächste kleinste Blocker ist ein vollständiger,
+transaktionaler Task-13-Origin-Work-Unit. Bericht:
+`handoff/PROTOCOL_V3_PRODUCTION_FINALIST_QUALITY_2026-07-23.md`.
+
+## Restartfähiger Origin-Work-Unit vom 2026-07-23
+
+Der vollständige Task-13-Origin-Work-Unit ist in Commit
+`d4ce888a27eaacc57f0a0200e355426688c780e0` implementiert und am realen
+Einstiegspunkt in `bf9587170ab64073190529039619ec11c7dc1313` korrigiert. Acht Cycle-Slots,
+vollständige Task-15-Entscheidungen, create-only Artefakte und Intents,
+committed Checkpoints, Crash-Recovery und die finale Cross-Cycle-Auswahl sind
+an Code, Pipeline, Kontext, Fold und den exakten permanenten Ledger-Head
+gebunden.
+
+Pipelinegeneration:
+`protocol_v3_pipeline_sha256:ed966a90c73750a6316d011f239e713d0dcd00669520166bbae8f37275285ebf`.
+
+Die vollständigen Task-15-Entscheidungen werden deterministisch komprimiert,
+vollständig validiert und für Task 23 wiederherstellbar gespeichert. Damit
+bleibt der Report kompakt, ohne Evidenz zu verwerfen.
+
+Die vollständige lokale Suite ist mit `1.377/1.377` grün; die direkt
+betroffene Suite ist mit `24/24` grün. Das Ziel `+3 USDC/Tag` ist unter dieser
+Generation noch nicht real ausgewertet.
+
+Bericht:
+`handoff/PROTOCOL_V3_ORIGIN_WORK_UNIT_2026-07-23.md`.
+
+## Kontrollierter Origin-1-Stopp vor PC-Abschaltung
+
+Der reale Run wurde auf Nutzerwunsch beendet. PID `18824` ist gestoppt.
+Cycle 1 hat 12 deterministische Basis-Trials append-only persistiert, aber noch
+kein Cycle-Artefakt, Intent oder Checkpoint erzeugt. Ledger beim Stopp:
+`121` Events, `119` native Trials, `1` Cache-Reuse, Head
+`ef0a8c7e2dc76e40a820a1aa3b18a1e66daefeaf848989f860d90a5375857d15`.
+Kein Transaction-Lock blieb zurück.
+
+Der nächste technische Punkt ist eine echte Pre-Intent-Crash-Recovery:
+Die vorhandenen 12 Cycle-1-Trials müssen als exakter, idempotenter
+Fortschritt seit dem Preflight-Head bewiesen werden. Die derzeitige
+Initial-Ledger-Prüfung blockiert diesen Zustand noch. Details und exakter
+Preflight-Pfad stehen in
+`handoff/PROTOCOL_V3_ORIGIN_WORK_UNIT_2026-07-23.md`.

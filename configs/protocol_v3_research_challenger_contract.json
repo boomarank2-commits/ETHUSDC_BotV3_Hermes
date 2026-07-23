@@ -1,0 +1,62 @@
+{
+  "schema_version": "protocol_v3_research_challenger_contract_v2",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_order_free_research_challenger_shadow_v2",
+  "controller_policy": {
+    "task28_typed_provenance_required": true,
+    "current_pipeline_generation_required": true,
+    "manual_start_only": true,
+    "manual_start_is_first_forward_minute": true,
+    "ethusdc_only": true,
+    "btcusdc_and_ethbtc_context_only": true,
+    "exact_closed_three_market_bar_required": true,
+    "frozen_context_policy_required": true,
+    "public_exchange_info_snapshot_required_for_active_candidate": true,
+    "frozen_horizon_policy_required": true,
+    "one_open_lot_maximum": true,
+    "refresh_and_replay_must_be_idempotent": true,
+    "end_of_feed_may_not_liquidate": true
+  },
+  "warmup_policy": {
+    "trailing_feature_reads_only": true,
+    "signals_forbidden": true,
+    "fills_forbidden": true,
+    "pnl_forbidden": true,
+    "ledger_records_forbidden": true,
+    "minimum_minutes_from_strategy_and_context_lookbacks": true
+  },
+  "forward_ledger_policy": {
+    "append_only_hash_chain": true,
+    "pipeline_namespace_bound": true,
+    "new_pipeline_generation_requires_empty_ledger": true,
+    "explicit_no_trade_records": true,
+    "bar_content_hashes_required": true,
+    "context_decision_required": true,
+    "virtual_fills_fees_slippage_positions_and_mtm": true,
+    "raw_orders_forbidden": true
+  },
+  "validity_policy": {
+    "entries_before_valid_from_forbidden": true,
+    "entries_before_manual_activation_forbidden": true,
+    "entries_at_or_after_valid_until_forbidden": true,
+    "pending_entry_discarded_on_exit_only_transition": true,
+    "open_position_may_exit_after_entry_window": true
+  },
+  "evidence_policy": {
+    "freshness": "NOT_FRESH",
+    "diagnostic_only": true,
+    "statistically_supported": false,
+    "canonical_adoption_eligible": false,
+    "protocol_v3_final_status": false
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "private_endpoints": "forbidden",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "live": "locked",
+    "trading_api": "forbidden",
+    "adopt_for_shadow": "forbidden"
+  }
+}

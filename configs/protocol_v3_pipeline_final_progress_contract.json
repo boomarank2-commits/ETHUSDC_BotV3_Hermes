@@ -1,0 +1,48 @@
+{
+  "schema_version": "protocol_v3_pipeline_final_progress_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_result_blind_twelve_origin_progress_v1",
+  "progress_schema_version": "protocol_v3_pipeline_final_progress_v1",
+  "origin_receipt_schema_version": "protocol_v3_pipeline_final_origin_receipt_v1",
+  "progress_policy": {
+    "exact_origin_count": 12,
+    "strict_origin_order": true,
+    "hash_chained_origin_receipts": true,
+    "registration_and_claim_required": true,
+    "task2_boundaries_revalidated": true,
+    "pipeline_and_code_identity_revalidated": true,
+    "replay_must_match_committed_receipt": true,
+    "cross_generation_resume_forbidden": true
+  },
+  "hidden_result_policy": {
+    "outer_pnl_stored": false,
+    "outer_mtm_stored": false,
+    "outer_equity_stored": false,
+    "outer_trades_stored": false,
+    "outer_rankings_stored": false,
+    "outer_gate_results_stored": false,
+    "intermediate_result_channel_visible": false,
+    "final_report_visible_before_task31_attestation": false
+  },
+  "required_origin_identity_fields": [
+    "context_binding_sha256",
+    "cost_identity_sha256",
+    "data_snapshot_sha256",
+    "exchange_info_snapshot_sha256",
+    "execution_identity_sha256",
+    "feature_store_sha256",
+    "origin_artifact_index_sha256",
+    "rotation_state_sha256",
+    "transaction_checkpoint_sha256",
+    "trial_ledger_head_sha256"
+  ],
+  "safety": {
+    "api_keys": "forbidden",
+    "canonical_adoption": "locked",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}

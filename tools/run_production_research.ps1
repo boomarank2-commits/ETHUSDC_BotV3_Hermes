@@ -5,7 +5,9 @@ param(
     [ValidateRange(1, 8)]
     [int]$MaxCycles = 8,
     [ValidatePattern('^\d{4}-\d{2}-\d{2}$')]
-    [string]$DataEndDay = "2026-07-07"
+    [string]$DataEndDay = "2026-07-07",
+    [string]$RunId = "",
+    [string]$ResumeState = ""
 )
 
 Set-StrictMode -Version Latest
@@ -199,6 +201,12 @@ $ResearchArguments = @(
     "--data-end-day", $DataEndDay,
     "--enable-context"
 )
+if ($RunId) {
+    $ResearchArguments += @("--run-id", $RunId)
+}
+if ($ResumeState) {
+    $ResearchArguments += @("--resume-state", $ResumeState)
+}
 
 Write-Host "==> Production Research Protocol v2 with aligned public context"
 Write-Host "Branch: $GitBranch"

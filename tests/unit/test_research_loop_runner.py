@@ -146,6 +146,34 @@ def test_research_loop_runner_executes_multiple_cycles(tmp_path):
     assert result.report_paths.json_path.exists()
 
 
+def test_research_loop_resumes_from_atomic_cycle_state(tmp_path):
+    calls = []
+
+    def interrupted_runner(cycle_index, state):
+        calls.append(cycle_index)
+        if cycle_index == 1:
+            return _cycle("resume_1", validation=-0.9)
+        raise RuntimeError("simulated reboot")
+
+    config = _config(tmp_path, run_id="research_loop_resume_test")
+    with pytest.raises(RuntimeError, match="simulated reboot"):
+        run_research_loop(config, cycle_runner=interrupted_runner)
+    resume_path = tmp_path / "research_loop_resume_test.resume.json"
+    assert resume_path.is_file()
+    assert (tmp_path / "research_loop_resume_test.cycle-01.json").is_file()
+
+    def resumed_runner(cycle_index, state):
+        calls.append(cycle_index)
+        return _cycle(f"resume_{cycle_index}", validation=-0.8 + cycle_index * 0.1)
+
+    result = run_research_loop(config, cycle_runner=resumed_runner)
+    assert calls == [1, 2, 2, 3]
+    assert result.cycles_executed == 3
+    report = json.loads(result.report_paths.json_path.read_text(encoding="utf-8"))
+    assert [cycle["cycle_id"] for cycle in report["cycles"]] == [1, 2, 3]
+    assert report["resume_supported"] is True
+
+
 def test_research_loop_never_claims_target_without_separate_frozen_holdout(tmp_path):
     result = run_research_loop(
         _config(tmp_path),
@@ -291,14 +319,16 @@ def test_loop_report_recursively_serializes_nonfinite_metric_objects_as_strict_j
 
 def test_loop_stops_on_safety_violation(tmp_path):
     unsafe = {**safety_status(), "live": "unlocked"}
+    config = _config(tmp_path, max_cycles=8, run_id="research_loop_unsafe")
 
     result = run_research_loop(
-        _config(tmp_path, max_cycles=8),
+        config,
         cycle_runner=lambda cycle_index, state: _cycle(f"candidate_{cycle_index}", validation=-0.1, safety=unsafe),
     )
 
     assert result.stop_reason == "safety_violation"
-    assert result.cycles_executed == 1
+    assert result.cycles_executed == 0
+    assert not (tmp_path / "research_loop_unsafe.cycle-01.json").exists()
 
 
 @pytest.mark.parametrize(
@@ -320,7 +350,7 @@ def test_loop_safety_requires_the_complete_canonical_contract(tmp_path, mutate):
     )
 
     assert result.stop_reason == "safety_violation"
-    assert result.cycles_executed == 1
+    assert result.cycles_executed == 0
 
 
 def test_config_rejects_stage_caps_above_the_protocol_hard_caps(tmp_path):
