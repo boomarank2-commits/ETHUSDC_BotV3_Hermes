@@ -68,6 +68,7 @@ _TASK_BINDING_FILES: Final = {
     "16": (
         "configs/protocol_v3_candidate_matrix_contract.json",
         "src/ethusdc_bot/protocol_v3/candidate_matrix.py",
+        "src/ethusdc_bot/protocol_v3/production_inner_cycle.py",
     ),
     "17": (
         "configs/protocol_v3_pbo_contract.json",
