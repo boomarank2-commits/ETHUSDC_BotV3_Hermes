@@ -13,7 +13,7 @@ import ethusdc_bot.protocol_v3.data_snapshot as snapshot_module
 from ethusdc_bot.backtest.context_features import ContextVetoPolicy
 from ethusdc_bot.backtest.data_loader import AlignedMarketCandles, Candle
 from ethusdc_bot.protocol_v3 import transactional_cache as tx
-from ethusdc_bot.protocol_v3 import transactional_cache_api
+from ethusdc_bot.protocol_v3 import transactional_cache_api  # noqa: F401
 from ethusdc_bot.protocol_v3.artifact_store_api import (
     DIAGNOSTICS,
     build_artifact_payload,
@@ -57,7 +57,7 @@ from ethusdc_bot.protocol_v3.trial_ledger import (
     append_trial,
     build_trial_record,
     initialize_trial_ledger,
-    read_trial_ledger,
+    read_trial_ledger,  # noqa: F401
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -270,9 +270,10 @@ def build_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     generation = build_pipeline_generation(REPO_ROOT)
     ledger_root = tmp_path / "ledger"
     ledger, record = _trial(ledger_root)
+    exchange = _exchange()
     fingerprint = build_run_fingerprint(
         data_snapshot=snapshot,
-        exchange_info_snapshot=_exchange(),
+        exchange_info_snapshot=exchange,
         pipeline_generation=generation,
         context_binding=binding,
         code_commit=COMMIT,
@@ -333,6 +334,9 @@ def build_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         "ledger_root": ledger_root,
         "record": record,
         "fingerprint": fingerprint,
+        "snapshot": snapshot,
+        "exchange": exchange,
+        "generation": generation,
         "binding": binding,
         "manifest": manifest,
         "identity": identity,

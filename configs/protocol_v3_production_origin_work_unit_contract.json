@@ -1,0 +1,48 @@
+{
+  "schema_version": "protocol_v3_production_origin_work_unit_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_restartable_origin_work_unit_v1",
+  "cycle_policy": {
+    "required_cycles": 8,
+    "generated_per_cycle": 40,
+    "tested_per_cycle": 12,
+    "walk_forward_per_cycle": 3,
+    "finalists_per_cycle": 2,
+    "cycle_result_write_is_create_only": true,
+    "later_cycle_requires_prior_committed_checkpoint": true
+  },
+  "identity_policy": {
+    "current_pre_run_manifest_required": true,
+    "current_run_fingerprint_at_decision_required": true,
+    "real_task15_decision_required": true,
+    "context_parity_binding_required": true,
+    "exact_fold_identity_required": true,
+    "exact_ledger_head_required": true,
+    "transaction_intent_write_is_create_only": true
+  },
+  "resume_policy": {
+    "committed_checkpoint_is_only_resume_truth": true,
+    "cycle_artifact_revalidated_before_resume": true,
+    "uncommitted_cycle_artifact_may_be_recovered_only_at_its_exact_ledger_head": true,
+    "stale_or_unknown_lock_recovery_is_never_automatic": true,
+    "duplicate_cycle_or_ledger_append_forbidden": true
+  },
+  "origin_policy": {
+    "all_eight_cycle_results_required": true,
+    "full_cross_cycle_origin_selection_required": true,
+    "origin_selection_uses_current_post_cycle_ledger_head": true,
+    "origin_selection_write_is_create_only": true,
+    "execution_may_remediate_sole_outer_adapter_blocker": true,
+    "terminal_stop_reason": "max_cycles_reached"
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "canonical_adoption": "locked",
+    "live": "locked",
+    "orders": "locked",
+    "outer_results": "forbidden",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}

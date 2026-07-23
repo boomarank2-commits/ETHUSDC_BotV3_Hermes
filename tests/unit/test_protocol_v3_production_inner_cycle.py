@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -19,6 +20,7 @@ from ethusdc_bot.protocol_v3.candidate_matrix import (
     build_candidate_daily_matrix,
 )
 from ethusdc_bot.protocol_v3.runtime_state import HorizonPolicy
+from ethusdc_bot.protocol_v3.run_identity import build_run_fingerprint
 from ethusdc_bot.protocol_v3.trial_ledger import (
     import_canonical_historical_lower_bound,
     read_trial_ledger,
@@ -187,6 +189,11 @@ def state(
         "context": context,
         "manifest": identity_state["manifest"],
         "fingerprint": identity_state["fingerprint"],
+        "snapshot": identity_state["snapshot"],
+        "exchange": identity_state["exchange"],
+        "generation": identity_state["generation"],
+        "binding": identity_state["binding"],
+        "selection_decision": identity_state["selection_decision"],
     }
 
 
@@ -233,6 +240,18 @@ def _run_cycle(state, cycle_index: int):
         origin_index=1,
         cycle_index=cycle_index,
         code_commit=COMMIT,
+    )
+
+
+def _current_fingerprint(state):
+    return build_run_fingerprint(
+        data_snapshot=state["snapshot"],
+        exchange_info_snapshot=state["exchange"],
+        pipeline_generation=state["generation"],
+        context_binding=state["binding"],
+        code_commit=COMMIT,
+        trial_ledger=read_trial_ledger(state["ledger_root"]),
+        repo_root=REPO_ROOT,
     )
 
 
@@ -363,6 +382,19 @@ def test_recomputed_task15_decision_binds_real_cycle_quality_and_support(
     ] == result["development_support"]
 
 
+def test_task15_decision_archive_validates_from_cold_cache(state) -> None:
+    payload = state["selection_decision"].to_dict()
+    archive = production_origin_selection._archive_decision(1, payload)
+    production_origin_selection._DECISION_BINDING_CACHE.clear()
+    binding = production_origin_selection._read_decision_archive(
+        archive,
+        expected_cycle=1,
+    )
+    assert binding["decision_id"] == payload["decision_id"]
+    assert binding["outcome"] == production_origin_selection.NO_TRADE
+    assert binding["cycle_index"] == 1
+
+
 def test_full_cross_cycle_origin_recomputes_96_profiles_and_task15(
     state,
     monkeypatch: pytest.MonkeyPatch,
@@ -381,6 +413,7 @@ def test_full_cross_cycle_origin_recomputes_96_profiles_and_task15(
                 },
             )
     ledger = read_trial_ledger(state["ledger_root"])
+    current_fingerprint = _current_fingerprint(state)
     rows = []
     for cycle_index in range(1, 9):
         matrix = build_candidate_daily_matrix(
@@ -441,6 +474,8 @@ def test_full_cross_cycle_origin_recomputes_96_profiles_and_task15(
             cycle_index - 1
         ]
         return SimpleNamespace(
+            pbo=pbo_evidence,
+            cycle_index=cycle_index,
             to_dict=lambda: {
                 "profiles": [
                     {
@@ -466,29 +501,21 @@ def test_full_cross_cycle_origin_recomputes_96_profiles_and_task15(
         )
 
     def fake_support(batch, *, trial_ledger):
-        return SimpleNamespace(
-            to_dict=lambda: {
-                "matrix": {"state": "COMPLETE"},
-                "pbo": {"state": "COMPLETE"},
-                "dsr": {"state": "INSUFFICIENT_EVIDENCE"},
-                "support_sha256": hashlib.sha256(
-                    b"fixture-support"
-                ).hexdigest(),
-            }
+        return inner_selection.build_pbo_development_support(
+            batch.pbo,
+            cycle_index=batch.cycle_index,
         )
 
+    real_build_cycle_decision = (
+        production_origin_selection._build_cycle_decision
+    )
+
     def fake_decision(row, **kwargs):
-        digest = hashlib.sha256(
-            f"decision:{row['cycle_index']}".encode()
-        ).hexdigest()
-        return SimpleNamespace(
-            decision_id=f"protocol_v3_selection_sha256:{digest}",
-            to_dict=lambda: {
-                "decision_id": f"protocol_v3_selection_sha256:{digest}",
-                "decision_sha256": digest,
-                "outcome": production_origin_selection.NO_TRADE,
-                "selected_candidate": None,
-                "ranking_evidence": [],
+        return real_build_cycle_decision(
+            row,
+            **{
+                **kwargs,
+                "run_fingerprint": current_fingerprint,
             },
         )
 
@@ -513,7 +540,7 @@ def test_full_cross_cycle_origin_recomputes_96_profiles_and_task15(
         trial_ledger=ledger,
         cycle_results=[],
         pre_run_manifest=state["manifest"],
-        run_fingerprint=state["fingerprint"],
+        run_fingerprint=current_fingerprint,
         code_commit=COMMIT,
     )
     payload = result.to_dict()
@@ -529,6 +556,8 @@ def test_full_cross_cycle_origin_recomputes_96_profiles_and_task15(
         "matrix_sha256"
     ]
     assert len(payload["cycle_decision_summaries"]) == 8
+    assert len(payload["cycle_decision_archives"]) == 8
+    assert len(payload["cycle_decision_bindings"]) == 8
     assert payload["state"] == production_origin_selection.NO_TRADE
     assert payload["outcome"] == production_origin_selection.NO_TRADE
     assert payload["selected_candidate"] is None
@@ -536,6 +565,29 @@ def test_full_cross_cycle_origin_recomputes_96_profiles_and_task15(
     assert production_origin_selection.validate_production_origin_selection(
         result
     ) == result
+
+    tampered = json.loads(json.dumps(payload))
+    tampered["cycle_decision_archives"][0]["payload_base64"] = (
+        "TAMPERED"
+    )
+    basis = dict(tampered)
+    basis.pop("result_sha256")
+    tampered["result_sha256"] = hashlib.sha256(
+        json.dumps(
+            basis,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        ).encode()
+    ).hexdigest()
+    with pytest.raises(
+        production_origin_selection.ProductionOriginSelectionError,
+        match="full Task-15 decision archive is invalid",
+    ):
+        production_origin_selection.validate_production_origin_selection(
+            tampered
+        )
 
     target = tmp_path / "origin-selection.json"
     assert production_origin_selection.write_production_origin_selection(
@@ -553,9 +605,27 @@ def test_cross_cycle_origin_rejects_duplicate_or_missing_cycles(
     state,
 ) -> None:
     result = _run_cycle(state, 1)
+    current_fingerprint = _current_fingerprint(state)
     with pytest.raises(
         production_origin_selection.ProductionOriginSelectionError,
         match="indexes must be exactly 1..8",
+    ):
+        production_origin_selection.build_production_origin_selection(
+            repo_root=REPO_ROOT,
+            fold_plan=state["plan"],
+            trial_ledger=read_trial_ledger(state["ledger_root"]),
+            cycle_results=[result] * 8,
+            pre_run_manifest=state["manifest"],
+            run_fingerprint=current_fingerprint,
+            code_commit=COMMIT,
+        )
+
+
+def test_cross_cycle_origin_rejects_stale_run_fingerprint(state) -> None:
+    result = _run_cycle(state, 1)
+    with pytest.raises(
+        production_origin_selection.ProductionOriginSelectionError,
+        match="run fingerprint is stale",
     ):
         production_origin_selection.build_production_origin_selection(
             repo_root=REPO_ROOT,

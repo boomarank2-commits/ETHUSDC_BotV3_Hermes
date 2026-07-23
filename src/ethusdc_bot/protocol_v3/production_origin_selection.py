@@ -13,8 +13,10 @@ an origin candidate.
 
 from __future__ import annotations
 
+import base64
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+import gzip
 import hashlib
 import json
 import math
@@ -35,6 +37,7 @@ from .inner_selection import (
     build_selection_training_window,
     lexicographic_candidate_rank_key,
     select_candidate,
+    validate_selection_decision,
 )
 from .pbo import calculate_pbo, validate_pbo_evidence
 from .pipeline import PreRunManifest, build_pipeline_generation
@@ -42,7 +45,7 @@ from .production_inner_cycle import (
     ProductionInnerCycleResult,
     validate_production_inner_cycle_result,
 )
-from .run_identity import RunFingerprint
+from .run_identity import RunFingerprint, validate_run_fingerprint
 from .trial_ledger import TrialLedgerSnapshot, read_trial_ledger
 
 PROTOCOL_VERSION: Final = "3.0.0"
@@ -52,9 +55,9 @@ CONTRACT_PATH: Final = Path(
 CONTRACT_SCHEMA_VERSION: Final = (
     "protocol_v3_production_origin_selection_contract_v1"
 )
-CONTRACT_VERSION: Final = "protocol_v3_full_cross_cycle_origin_selection_v1"
+CONTRACT_VERSION: Final = "protocol_v3_full_cross_cycle_origin_selection_v2"
 RESULT_SCHEMA_VERSION: Final = (
-    "protocol_v3_production_origin_selection_result_v1"
+    "protocol_v3_production_origin_selection_result_v2"
 )
 MAX_CYCLES_REACHED: Final = "max_cycles_reached"
 READY_CANDIDATE: Final = "READY_CANDIDATE"
@@ -72,6 +75,7 @@ _SAFETY: Final = {
     "testtrade": "locked",
     "trading_api": "forbidden",
 }
+_DECISION_BINDING_CACHE: dict[str, dict[str, Any]] = {}
 _CANONICAL_CONTRACT: Final = {
     "schema_version": CONTRACT_SCHEMA_VERSION,
     "protocol_version": PROTOCOL_VERSION,
@@ -104,6 +108,9 @@ _CANONICAL_CONTRACT: Final = {
         "no_gate_passing_candidate_result": NO_TRADE,
     },
     "artifact_policy": {
+        "full_task15_cycle_decisions_embedded": True,
+        "full_task15_cycle_decisions_validated": True,
+        "task15_decision_encoding": "gzip_base64_canonical_json_v1",
         "full_source_cycle_results_embedded": False,
         "source_result_digests_retained": True,
         "dsr_summaries_embedded": True,
@@ -171,6 +178,13 @@ def build_production_origin_selection(
             "only the pre-registered max-cycles terminal path is supported"
         )
     pipeline = build_pipeline_generation(repo)
+    _validate_current_run_fingerprint(
+        run_fingerprint,
+        repo_root=repo,
+        ledger=ledger,
+        pipeline_generation_id=pipeline.generation_id,
+        code_commit=commit,
+    )
     rows = _validated_cycle_rows(
         cycle_results,
         plan=plan,
@@ -224,9 +238,13 @@ def build_production_origin_selection(
         )
     blockers: list[str] = []
     ranked = []
+    decision_archives = []
+    decision_bindings = []
     decision_summaries = []
     for cycle_index, decision in sorted(decisions.items()):
-        payload = decision.to_dict()
+        payload = validate_selection_decision(decision).to_dict()
+        decision_archives.append(_archive_decision(cycle_index, payload))
+        decision_bindings.append(_decision_binding(cycle_index, payload))
         selected = payload["selected_candidate"]
         ranking = None
         if payload["outcome"] == CANDIDATE and selected is not None:
@@ -260,20 +278,7 @@ def build_production_origin_selection(
                     decision,
                 )
             )
-        decision_summaries.append(
-            {
-                "cycle_index": cycle_index,
-                "decision_id": payload["decision_id"],
-                "decision_sha256": payload["decision_sha256"],
-                "outcome": payload["outcome"],
-                "selected_candidate_id": (
-                    None
-                    if selected is None
-                    else selected["canonical_candidate_id"]
-                ),
-                "ranking_evidence": ranking,
-            }
-        )
+        decision_summaries.append(_decision_summary(cycle_index, payload))
 
     selected_candidate = None
     selected_ranking = None
@@ -313,6 +318,8 @@ def build_production_origin_selection(
             key=lambda row: row["profile_id"],
         ),
         "development_support_summaries": support_summaries,
+        "cycle_decision_archives": decision_archives,
+        "cycle_decision_bindings": decision_bindings,
         "cycle_decision_summaries": decision_summaries,
         "state": state,
         "outcome": outcome,
@@ -351,6 +358,8 @@ def validate_production_origin_selection(
         "pbo_summary",
         "dsr_summaries",
         "development_support_summaries",
+        "cycle_decision_archives",
+        "cycle_decision_bindings",
         "cycle_decision_summaries",
         "state",
         "outcome",
@@ -466,6 +475,70 @@ def validate_production_origin_selection(
         not isinstance(item, str) or not item for item in blockers
     ):
         raise ProductionOriginSelectionError("blockers are invalid")
+    archives = root["cycle_decision_archives"]
+    if not isinstance(archives, list) or len(archives) != 8:
+        raise ProductionOriginSelectionError(
+            "exactly eight full Task-15 decision archives are required"
+        )
+    try:
+        validated_bindings = [
+            _read_decision_archive(row, expected_cycle=cycle)
+            for cycle, row in zip(_CYCLES, archives, strict=True)
+        ]
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ProductionOriginSelectionError(
+            "full Task-15 decision archive is invalid"
+        ) from exc
+    bindings = root["cycle_decision_bindings"]
+    expected_bindings = [
+        dict(binding) for binding in validated_bindings
+    ]
+    if bindings != expected_bindings:
+        raise ProductionOriginSelectionError(
+            "Task-15 decision bindings differ from full archives"
+        )
+    full_decision_cycles = [
+        row["cycle_index"] for row in validated_bindings
+    ]
+    if full_decision_cycles != list(_CYCLES):
+        raise ProductionOriginSelectionError(
+            "full Task-15 decisions must be ordered cycles 1..8"
+        )
+    for cycle_index, binding in zip(
+        _CYCLES, validated_bindings, strict=True
+    ):
+        matrix_cycle = matrix["cycles"][cycle_index - 1]
+        if (
+            binding["origin_index"] != origin
+            or binding["pipeline_generation_id"]
+            != root["pipeline_generation_id"]
+            or binding["trial_ledger_head_sha256"]
+            != root["trial_ledger_head_sha256"]
+            or binding["fold_plan_sha256"]
+            != matrix["fold_identity"]["plan_sha256"]
+            or binding["code_commit"] != root["code_commit"]
+            or binding["stage_candidate_ids"]["tested"]
+            != matrix_cycle["tested_candidate_ids"]
+            or binding["stage_candidate_ids"]["walk_forward"]
+            != matrix_cycle["promoted_candidate_ids"]
+            or binding["stage_candidate_ids"]["finalists"]
+            != matrix_cycle["finalist_candidate_ids"]
+            or binding["matrix_evidence_sha256"] != matrix["matrix_sha256"]
+            or binding["development_support_sha256"]
+            != supports[cycle_index - 1]["support_sha256"]
+        ):
+            raise ProductionOriginSelectionError(
+                "Task-15 decision does not bind the full origin evidence"
+            )
+        if (
+            binding["pbo_state"] == "COMPLETE"
+            and binding["pbo_evidence_sha256"]
+            != pbo["evidence_sha256"]
+        ):
+            raise ProductionOriginSelectionError(
+                "Task-15 decision does not bind the recomputed PBO"
+            )
+
     decisions = root["cycle_decision_summaries"]
     if not isinstance(decisions, list):
         raise ProductionOriginSelectionError(
@@ -478,16 +551,38 @@ def validate_production_origin_selection(
         len(decision_cycles) != len(decisions)
         or decision_cycles != sorted(set(decision_cycles))
         or any(cycle not in _CYCLES for cycle in decision_cycles)
+        or decisions
+        != [
+            _summary_from_binding(binding)
+            for binding in validated_bindings
+        ]
     ):
         raise ProductionOriginSelectionError(
-            "cycle decision summaries are duplicated or unordered"
+            "cycle decision summaries differ from full Task-15 decisions"
         )
     missing_decisions = [cycle for cycle in _CYCLES if cycle not in decision_cycles]
+    ranked_decisions = []
+    for cycle_index, binding in zip(
+        _CYCLES, validated_bindings, strict=True
+    ):
+        selected = binding["selected_candidate"]
+        if binding["outcome"] == CANDIDATE and selected is not None:
+            selected_id = selected["canonical_candidate_id"]
+            ranking = binding["ranking_evidence"]
+            ranked_decisions.append(
+                (
+                    lexicographic_candidate_rank_key(ranking),
+                    cycle_index,
+                    binding,
+                )
+            )
+    ranked_decisions.sort(key=lambda item: (item[0], item[1]))
     if state == READY_CANDIDATE:
         if (
             outcome != CANDIDATE
             or blockers
             or missing_decisions
+            or not ranked_decisions
             or root["selected_cycle_index"] not in _CYCLES
             or root["selected_candidate"] is None
             or root["selected_ranking_evidence"] is None
@@ -495,8 +590,36 @@ def validate_production_origin_selection(
             raise ProductionOriginSelectionError(
                 "ready origin candidate is incomplete"
             )
+        expected_cycle = ranked_decisions[0][1]
+        selected_binding = ranked_decisions[0][2]
+        selected_id = root["selected_candidate"]["canonical_candidate_id"]
+        if (
+            root["selected_cycle_index"] != expected_cycle
+            or selected_binding["decision_id"]
+            != root["selected_decision_id"]
+            or selected_binding["selected_candidate"]
+            != root["selected_candidate"]
+            or selected_binding["selected_candidate_id"] != selected_id
+            or selected_binding["ranking_evidence"]
+            != root["selected_ranking_evidence"]
+        ):
+            raise ProductionOriginSelectionError(
+                "selected origin candidate differs from its Task-15 decision"
+            )
     elif state == NO_TRADE:
-        if outcome != NO_TRADE or blockers or missing_decisions:
+        if (
+            outcome != NO_TRADE
+            or blockers
+            or missing_decisions
+            or root["selected_cycle_index"] is not None
+            or root["selected_decision_id"] is not None
+            or root["selected_candidate"] is not None
+            or root["selected_ranking_evidence"] is not None
+            or any(
+                binding["outcome"] != NO_TRADE
+                for binding in validated_bindings
+            )
+        ):
             raise ProductionOriginSelectionError(
                 "complete NO_TRADE selection is inconsistent"
             )
@@ -654,6 +777,37 @@ def _build_cycle_decision(
     return decision
 
 
+def build_production_cycle_selection_decision(
+    cycle_result: ProductionInnerCycleResult | Mapping[str, Any],
+    *,
+    fold_plan: InnerFoldPlan | Mapping[str, Any],
+    pre_run_manifest: PreRunManifest | Mapping[str, Any],
+    run_fingerprint: RunFingerprint | Mapping[str, Any],
+) -> Any:
+    """Build the real Task-15 decision used by one cycle checkpoint."""
+
+    row = validate_production_inner_cycle_result(cycle_result).to_dict()
+    plan = validate_inner_fold_plan(fold_plan)
+    matrix = validate_candidate_daily_matrix(row["matrix"]).to_dict()
+    if (
+        row["fold_plan_sha256"] != plan.plan_sha256
+        or matrix["origin_index"] != row["origin_index"]
+    ):
+        raise ProductionOriginSelectionError(
+            "cycle result and fold plan identities differ"
+        )
+    return validate_selection_decision(
+        _build_cycle_decision(
+            row,
+            plan=plan,
+            origin_index=row["origin_index"],
+            support=row["development_support"],
+            pre_run_manifest=pre_run_manifest,
+            run_fingerprint=run_fingerprint,
+        )
+    )
+
+
 def _pbo_summary(payload: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "state": payload["state"],
@@ -726,6 +880,260 @@ def _support_summary(cycle_index: int, payload: Mapping[str, Any]) -> dict[str, 
         "dsr_state": payload["dsr"]["state"],
         "support_sha256": payload["support_sha256"],
     }
+
+
+def _decision_summary(
+    cycle_index: int,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    selected = payload["selected_candidate"]
+    selected_id = (
+        None if selected is None else selected["canonical_candidate_id"]
+    )
+    ranking = None
+    if selected_id is not None:
+        matches = [
+            row
+            for row in payload["ranking_evidence"]
+            if row["canonical_candidate_id"] == selected_id
+        ]
+        if len(matches) != 1:
+            raise ProductionOriginSelectionError(
+                "Task-15 selected candidate lacks one ranking row"
+            )
+        ranking = matches[0]
+    return {
+        "cycle_index": cycle_index,
+        "decision_id": payload["decision_id"],
+        "decision_sha256": payload["decision_sha256"],
+        "outcome": payload["outcome"],
+        "selected_candidate_id": selected_id,
+        "ranking_evidence": ranking,
+    }
+
+
+def _decision_binding(
+    cycle_index: int,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    config = payload["frozen_pipeline_config"]
+    fingerprints = payload["fingerprints"]
+    support = config["development_support"]
+    pbo = support["pbo"]
+    return {
+        **_decision_summary(cycle_index, payload),
+        "origin_index": config["origin_index"],
+        "pipeline_generation_id": fingerprints["pipeline_generation_id"],
+        "code_commit": config["run_fingerprint"]["code"]["git_commit"],
+        "trial_ledger_head_sha256": fingerprints[
+            "trial_ledger_head_sha256"
+        ],
+        "fold_plan_sha256": fingerprints["fold_plan_sha256"],
+        "stage_candidate_ids": config["stage_candidate_ids"],
+        "matrix_evidence_sha256": support["matrix"]["evidence_sha256"],
+        "pbo_state": pbo["state"],
+        "pbo_evidence_sha256": pbo.get("evidence_sha256"),
+        "development_support_sha256": support["support_sha256"],
+        "selected_candidate": payload["selected_candidate"],
+    }
+
+
+def _summary_from_binding(binding: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        key: binding[key]
+        for key in (
+            "cycle_index",
+            "decision_id",
+            "decision_sha256",
+            "outcome",
+            "selected_candidate_id",
+            "ranking_evidence",
+        )
+    }
+
+
+def _archive_decision(
+    cycle_index: int,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    canonical = _canonical(payload).encode("utf-8")
+    compressed = gzip.compress(canonical, compresslevel=9, mtime=0)
+    compressed_sha256 = hashlib.sha256(compressed).hexdigest()
+    _DECISION_BINDING_CACHE[compressed_sha256] = _decision_binding(
+        cycle_index, payload
+    )
+    return {
+        "cycle_index": cycle_index,
+        "encoding": "gzip_base64_canonical_json_v1",
+        "decision_id": payload["decision_id"],
+        "decision_sha256": payload["decision_sha256"],
+        "canonical_json_sha256": hashlib.sha256(canonical).hexdigest(),
+        "compressed_sha256": compressed_sha256,
+        "payload_base64": base64.b64encode(compressed).decode("ascii"),
+    }
+
+
+def _read_decision_archive(
+    value: Any,
+    *,
+    expected_cycle: int,
+) -> dict[str, Any]:
+    row = dict(_mapping(value, "cycle_decision_archive"))
+    if set(row) != {
+        "cycle_index",
+        "encoding",
+        "decision_id",
+        "decision_sha256",
+        "canonical_json_sha256",
+        "compressed_sha256",
+        "payload_base64",
+    }:
+        raise ProductionOriginSelectionError(
+            "Task-15 decision archive fields are invalid"
+        )
+    if (
+        row["cycle_index"] != expected_cycle
+        or row["encoding"] != "gzip_base64_canonical_json_v1"
+    ):
+        raise ProductionOriginSelectionError(
+            "Task-15 decision archive identity is invalid"
+        )
+    try:
+        compressed = base64.b64decode(
+            row["payload_base64"], validate=True
+        )
+    except (ValueError, TypeError) as exc:
+        raise ProductionOriginSelectionError(
+            "Task-15 decision archive base64 is invalid"
+        ) from exc
+    if hashlib.sha256(compressed).hexdigest() != row["compressed_sha256"]:
+        raise ProductionOriginSelectionError(
+            "Task-15 compressed decision digest mismatch"
+        )
+    cached = _DECISION_BINDING_CACHE.get(row["compressed_sha256"])
+    if cached is not None:
+        if (
+            cached["cycle_index"] != expected_cycle
+            or cached["decision_id"] != row["decision_id"]
+            or cached["decision_sha256"] != row["decision_sha256"]
+        ):
+            raise ProductionOriginSelectionError(
+                "Task-15 cached decision binding mismatch"
+            )
+        return json.loads(_canonical(cached))
+    try:
+        canonical = gzip.decompress(compressed)
+    except (OSError, EOFError) as exc:
+        raise ProductionOriginSelectionError(
+            "Task-15 decision archive gzip is invalid"
+        ) from exc
+    if (
+        len(canonical) > 256_000_000
+        or hashlib.sha256(canonical).hexdigest()
+        != row["canonical_json_sha256"]
+    ):
+        raise ProductionOriginSelectionError(
+            "Task-15 canonical decision digest mismatch"
+        )
+    payload = _strict_loads(canonical.decode("utf-8"))
+    if _canonical(payload).encode("utf-8") != canonical:
+        raise ProductionOriginSelectionError(
+            "Task-15 decision archive is not canonical"
+        )
+    decision = validate_selection_decision(payload).to_dict()
+    if (
+        decision["decision_id"] != row["decision_id"]
+        or decision["decision_sha256"] != row["decision_sha256"]
+        or decision["frozen_pipeline_config"]["cycle_index"]
+        != expected_cycle
+    ):
+        raise ProductionOriginSelectionError(
+            "Task-15 decision archive binding mismatch"
+        )
+    binding = _decision_binding(expected_cycle, decision)
+    _DECISION_BINDING_CACHE[row["compressed_sha256"]] = binding
+    return json.loads(_canonical(binding))
+
+
+def restore_archived_cycle_decision(
+    value: Mapping[str, Any],
+    *,
+    expected_cycle: int,
+) -> Any:
+    """Restore one full validated Task-15 decision for downstream Task 13/23."""
+
+    row = dict(_mapping(value, "cycle_decision_archive"))
+    if (
+        row.get("cycle_index") != expected_cycle
+        or row.get("encoding") != "gzip_base64_canonical_json_v1"
+    ):
+        raise ProductionOriginSelectionError(
+            "Task-15 decision archive identity is invalid"
+        )
+    try:
+        compressed = base64.b64decode(
+            row["payload_base64"], validate=True
+        )
+        canonical = gzip.decompress(compressed)
+        payload = _strict_loads(canonical.decode("utf-8"))
+    except (KeyError, TypeError, ValueError, OSError, EOFError) as exc:
+        raise ProductionOriginSelectionError(
+            "Task-15 decision archive cannot be restored"
+        ) from exc
+    if (
+        hashlib.sha256(compressed).hexdigest()
+        != row.get("compressed_sha256")
+        or hashlib.sha256(canonical).hexdigest()
+        != row.get("canonical_json_sha256")
+        or _canonical(payload).encode("utf-8") != canonical
+    ):
+        raise ProductionOriginSelectionError(
+            "Task-15 decision archive content is invalid"
+        )
+    decision = validate_selection_decision(payload)
+    restored = decision.to_dict()
+    if (
+        restored["decision_id"] != row.get("decision_id")
+        or restored["decision_sha256"] != row.get("decision_sha256")
+        or restored["frozen_pipeline_config"]["cycle_index"]
+        != expected_cycle
+    ):
+        raise ProductionOriginSelectionError(
+            "Task-15 restored decision binding mismatch"
+        )
+    return decision
+
+
+def _validate_current_run_fingerprint(
+    value: RunFingerprint | Mapping[str, Any],
+    *,
+    repo_root: Path,
+    ledger: TrialLedgerSnapshot,
+    pipeline_generation_id: str,
+    code_commit: str,
+) -> None:
+    try:
+        validate_run_fingerprint(value, repo_root=repo_root)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ProductionOriginSelectionError(
+            "run fingerprint is invalid"
+        ) from exc
+    if isinstance(value, RunFingerprint):
+        payload = value.payload()
+    else:
+        payload = dict(value)
+        for key in ("fingerprint_sha256", "resume_key", "cache_key"):
+            payload.pop(key, None)
+    ledger_identity = payload["trial_ledger_head"]
+    if (
+        payload["code"]["git_commit"] != code_commit
+        or payload["pipeline"]["generation_id"] != pipeline_generation_id
+        or ledger_identity["head_sha256"] != ledger.status.head_sha256
+        or ledger_identity["event_count"] != ledger.status.event_count
+    ):
+        raise ProductionOriginSelectionError(
+            "run fingerprint is stale or differs from origin identity"
+        )
 
 
 def _current_ledger(value: TrialLedgerSnapshot) -> TrialLedgerSnapshot:
@@ -811,7 +1219,9 @@ __all__ = [
     "READY_CANDIDATE",
     "RESULT_SCHEMA_VERSION",
     "build_production_origin_selection",
+    "build_production_cycle_selection_decision",
     "load_production_origin_selection_contract",
+    "restore_archived_cycle_decision",
     "validate_production_origin_selection",
     "write_production_origin_selection",
 ]

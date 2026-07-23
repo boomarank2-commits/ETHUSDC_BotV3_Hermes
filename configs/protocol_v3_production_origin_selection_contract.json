@@ -1,7 +1,7 @@
 {
   "schema_version": "protocol_v3_production_origin_selection_contract_v1",
   "protocol_version": "3.0.0",
-  "contract_version": "protocol_v3_full_cross_cycle_origin_selection_v1",
+  "contract_version": "protocol_v3_full_cross_cycle_origin_selection_v2",
   "input_policy": {
     "origin_count": 1,
     "required_cycle_indexes": [
@@ -39,6 +39,9 @@
     "no_gate_passing_candidate_result": "NO_TRADE"
   },
   "artifact_policy": {
+    "full_task15_cycle_decisions_embedded": true,
+    "full_task15_cycle_decisions_validated": true,
+    "task15_decision_encoding": "gzip_base64_canonical_json_v1",
     "full_source_cycle_results_embedded": false,
     "source_result_digests_retained": true,
     "dsr_summaries_embedded": true,
