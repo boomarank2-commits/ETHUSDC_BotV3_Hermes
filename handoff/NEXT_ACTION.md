@@ -137,3 +137,26 @@ Die nächste zulässige Arbeit ist jetzt:
 Die Artefakte aus `950c763` und `8fcfb6e` niemals wiederverwenden oder
 umetikettieren. `+3 USDC/Tag` ist weiterhin nicht nachgewiesen; Bot, Paper,
 Testtrade, Live und Adoption bleiben gesperrt.
+
+## Aktualisierung nach Task-13-Origin-Work-Unit
+
+Die Punkte 1 und 2 der vorigen Aktualisierung sind erledigt. Der neue
+restartfähige Origin-Controller ist in Commit
+`d4ce888a27eaacc57f0a0200e355426688c780e0` implementiert.
+
+Nächste zulässige Reihenfolge:
+
+1. neuen Task-33-Preflight für die Pipelinegeneration
+   `protocol_v3_pipeline_sha256:bd9731059e4808ea66e688628c1972eafe5f7d2fcf2d7f28f388f27e613de038`
+   erzeugen;
+2. Origin 1 unter dieser Generation mit
+   `scripts/run_protocol_v3_production_origin_work_unit.py` ausführen;
+3. Origin-Auswahl, Quality-Gates, DSR, PBO und Abstand zu `3 USDC/Tag`
+   diagnostizieren;
+4. Tasks 19 bis 27 und Origins 2 bis 12 an denselben transaktionalen
+   Work-Unit anbinden;
+5. erst danach Task-33-Preflight, UI-Start und vollständigen Monatsprozess
+   erneut prüfen.
+
+Alte Cycle-Artefakte niemals umetikettieren. Keine Gate-Lockerung, keine
+Fake-Evidenz und keine Paper-/Testtrade-/Live-Freigabe.

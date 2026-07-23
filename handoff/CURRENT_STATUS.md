@@ -196,3 +196,26 @@ Die alten Origin-1-Artefakte aus `950c763` und `8fcfb6e` sind generationenalt
 und bleiben unbrauchbar. Der nächste kleinste Blocker ist ein vollständiger,
 transaktionaler Task-13-Origin-Work-Unit. Bericht:
 `handoff/PROTOCOL_V3_PRODUCTION_FINALIST_QUALITY_2026-07-23.md`.
+
+## Restartfähiger Origin-Work-Unit vom 2026-07-23
+
+Der vollständige Task-13-Origin-Work-Unit ist in Commit
+`d4ce888a27eaacc57f0a0200e355426688c780e0` implementiert. Acht Cycle-Slots,
+vollständige Task-15-Entscheidungen, create-only Artefakte und Intents,
+committed Checkpoints, Crash-Recovery und die finale Cross-Cycle-Auswahl sind
+an Code, Pipeline, Kontext, Fold und den exakten permanenten Ledger-Head
+gebunden.
+
+Pipelinegeneration:
+`protocol_v3_pipeline_sha256:bd9731059e4808ea66e688628c1972eafe5f7d2fcf2d7f28f388f27e613de038`.
+
+Die vollständigen Task-15-Entscheidungen werden deterministisch komprimiert,
+vollständig validiert und für Task 23 wiederherstellbar gespeichert. Damit
+bleibt der Report kompakt, ohne Evidenz zu verwerfen.
+
+Die vollständige lokale Suite ist mit `1.377/1.377` grün; die direkt
+betroffene Suite ist mit `24/24` grün. Das Ziel `+3 USDC/Tag` ist unter dieser
+Generation noch nicht real ausgewertet.
+
+Bericht:
+`handoff/PROTOCOL_V3_ORIGIN_WORK_UNIT_2026-07-23.md`.
