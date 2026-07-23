@@ -142,12 +142,14 @@ Testtrade, Live und Adoption bleiben gesperrt.
 
 Die Punkte 1 und 2 der vorigen Aktualisierung sind erledigt. Der neue
 restartfähige Origin-Controller ist in Commit
-`d4ce888a27eaacc57f0a0200e355426688c780e0` implementiert.
+`d4ce888a27eaacc57f0a0200e355426688c780e0` implementiert; die reale
+Origin-/Fold-Zeitfensterbindung ist in
+`bf9587170ab64073190529039619ec11c7dc1313` korrigiert.
 
 Nächste zulässige Reihenfolge:
 
 1. neuen Task-33-Preflight für die Pipelinegeneration
-   `protocol_v3_pipeline_sha256:bd9731059e4808ea66e688628c1972eafe5f7d2fcf2d7f28f388f27e613de038`
+   `protocol_v3_pipeline_sha256:ed966a90c73750a6316d011f239e713d0dcd00669520166bbae8f37275285ebf`
    erzeugen;
 2. Origin 1 unter dieser Generation mit
    `scripts/run_protocol_v3_production_origin_work_unit.py` ausführen;

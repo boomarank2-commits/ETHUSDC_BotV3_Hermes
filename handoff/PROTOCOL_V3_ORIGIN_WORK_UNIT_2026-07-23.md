@@ -68,8 +68,10 @@ erteilt keine Task-33-, Paper-, Testtrade-, Live- oder Adoption-Freigabe.
 
 - technischer Commit:
   `d4ce888a27eaacc57f0a0200e355426688c780e0`
+- reale Einstiegspunkt-Korrektur:
+  `bf9587170ab64073190529039619ec11c7dc1313`
 - Pipelinegeneration:
-  `protocol_v3_pipeline_sha256:bd9731059e4808ea66e688628c1972eafe5f7d2fcf2d7f28f388f27e613de038`
+  `protocol_v3_pipeline_sha256:ed966a90c73750a6316d011f239e713d0dcd00669520166bbae8f37275285ebf`
 - vollständige lokale Suite: `1.377/1.377` grün
 - direkt betroffene Suite: `24/24` grün
 - Scoped Ruff, Compile und `git diff --check`: grün
@@ -84,8 +86,8 @@ noch nicht real ausgewertet. Die bisherigen Origin-1-Artefakte gehören zu
 
 ## Exakt nächster Schritt
 
-1. Einen neuen create-only Task-33-Preflight für Commit `d4ce888` und die neue
-   Pipelinegeneration erzeugen.
+1. Einen neuen create-only Task-33-Preflight für den aktuellen Git-Head und die
+   neue Pipelinegeneration erzeugen.
 2. Origin 1 mit dem neuen restartfähigen CLI über alle acht Cycles ausführen.
 3. Den Cross-Cycle-Origin-Report lesen und den belegten Abstand zu
    `3 USDC/Tag` sowie alle Gate-Ablehnungen diagnostizieren.

@@ -200,14 +200,15 @@ transaktionaler Task-13-Origin-Work-Unit. Bericht:
 ## Restartfähiger Origin-Work-Unit vom 2026-07-23
 
 Der vollständige Task-13-Origin-Work-Unit ist in Commit
-`d4ce888a27eaacc57f0a0200e355426688c780e0` implementiert. Acht Cycle-Slots,
+`d4ce888a27eaacc57f0a0200e355426688c780e0` implementiert und am realen
+Einstiegspunkt in `bf9587170ab64073190529039619ec11c7dc1313` korrigiert. Acht Cycle-Slots,
 vollständige Task-15-Entscheidungen, create-only Artefakte und Intents,
 committed Checkpoints, Crash-Recovery und die finale Cross-Cycle-Auswahl sind
 an Code, Pipeline, Kontext, Fold und den exakten permanenten Ledger-Head
 gebunden.
 
 Pipelinegeneration:
-`protocol_v3_pipeline_sha256:bd9731059e4808ea66e688628c1972eafe5f7d2fcf2d7f28f388f27e613de038`.
+`protocol_v3_pipeline_sha256:ed966a90c73750a6316d011f239e713d0dcd00669520166bbae8f37275285ebf`.
 
 Die vollständigen Task-15-Entscheidungen werden deterministisch komprimiert,
 vollständig validiert und für Task 23 wiederherstellbar gespeichert. Damit
