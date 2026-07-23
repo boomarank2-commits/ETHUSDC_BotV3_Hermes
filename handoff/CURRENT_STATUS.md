@@ -88,6 +88,7 @@ aktuellen UI-Evidence-Pipeline. Status:
 - technischer Commit:
   `58290b6870a9272d25d8641b12dd5dc0df165f7e`
 - vollständige Suite: 1.347/1.347 grün
+- GitHub Review CI: Run `29987377105` vollständig grün
 - voller Research-Lauf: nicht gestartet
 - Ergebnisfelder: vollständig `null`
 - Release: `NO_TRADE`; Botstart: gesperrt

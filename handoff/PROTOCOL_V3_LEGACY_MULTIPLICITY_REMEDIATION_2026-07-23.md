@@ -48,6 +48,7 @@ blockiert weiterhin `INSUFFICIENT_TRIAL_HISTORY`.
 - 102 zusammenhängende Trial-Ledger-/Matrix-/PBO-/DSR-/Selection-/
   Task-33-/Pipeline-Vertragstests: grün.
 - Vollständige Suite: 1.347/1.347 Tests grün, Laufzeit 734,1 Sekunden.
+- GitHub Review CI: Run `29987377105` vollständig grün.
 - Ruff für alle geänderten Python-Dateien: grün.
 - Adversarial Tests belegen:
   - anderes Origin-Raster zählt für `N_raw`, nicht für Same-Grid-Statistik;

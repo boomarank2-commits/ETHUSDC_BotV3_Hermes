@@ -50,4 +50,4 @@ Die Remediation muss in dieser Reihenfolge erfolgen:
 - technischer Multiplicity-Commit: `58290b6870a9272d25d8641b12dd5dc0df165f7e`
 - aktueller Status: `BLOCKED_MISSING_FROZEN_RUNTIME_INPUTS`
 - einziger Blocker: `MISSING_PRODUCTION_OUTER_ORIGIN_ADAPTER`
-- technische GitHub-CI: nach Push abzuwarten
+- technische GitHub-CI: Run `29987377105`, grün
