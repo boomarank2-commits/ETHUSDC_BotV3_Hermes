@@ -246,6 +246,17 @@ DSR bindet permanenten Trial-Count, Autokorrelation, Schiefe und Kurtosis; unvol
 
 **Bericht:** `handoff/PROTOCOL_V3_TASK_18_2026-07-19.md`
 
+**Vertragsremediation vom 2026-07-23:** Die ausdrücklich freigegebene
+Generation `protocol_v3_conservative_legacy_multiplicity_floor_v1` ersetzt für
+die Multiple-Testing-Strafe die nicht mehr rekonstruierbare exakte
+Legacy-Identität durch eine konservative Untergrenze von 180 beobachteten
+Auswertungszeilen. Es werden keine Identitäten, Seeds, PnL-Werte oder
+Tagesreihen erfunden. `N_raw` ist 180 plus alle vollständigen nativen
+unabhängigen Trials. Nur vollständige native Trials desselben kausalen
+360-Tage-Rasters liefern Sharpe-Streuung und Korrelation; andere Origins
+erhöhen ausschließlich `N_raw`. Der Floor allein kann keinen Kandidaten
+freigeben.
+
 ### Aufgabe 19 – Kausalen Multi-Timeframe-Feature-Store bauen
 
 **Status:** `DONE_100`
@@ -506,6 +517,17 @@ Der reale Pflicht-Preflight auditierte den vollständigen Drei-Markt-Datenbestan
 **Startnachweis:** `handoff/PROTOCOL_V3_TASK_33_IN_PROGRESS_2026-07-22.md`
 
 **Abschlussbericht:** `handoff/PROTOCOL_V3_TASK_33_2026-07-22.md`
+
+### Nachgelagerte Vertragsremediation – konservative Legacy-Multiplicity
+
+Nach Task 33 wurde mit ausdrücklicher Nutzerfreigabe eine neue,
+pipelinegebundene Vertragsgeneration eingeführt. Bei exakt passendem
+kanonischem Ledger entfällt dadurch nur der irreparable
+History-Preflight-Blocker. Der Produktionsadapter bleibt weiterhin Pflicht,
+alle Ergebnisfelder bleiben bis zum echten Lauf leer, und `NO_TRADE` bleibt
+aktiv.
+
+**Bericht:** `handoff/PROTOCOL_V3_LEGACY_MULTIPLICITY_REMEDIATION_2026-07-23.md`
 
 ## Fortschrittsführung
 

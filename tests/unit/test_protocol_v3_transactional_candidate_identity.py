@@ -66,7 +66,7 @@ def _production_decision(state, monkeypatch: pytest.MonkeyPatch):
     candidate_ids = [row.canonical_candidate_id for row in rows]
     daily_series = [
         dsr_support._values(1.00, 0.0),
-        dsr_support._values(0.50, 1.3),
+        dsr_support._values(0.99, 0.0),
     ]
     profiles = []
     for candidate_id, values in zip(candidate_ids, daily_series, strict=True):
@@ -109,6 +109,10 @@ def _production_decision(state, monkeypatch: pytest.MonkeyPatch):
         dsr_evidence,
         cycle_index=1,
         trial_ledger=snapshot,
+    )
+    assert all(
+        evidence.to_dict()["n_raw"] == 182
+        for evidence in dsr_evidence.values()
     )
     config = inner_selection.build_frozen_selection_config(
         pre_run_manifest=state["manifest"],

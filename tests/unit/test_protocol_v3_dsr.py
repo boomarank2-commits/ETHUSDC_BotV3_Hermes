@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 import importlib.util
 import json
 import math
@@ -61,7 +61,9 @@ def _complete_snapshot(state, matrix):
         resolved_trial_count=len(trials),
         native_trial_count=len(trials),
         historical_resolved_trial_count=0,
+        known_observed_historical_evaluation_rows=180,
         historical_trial_count_is_lower_bound=False,
+        canonical_historical_import_present=True,
         missing_daily_series_trial_ids=(),
         permanent_trial_count_lower_bound=len(trials),
         development_dsr_status=DEVELOPMENT_DSR_READY,
@@ -145,7 +147,11 @@ def test_complete_inventory_reproduces_exact_dsr_and_diagnostics(state, monkeypa
     assert payload["state"] == dsr.COMPLETE
     assert payload["n"] == 360
     assert payload["lag_count"] == 5
-    assert payload["n_raw"] == snapshot.status.resolved_trial_count == 2
+    assert payload["complete_native_trial_count"] == snapshot.status.native_trial_count == 2
+    assert payload["same_grid_native_trial_count"] == 2
+    assert payload["n_raw"] == 182
+    assert payload["legacy_multiplicity_floor"] == 180
+    assert payload["legacy_daily_series_used"] is False
     assert payload["n_eff_trials"] <= payload["n_raw"]
     assert 0.0 <= payload["development_dsr"] <= 1.0
     assert payload["passed_minimum_dsr"] == (payload["development_dsr"] >= 0.95)
@@ -164,10 +170,87 @@ def test_complete_inventory_reproduces_exact_dsr_and_diagnostics(state, monkeypa
     assert payload["skew"] == pytest.approx(-0.006542110704607639)
     assert payload["pearson_kurtosis"] == pytest.approx(1.6623697577699468)
     assert payload["sigma_sr"] == pytest.approx(0.8278556501279813)
-    assert payload["sr0"] == pytest.approx(0.4302823984469038)
+    assert payload["sr0"] == pytest.approx(2.2638123917557365)
     assert payload["denominator"] == pytest.approx(1.582361273555969)
-    assert payload["z"] == pytest.approx(8.908722220041817)
-    assert payload["development_dsr"] == 1.0
+    assert payload["z"] == pytest.approx(-2.550880060221503)
+    assert payload["development_dsr"] == pytest.approx(0.005372564844706884)
+    assert payload["passed_minimum_dsr"] is False
+
+
+def test_cross_origin_native_trial_counts_for_multiplicity_but_not_same_grid_stats(
+    state, monkeypatch
+) -> None:
+    _, _, matrix, pbo_evidence = _matrix_and_pbo(state)
+    snapshot = _complete_snapshot(state, matrix)
+    trials = deepcopy(snapshot.trials)
+    source_trial = deepcopy(next(iter(trials.values())))
+    shifted_start = date(2024, 1, 1)
+    source_trial["daily_net_mtm_usdc"] = [
+        {
+            "day": (shifted_start + timedelta(days=index)).isoformat(),
+            "net_usdc": value,
+        }
+        for index, value in enumerate(_values(0.11, 0.7))
+    ]
+    trials["cross-origin-native-trial"] = source_trial
+    expanded = replace(
+        snapshot,
+        trials=trials,
+        status=replace(
+            snapshot.status,
+            resolved_trial_count=3,
+            native_trial_count=3,
+            permanent_trial_count_lower_bound=3,
+        ),
+    )
+    monkeypatch.setattr(dsr, "_current_ledger", lambda value: expanded)
+    profile = matrix.to_dict()["cycles"][0]["profiles"][0]
+
+    payload = dsr.calculate_dsr(
+        pbo_evidence=pbo_evidence,
+        selected_profile_id=profile["profile_id"],
+        trial_ledger=expanded,
+    ).to_dict()
+
+    assert payload["state"] == dsr.COMPLETE
+    assert payload["n_raw"] == 183
+    assert payload["complete_native_trial_count"] == 3
+    assert payload["same_grid_native_trial_count"] == 2
+    assert len(payload["trial_rows"]) == 2
+    assert dsr.validate_dsr_evidence(payload).to_dict() == payload
+
+
+def test_noncontiguous_native_trial_grid_is_typed_incomplete_evidence(
+    state, monkeypatch
+) -> None:
+    _, _, matrix, pbo_evidence = _matrix_and_pbo(state)
+    snapshot = _complete_snapshot(state, matrix)
+    trials = deepcopy(snapshot.trials)
+    trial_id = next(iter(trials))
+    daily = list(
+        trials[trial_id].get("daily_net_mtm_usdc")
+        or snapshot.attached_daily_series[trial_id]
+    )
+    daily[-1] = {
+        **daily[-1],
+        "day": (
+            date.fromisoformat(daily[-1]["day"]) + timedelta(days=1)
+        ).isoformat(),
+    }
+    trials[trial_id]["daily_net_mtm_usdc"] = daily
+    broken = replace(snapshot, trials=trials, attached_daily_series={})
+    monkeypatch.setattr(dsr, "_current_ledger", lambda value: broken)
+    profile = matrix.to_dict()["cycles"][0]["profiles"][0]
+
+    payload = dsr.calculate_dsr(
+        pbo_evidence=pbo_evidence,
+        selected_profile_id=profile["profile_id"],
+        trial_ledger=broken,
+    ).to_dict()
+
+    assert payload["state"] == dsr.INSUFFICIENT_EVIDENCE
+    assert payload["reason"] == "native_trial_daily_grid_is_not_contiguous"
+    assert payload["development_dsr"] is None
 
 
 def test_invalid_statistics_are_typed_and_tampering_is_rejected(state, monkeypatch) -> None:

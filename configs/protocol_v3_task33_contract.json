@@ -1,7 +1,7 @@
 {
   "schema_version": "protocol_v3_task33_contract_v1",
   "protocol_version": "3.0.0",
-  "contract_version": "protocol_v3_real_research_preflight_and_blocker_report_v1",
+  "contract_version": "protocol_v3_real_research_preflight_with_legacy_floor_v2",
   "allowed_statuses": [
     "READY_FOR_FULL_RESEARCH_RUN",
     "BLOCKED_INSUFFICIENT_TRIAL_HISTORY",
@@ -12,6 +12,7 @@
     "horizon_policy",
     "production_outer_origin_adapter"
   ],
+  "required_legacy_multiplicity_policy": "protocol_v3_conservative_legacy_multiplicity_floor_v1",
   "required_result_fields": [
     "tested_candidates",
     "valid_candidates",

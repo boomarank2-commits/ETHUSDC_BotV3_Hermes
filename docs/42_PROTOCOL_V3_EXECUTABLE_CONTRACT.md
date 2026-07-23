@@ -85,6 +85,17 @@ Eine Aenderung an Featuredefinitionen, Kandidatenfamilien, Suchraum, Ranking, Ga
 
 Der permanente Trial-Zaehler wird niemals durch eine neue Generation zurueckgesetzt. Bereits sichtbare Forward-Monate duerfen niemals nachtraeglich in ein `sealed_final_holdout` aufgenommen werden.
 
+Die ausdruecklich freigegebene Vertragsgeneration
+`protocol_v3_conservative_legacy_multiplicity_floor_v1` behandelt die 180
+beobachteten Legacy-Auswertungszeilen ausschliesslich als konservative
+Untergrenze fuer die Multiple-Testing-Strafe. Sie behauptet weder rekonstruierte
+Trial-Identitaeten noch Seeds, PnL, Rankings, Gate-Ergebnisse oder Tagesreihen.
+Fuer DSR gilt `N_raw = 180 + vollstaendige native unabhaengige Trials`.
+Streuung und Korrelation duerfen nur vollstaendige native Trials auf demselben
+kausalen 360-Tage-Raster verwenden; vollstaendige native Trials anderer Origins
+erhoehen `N_raw`, werden aber nicht in diese Rasterstatistiken gemischt. Der
+Legacy-Floor allein kann niemals einen Kandidaten freigeben.
+
 ## 7. Fail-closed-Vertrag
 
 Protocol v3 blockiert, wenn:

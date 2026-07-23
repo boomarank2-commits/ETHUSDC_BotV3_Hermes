@@ -11,6 +11,12 @@ from pathlib import Path
 import re
 from typing import Any, Final
 
+from .legacy_multiplicity import (
+    CONTRACT_VERSION as LEGACY_MULTIPLICITY_CONTRACT_VERSION,
+    LegacyMultiplicityError,
+    load_legacy_multiplicity_policy,
+    validate_ledger_status_for_legacy_floor,
+)
 from .production_runtime import (
     ProductionRuntimeError,
     build_task33_runtime_inputs,
@@ -19,8 +25,8 @@ from .production_runtime import (
 PROTOCOL_VERSION: Final = "3.0.0"
 CONTRACT_PATH: Final = Path("configs/protocol_v3_task33_contract.json")
 CONTRACT_SCHEMA_VERSION: Final = "protocol_v3_task33_contract_v1"
-CONTRACT_VERSION: Final = "protocol_v3_real_research_preflight_and_blocker_report_v1"
-REPORT_SCHEMA_VERSION: Final = "protocol_v3_task33_preflight_report_v1"
+CONTRACT_VERSION: Final = "protocol_v3_real_research_preflight_with_legacy_floor_v2"
+REPORT_SCHEMA_VERSION: Final = "protocol_v3_task33_preflight_report_v2"
 READY = "READY_FOR_FULL_RESEARCH_RUN"
 BLOCKED_HISTORY = "BLOCKED_INSUFFICIENT_TRIAL_HISTORY"
 BLOCKED_INPUTS = "BLOCKED_MISSING_FROZEN_RUNTIME_INPUTS"
@@ -101,7 +107,13 @@ def build_task33_preflight_report(
     _require_digest(ledger.get("head_sha256"), "trial-ledger head")
 
     missing = _missing_runtime_inputs(inputs, repo_root=repo_root)
-    history_blocked = (
+    legacy_policy = load_legacy_multiplicity_policy(repo_root)
+    try:
+        validate_ledger_status_for_legacy_floor(ledger, legacy_policy)
+        legacy_floor_covers_history = True
+    except LegacyMultiplicityError:
+        legacy_floor_covers_history = False
+    history_blocked = not legacy_floor_covers_history and (
         ledger.get("development_dsr_status") == "INSUFFICIENT_TRIAL_HISTORY"
         or ledger.get("only_release_decision_allowed") == "NO_TRADE"
         or ledger.get("historical_trial_count_is_lower_bound") is True
@@ -130,6 +142,7 @@ def build_task33_preflight_report(
         "data": data,
         "exchange_info": exchange,
         "trial_ledger": ledger,
+        "legacy_multiplicity_policy": legacy_policy.to_dict(),
         "runtime_inputs": inputs,
         "research_execution": {
             "full_research_run_started": False,
@@ -168,7 +181,8 @@ def validate_task33_preflight_report(
     required = {
         "schema_version", "protocol_version", "contract_version", "run_id",
         "created_at_utc", "status", "code_commit", "pipeline_generation_id",
-        "data", "exchange_info", "trial_ledger", "runtime_inputs",
+        "data", "exchange_info", "trial_ledger", "legacy_multiplicity_policy",
+        "runtime_inputs",
         "research_execution", "results", "blockers", "release_decision",
         "freshness", "adoption_eligible", "bot_start_allowed", "safety",
     }
@@ -178,6 +192,43 @@ def validate_task33_preflight_report(
         raise Task33PreflightError("Task-33 report version mismatch")
     if payload["status"] not in {READY, BLOCKED_HISTORY, BLOCKED_INPUTS}:
         raise Task33PreflightError("Task-33 report status is invalid")
+    policy = load_legacy_multiplicity_policy(Path(__file__).resolve().parents[3])
+    if payload["legacy_multiplicity_policy"] != policy.to_dict():
+        raise Task33PreflightError("Task-33 legacy multiplicity policy is stale")
+    ledger = _mapping(payload["trial_ledger"], "trial_ledger")
+    try:
+        validate_ledger_status_for_legacy_floor(ledger, policy)
+        legacy_floor_covers_history = True
+    except LegacyMultiplicityError:
+        legacy_floor_covers_history = False
+    missing = _missing_runtime_inputs(
+        _mapping(payload["runtime_inputs"], "runtime_inputs"),
+        repo_root=Path(__file__).resolve().parents[3],
+    )
+    history_blocked = not legacy_floor_covers_history and (
+        ledger.get("development_dsr_status") == "INSUFFICIENT_TRIAL_HISTORY"
+        or ledger.get("only_release_decision_allowed") == "NO_TRADE"
+        or ledger.get("historical_trial_count_is_lower_bound") is True
+    )
+    expected_status = (
+        BLOCKED_HISTORY
+        if history_blocked
+        else BLOCKED_INPUTS
+        if missing
+        else READY
+    )
+    expected_blockers = (
+        ["INSUFFICIENT_TRIAL_HISTORY", *missing]
+        if history_blocked
+        else missing
+    )
+    if (
+        payload["status"] != expected_status
+        or payload["blockers"] != expected_blockers
+    ):
+        raise Task33PreflightError(
+            "Task-33 status or blockers differ from exact preflight replay"
+        )
     if payload["safety"] != _SAFETY or payload["release_decision"] != "NO_TRADE" or payload["adoption_eligible"] is not False or payload["bot_start_allowed"] is not False:
         raise Task33PreflightError("Task-33 report safety claim is invalid")
     execution = _mapping(payload["research_execution"], "research_execution")
@@ -252,6 +303,7 @@ def _canonical_contract() -> dict[str, Any]:
         "contract_version": CONTRACT_VERSION,
         "allowed_statuses": [READY, BLOCKED_HISTORY, BLOCKED_INPUTS],
         "required_runtime_inputs": ["active_lookbacks", "horizon_policy", "production_outer_origin_adapter"],
+        "required_legacy_multiplicity_policy": LEGACY_MULTIPLICITY_CONTRACT_VERSION,
         "required_result_fields": list(_RESULT_FIELDS),
         "blocker_precedence": ["INSUFFICIENT_TRIAL_HISTORY", "MISSING_FROZEN_RUNTIME_INPUTS"],
         "blocked_result_policy": {"full_research_run_started": False, "not_executed_metrics_are_null": True, "release_decision": "NO_TRADE", "adoption_eligible": False, "bot_start_allowed": False},

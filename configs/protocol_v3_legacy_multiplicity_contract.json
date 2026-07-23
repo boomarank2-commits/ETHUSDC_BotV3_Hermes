@@ -1,0 +1,29 @@
+{
+  "schema_version": "protocol_v3_legacy_multiplicity_contract_v1",
+  "protocol_version": "3.0.0",
+  "contract_version": "protocol_v3_conservative_legacy_multiplicity_floor_v1",
+  "source_manifest": "configs/protocol_v3_historical_trial_lower_bound.json",
+  "legacy_multiplicity_floor": 180,
+  "policy": {
+    "legacy_observed_rows_treated_as_independent_for_multiplicity_only": true,
+    "legacy_identity_claimed": false,
+    "legacy_daily_series_used": false,
+    "legacy_pnl_used": false,
+    "legacy_rankings_or_gates_used": false,
+    "n_raw_formula": "legacy_multiplicity_floor+complete_native_independent_trials",
+    "sigma_sr_source": "complete_same_grid_native_independent_trial_sharpes_only",
+    "correlation_source": "complete_same_grid_native_independent_daily_series_only",
+    "minimum_complete_native_trials": 2,
+    "cache_reuse_counts_as_trial": false,
+    "historical_lower_bound_may_remain_true": true,
+    "floor_alone_may_release_candidate": false
+  },
+  "safety": {
+    "api_keys": "forbidden",
+    "live": "locked",
+    "orders": "locked",
+    "paper": "locked",
+    "testtrade": "locked",
+    "trading_api": "forbidden"
+  }
+}

@@ -23,7 +23,15 @@ def _kwargs() -> dict[str, object]:
         "pipeline_generation_id": "protocol_v3_pipeline_sha256:" + "b" * 64,
         "data_snapshot": {"snapshot_sha256": "c" * 64, "quality_status": "usable_for_protocol_v3_snapshot"},
         "exchange_info_snapshot": {"snapshot_sha256": "d" * 64, "symbol": "ETHUSDC"},
-        "trial_ledger_status": {"head_sha256": "e" * 64, "development_dsr_status": "INSUFFICIENT_TRIAL_HISTORY", "only_release_decision_allowed": "NO_TRADE", "historical_trial_count_is_lower_bound": True},
+        "trial_ledger_status": {
+            "head_sha256": "e" * 64,
+            "development_dsr_status": "INSUFFICIENT_TRIAL_HISTORY",
+            "only_release_decision_allowed": "NO_TRADE",
+            "historical_trial_count_is_lower_bound": True,
+            "canonical_historical_import_present": True,
+            "known_observed_historical_evaluation_rows": 180,
+            "historical_resolved_trial_count": 0,
+        },
         "runtime_inputs": {"active_lookbacks": [], "horizon_policy": None, "production_outer_origin_adapter": False},
     }
 
@@ -38,11 +46,13 @@ def test_contract_api_and_pipeline_binding_are_exact() -> None:
         assert path in pipeline["source_bindings"]["quality_gates"]
 
 
-def test_incomplete_real_history_blocks_without_fake_results() -> None:
+def test_conservative_floor_removes_only_the_irrecoverable_history_blocker() -> None:
     report = preflight.build_task33_preflight_report(**_kwargs())
     payload = report.to_dict()
-    assert payload["status"] == preflight.BLOCKED_HISTORY
-    assert payload["blockers"][0] == "INSUFFICIENT_TRIAL_HISTORY"
+    assert payload["status"] == preflight.BLOCKED_INPUTS
+    assert "INSUFFICIENT_TRIAL_HISTORY" not in payload["blockers"]
+    assert payload["legacy_multiplicity_policy"]["legacy_multiplicity_floor"] == 180
+    assert payload["legacy_multiplicity_policy"]["legacy_daily_series_used"] is False
     assert payload["research_execution"]["full_research_run_started"] is False
     assert payload["research_execution"]["result_status"] == "not_executed_due_blocker"
     assert all(value is None for value in payload["results"].values())
@@ -51,9 +61,26 @@ def test_incomplete_real_history_blocks_without_fake_results() -> None:
     assert payload["bot_start_allowed"] is False
 
 
+def test_mismatched_legacy_inventory_still_blocks_history_first() -> None:
+    kwargs = _kwargs()
+    kwargs["trial_ledger_status"] = {
+        **kwargs["trial_ledger_status"],
+        "known_observed_historical_evaluation_rows": 179,
+    }
+
+    payload = preflight.build_task33_preflight_report(**kwargs).to_dict()
+
+    assert payload["status"] == preflight.BLOCKED_HISTORY
+    assert payload["blockers"][0] == "INSUFFICIENT_TRIAL_HISTORY"
+
+
 def test_ready_preflight_still_cannot_claim_execution_or_adoption() -> None:
     kwargs = _kwargs()
-    kwargs["trial_ledger_status"] = {"head_sha256": "e" * 64, "development_dsr_status": "READY_FOR_DSR_IMPLEMENTATION", "only_release_decision_allowed": None, "historical_trial_count_is_lower_bound": False}
+    kwargs["trial_ledger_status"] = {
+        **_kwargs()["trial_ledger_status"],
+        "development_dsr_status": "READY_FOR_DSR_IMPLEMENTATION",
+        "only_release_decision_allowed": None,
+    }
     kwargs["runtime_inputs"] = build_task33_runtime_inputs(
         REPO_ROOT, production_outer_origin_adapter=True
     )
@@ -66,10 +93,9 @@ def test_ready_preflight_still_cannot_claim_execution_or_adoption() -> None:
 def test_unfrozen_positive_runtime_values_do_not_clear_preflight() -> None:
     kwargs = _kwargs()
     kwargs["trial_ledger_status"] = {
-        "head_sha256": "e" * 64,
+        **_kwargs()["trial_ledger_status"],
         "development_dsr_status": "READY_FOR_DSR_IMPLEMENTATION",
         "only_release_decision_allowed": None,
-        "historical_trial_count_is_lower_bound": False,
     }
     kwargs["runtime_inputs"] = {
         "active_lookbacks": [{"name": "plausible_but_unbound"}],
@@ -109,4 +135,13 @@ def test_missing_identity_and_rehashed_unsafe_claims_fail_closed() -> None:
     report = preflight.build_task33_preflight_report(**_kwargs()).to_dict()
     report["bot_start_allowed"] = True
     with pytest.raises(preflight.Task33PreflightError, match="safety claim"):
+        preflight.validate_task33_preflight_report(report)
+
+
+def test_rehashed_legacy_status_bypass_is_rejected() -> None:
+    report = preflight.build_task33_preflight_report(**_kwargs()).to_dict()
+    report["status"] = preflight.READY
+    report["blockers"] = []
+
+    with pytest.raises(preflight.Task33PreflightError, match="exact preflight replay"):
         preflight.validate_task33_preflight_report(report)
